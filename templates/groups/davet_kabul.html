@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} grubuna katıl · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Davet</p>
+        <h1>{{ grup.ad }}</h1>
+      </div>
+    </div>
+
+    {% if grup.aciklama %}<p>{{ grup.aciklama }}</p>{% endif %}
+    <p class="solgun">{{ grup.uye_sayisi }} oyuncu bu grupta.</p>
+
+    <div class="kutu kutu-uyari">
+      <p class="kucuk">
+        Katılma isteğin grup yöneticisine gider. Onaylanana kadar maçları,
+        puanları ve sohbeti göremezsin.
+      </p>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form.html" %}
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Katılma isteği gönder</button>
+        <a class="dugme dugme-sessiz" href="{% url 'core:dashboard' %}">Vazgeç</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

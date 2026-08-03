@@ -1,0 +1,4 @@
+{% load allauth %}
+<div class="serit serit-{% if attrs.level == 'error' %}hata{% elif attrs.level == 'warning' %}uyari{% else %}bilgi{% endif %}">
+  {% slot message %}{% endslot %}
+</div>

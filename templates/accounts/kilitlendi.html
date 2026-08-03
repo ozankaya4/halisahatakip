@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block baslik %}Hesap geçici olarak kilitlendi · {{ site_adi }}{% endblock %}
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Güvenlik</p>
+        <h1>Hesap geçici olarak kilitlendi</h1>
+      </div>
+    </div>
+    <div class="kutu kutu-uyari">
+      <p>
+        Arka arkaya çok fazla başarısız giriş denemesi yapıldı. Hesabın
+        kaba kuvvet saldırılarına karşı korunması için giriş bir süreliğine
+        kapatıldı.
+      </p>
+      <p class="kucuk">Yaklaşık 1 saat sonra tekrar deneyebilirsin.</p>
+    </div>
+    <p class="kucuk">
+      Sen değilsen ve bu denemeleri sen yapmadıysan, parolanı değiştirmeni
+      öneririz: <a href="{% url 'account_reset_password' %}">parola sıfırlama</a>.
+    </p>
+  </div>
+{% endblock %}

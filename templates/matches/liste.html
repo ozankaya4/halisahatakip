@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} maçları · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Maç takvimi</h1>
+    </div>
+    {% if yonetici_mi %}
+      <a class="dugme dugme-birincil" href="{% url 'matches:olustur' grup.genel_id %}">Maç ekle</a>
+    {% endif %}
+  </div>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Yaklaşan</h2>
+    </div>
+    {% if yaklasan %}
+      <ul class="cetvel-liste">
+        {% for mac in yaklasan %}
+          <li>
+            <div class="tarih-blogu">
+              <span class="tarih-gun rakam">{{ mac.baslangic|date:"j" }}</span>
+              <span class="tarih-ay">{{ mac.baslangic|date:"M" }}</span>
+            </div>
+            <div class="tarih-detay">
+              <strong><a href="{% url 'matches:detay' mac.pk %}">{{ mac.baslangic|date:"l, H:i" }}</a></strong>
+              <span class="kucuk solgun">{{ mac.konum|default:"Saha belirtilmemiş" }}</span>
+            </div>
+            {% if mac.iptal %}
+              <span class="rozet rozet-kiremit sag">İptal</span>
+            {% elif mac.yoklama_alinabilir %}
+              <span class="rozet rozet-yesil sag">Yoklama açık</span>
+            {% else %}
+              <span class="rozet rozet-sessiz sag">Yoklama kapalı</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="solgun">Planlanmış maç yok.</p>
+    {% endif %}
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Geçmiş</h2>
+    </div>
+    {% if gecmis %}
+      <ul class="cetvel-liste">
+        {% for mac in gecmis %}
+          <li>
+            <div class="tarih-blogu">
+              <span class="tarih-gun rakam">{{ mac.baslangic|date:"j" }}</span>
+              <span class="tarih-ay">{{ mac.baslangic|date:"M" }}</span>
+            </div>
+            <div class="tarih-detay">
+              <strong><a href="{% url 'matches:detay' mac.pk %}">{{ mac.baslangic|date:"j F Y, H:i" }}</a></strong>
+              <span class="kucuk solgun">{{ mac.konum|default:"Saha belirtilmemiş" }}</span>
+            </div>
+            <span class="sag">
+              {% if mac.puanlama_acik %}
+                <a class="dugme dugme-kucuk" href="{% url 'ratings:puanla' mac.pk %}">Puanla</a>
+              {% else %}
+                <a class="kucuk" href="{% url 'ratings:sonuclar' mac.pk %}">Sonuçlar</a>
+              {% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="solgun">Henüz oynanmış maç yok.</p>
+    {% endif %}
+  </section>
+{% endblock %}

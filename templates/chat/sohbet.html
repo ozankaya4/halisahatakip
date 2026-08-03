@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block baslik %}{{ grup.ad }} sohbeti · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Sohbet</h1>
+    </div>
+    <span class="kilit-notu">
+      <span class="kilit-isareti" aria-hidden="true"></span>
+      Uçtan uca şifreli
+    </span>
+  </div>
+
+  <div id="sohbet" data-grup-id="{{ grup.genel_id }}" data-kullanici-id="{{ user.pk }}">
+
+    {# 1. Tarayıcı desteklemiyorsa #}
+    <div class="kutu kutu-uyari" id="ortam-uyarisi" hidden>
+      <p>
+        <strong>Tarayıcın şifrelemeyi desteklemiyor.</strong>
+        Sohbet için HTTPS (ya da localhost) üzerinden, güncel bir tarayıcıyla
+        bağlanman gerekiyor.
+      </p>
+    </div>
+
+    {# 2. Anahtar yok ya da bu tarayıcıda kilitli #}
+    <div id="kilit-bolumu" {% if anahtarim_var %}hidden{% endif %}>
+      {% if anahtarim_var %}
+        <div class="kutu form-dar">
+          <div class="kutu-baslik">
+            <h2>Kilidi aç</h2>
+          </div>
+          <p class="kucuk solgun">
+            Mesajlar tarayıcında çözülüyor. Devam etmek için şifreleme parolanı
+            gir, giriş parolan değil.
+          </p>
+          <form id="kilit-formu">
+            <div class="alan">
+              <label for="id_parola">Şifreleme parolası</label>
+              <input type="password" id="id_parola" name="parola"
+                     autocomplete="current-password" required autofocus>
+            </div>
+            <p class="islem-durumu" hidden></p>
+            <button class="dugme dugme-birincil dugme-genis" type="submit">Kilidi aç</button>
+          </form>
+          <p class="kucuk">
+            <a href="{% url 'chat:anahtar_kurulumu' %}">Parolamı unuttum</a>
+          </p>
+        </div>
+      {% else %}
+        <div class="kutu form-dar">
+          <div class="kutu-baslik">
+            <h2>Önce şifreleme anahtarını oluştur</h2>
+          </div>
+          <p>
+            Grup sohbetleri uçtan uca şifreli. Katılmak için bir kerelik
+            şifreleme parolası belirlemen gerekiyor.
+          </p>
+          <p>
+            <a class="dugme dugme-birincil" href="{% url 'chat:anahtar_kurulumu' %}">
+              Anahtarımı oluştur
+            </a>
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
+    {# 3. Anahtar bekleniyor #}
+    <div id="anahtar-bekleme" hidden>
+      <div class="bos-durum">
+        <p><strong>Sohbet anahtarın hazırlanıyor</strong></p>
+        <p id="bekleme-mesaji">
+          Bu grubun anahtarı henüz senin için hazırlanmamış. Anahtarı açık olan
+          bir grup üyesi sohbeti açtığında otomatik olarak hazırlanacak.
+          Birazdan sayfayı yenilemeyi dene.
+        </p>
+      </div>
+    </div>
+
+    {# 4. Sohbet #}
+    <div id="sohbet-bolumu" hidden>
+      <p class="serit serit-uyari" id="sohbet-bilgi" hidden></p>
+
+      <div class="sohbet-pencere">
+        <ul class="mesaj-akisi" id="mesaj-akisi" aria-live="polite" aria-label="Mesajlar">
+        </ul>
+        <p class="bos-durum" id="akis-bos">Henüz mesaj yok. İlk yazan sen ol.</p>
+
+        <form class="mesaj-alani" id="mesaj-formu">
+          <label class="gizli" for="id_metin">Mesaj</label>
+          <textarea id="id_metin" name="metin" rows="1"
+                    placeholder="Mesaj yaz… (Enter gönderir, Shift+Enter alt satır)"
+                    maxlength="4000"></textarea>
+          <button class="dugme dugme-birincil" type="submit">Gönder</button>
+        </form>
+        <p class="islem-durumu" hidden></p>
+      </div>
+
+      <div class="satir-ayrik">
+        <p class="kucuk solgun">
+          Mesajlar tarayıcında şifrelenir. Sunucu yalnızca şifreli metni saklar.
+        </p>
+        <button class="baglanti-dugme" type="button" id="kilitle-dugmesi">
+          Bu tarayıcıda kilitle
+        </button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block ekstra_js %}
+  <script type="module" src="{% static 'js/sohbet.js' %}"></script>
+{% endblock %}

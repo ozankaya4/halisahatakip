@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} üyeleri · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Üyeler</h1>
+    </div>
+    {% if yonetici_mi %}
+      <a class="dugme dugme-birincil" href="{% url 'groups:davetler' grup.genel_id %}">Davet bağlantısı oluştur</a>
+    {% endif %}
+  </div>
+
+  {% if yonetici_mi and bekleyen_uyelikler %}
+    <section class="kutu kutu-uyari">
+      <div class="kutu-baslik">
+        <h2>Katılma istekleri</h2>
+        <span class="kucuk">Onaylamadan grup içeriğini göremezler</span>
+      </div>
+      <ul class="cetvel-liste">
+        {% for uyelik in bekleyen_uyelikler %}
+          <li>
+            {% include "partials/_oyuncu.html" with kisi=uyelik.kullanici %}
+            {% if uyelik.katilma_notu %}
+              <span class="kucuk solgun">“{{ uyelik.katilma_notu }}”</span>
+            {% endif %}
+            <form class="satir sag" method="post"
+                  action="{% url 'groups:istek_karari' grup.genel_id uyelik.pk %}">
+              {% csrf_token %}
+              <button class="dugme dugme-kucuk dugme-birincil" type="submit" name="karar" value="onayla">Onayla</button>
+              <button class="dugme dugme-kucuk dugme-tehlike" type="submit" name="karar" value="reddet">Reddet</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Kadro</h2>
+      <span class="kucuk solgun">{{ grup.uye_sayisi }} oyuncu</span>
+    </div>
+    <ul class="cetvel-liste">
+      {% for uyelik in onayli_uyelikler %}
+        <li>
+          {% include "partials/_oyuncu.html" with kisi=uyelik.kullanici %}
+
+          {% if uyelik.kullanici_id == grup.kurucu_id %}
+            <span class="rozet rozet-hardal">Kurucu</span>
+          {% elif uyelik.yonetici_mi %}
+            <span class="rozet rozet-yesil">Yönetici</span>
+          {% endif %}
+
+          {% if uyelik.kullanici.profil.ortalama_gosterilsin %}
+            <span class="olcek-yazisi">Ort. {{ uyelik.kullanici.profil.ortalama_puan }}</span>
+          {% endif %}
+
+          {% if yonetici_mi and uyelik.kullanici_id != user.pk %}
+            <span class="satir sag">
+              <form method="post" action="{% url 'groups:rol_degistir' grup.genel_id uyelik.pk %}">
+                {% csrf_token %}
+                {% if uyelik.rol == 'yonetici' %}
+                  <input type="hidden" name="rol" value="uye">
+                  <button class="baglanti-dugme" type="submit">Yöneticiliği al</button>
+                {% else %}
+                  <input type="hidden" name="rol" value="yonetici">
+                  <button class="baglanti-dugme" type="submit">Yönetici yap</button>
+                {% endif %}
+              </form>
+              <form method="post" action="{% url 'groups:uye_cikar' grup.genel_id uyelik.pk %}"
+                    data-onay="{{ uyelik.kullanici.gorunen_ad }} gruptan çıkarılsın mı? Sohbet anahtarı yenilenecek.">
+                {% csrf_token %}
+                <button class="baglanti-dugme" type="submit">Çıkar</button>
+              </form>
+            </span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if benim_uyeligim %}
+    <form method="post" action="{% url 'groups:ayril' grup.genel_id %}"
+          data-onay="“{{ grup.ad }}” grubundan ayrılmak istediğine emin misin?">
+      {% csrf_token %}
+      <button class="dugme dugme-tehlike" type="submit">Gruptan ayrıl</button>
+    </form>
+  {% endif %}
+{% endblock %}

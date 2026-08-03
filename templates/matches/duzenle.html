@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block baslik %}Maçı düzenle · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart"><a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }}</a></p>
+        <h1>Maçı düzenle</h1>
+      </div>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form.html" %}
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Kaydet</button>
+        <a class="dugme dugme-sessiz" href="{% url 'matches:detay' mac.pk %}">Vazgeç</a>
+      </div>
+    </form>
+
+    <hr>
+
+    <form method="post" action="{% url 'matches:sil' mac.pk %}"
+          data-onay="Maç ve tüm fotoğrafları kalıcı olarak silinsin mi?">
+      {% csrf_token %}
+      <button class="dugme dugme-tehlike" type="submit">Maçı sil</button>
+    </form>
+  </div>
+{% endblock %}

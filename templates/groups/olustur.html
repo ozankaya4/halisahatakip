@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block baslik %}Yeni grup · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Yeni defter</p>
+        <h1>Grup kur</h1>
+      </div>
+    </div>
+
+    <p class="solgun">
+      Grubu kuran kişi otomatik olarak yönetici olur. Sonradan başka üyeleri de
+      yönetici yapabilirsin.
+    </p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form.html" %}
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Grubu kur</button>
+        <a class="dugme dugme-sessiz" href="{% url 'groups:liste' %}">Vazgeç</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

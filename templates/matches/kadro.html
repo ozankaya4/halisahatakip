@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block baslik %}Kadroyu işaretle · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }} · {{ mac.baslangic|date:"j F Y" }}</a></p>
+      <h1>Kadroyu işaretle</h1>
+    </div>
+  </div>
+
+  <div class="kutu kutu-uyari">
+    <p class="kucuk">
+      Bu liste puanlama yetkisini belirler: <strong>yalnızca burada işaretli
+      oyuncular</strong> puan verebilir ve puan alabilir. Yoklamada “Geliyorum”
+      diyenler önceden işaretli gelir; sahaya çıkmayanların işaretini kaldır.
+    </p>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Oyuncular</h2>
+      </div>
+      <ul class="cetvel-liste">
+        {% for satir in satirlar %}
+          <li>
+            <label class="onay-satiri">
+              <input type="checkbox" name="oynayan" value="{{ satir.kullanici.pk }}"
+                     {% if satir.isaretli %}checked{% endif %}>
+              <span>{{ satir.kullanici.gorunen_ad }}</span>
+            </label>
+            <span class="rozet rozet-sessiz sag">Yoklama: {{ satir.yanit }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <div class="satir">
+      <button class="dugme dugme-birincil" type="submit">Kadroyu kaydet</button>
+      <a class="dugme dugme-sessiz" href="{% url 'matches:detay' mac.pk %}">Vazgeç</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} davetleri · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Davet bağlantıları</h1>
+    </div>
+  </div>
+
+  {% if yeni_bag %}
+    <section class="kutu kutu-vurgu">
+      <div class="kutu-baslik">
+        <h2>Yeni bağlantın hazır</h2>
+      </div>
+      <p class="kucuk solgun">
+        Bu bağlantı bir daha gösterilemez; veritabanında yalnızca şifreli özeti
+        saklanıyor. Şimdi kopyala.
+      </p>
+      <p class="kod-kutusu" id="yeni-davet-bagi">{{ yeni_bag }}</p>
+      <p>
+        <button class="dugme dugme-kucuk" type="button" data-kopyala="#yeni-davet-bagi">
+          Bağlantıyı kopyala
+        </button>
+      </p>
+    </section>
+  {% endif %}
+
+  <div class="iki-sutun">
+    <div class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Mevcut bağlantılar</h2>
+        </div>
+        {% if davetler %}
+          <div class="tablo-sarmal">
+            <table class="tablo">
+              <thead>
+                <tr>
+                  <th>Etiket</th>
+                  <th>Durum</th>
+                  <th class="sag-hiza">Kullanım</th>
+                  <th>Son kullanma</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for davet in davetler %}
+                  <tr>
+                    <td>{{ davet.etiket|default:"Etiketsiz" }}</td>
+                    <td>
+                      {% if davet.gecerli_mi %}
+                        <span class="rozet rozet-yesil">{{ davet.durum_metni }}</span>
+                      {% else %}
+                        <span class="rozet rozet-sessiz">{{ davet.durum_metni }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="sag-hiza rakam">{{ davet.kullanim_sayisi }}/{{ davet.max_kullanim }}</td>
+                    <td class="kucuk solgun">{{ davet.son_kullanma|date:"j F Y, H:i" }}</td>
+                    <td class="sag-hiza">
+                      {% if not davet.iptal_edildi %}
+                        <form method="post" action="{% url 'groups:davet_iptal' grup.genel_id davet.pk %}"
+                              data-onay="Bu davet bağlantısı iptal edilsin mi?">
+                          {% csrf_token %}
+                          <button class="baglanti-dugme" type="submit">İptal et</button>
+                        </form>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="solgun">Henüz davet bağlantısı oluşturmadın.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Yeni bağlantı</h2>
+        </div>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% include "partials/_form.html" %}
+          <button class="dugme dugme-birincil dugme-genis" type="submit">Bağlantı oluştur</button>
+        </form>
+      </section>
+
+      <div class="kutu">
+        <p class="kucuk solgun">
+          Bağlantıyı kullanan kişi doğrudan üye olmaz: isteği <strong>onay
+          bekliyor</strong> durumuna düşer ve senin onayınla gruba girer.
+          Onaylanana kadar maçları, puanları ve sohbeti göremez.
+        </p>
+      </div>
+    </aside>
+  </div>
+{% endblock %}

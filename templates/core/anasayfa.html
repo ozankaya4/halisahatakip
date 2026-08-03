@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block baslik %}Halısaha Defteri{% endblock %}
+
+{% block icerik %}
+  <div class="iki-sutun">
+    <div class="yigin">
+      <div>
+        <p class="uststart">Kendi grubun için</p>
+        <h1>Halısaha'nı Takip Et</h1>
+      </div>
+
+      <div class="satir">
+        <a class="dugme dugme-birincil" href="{% url 'account_signup' %}">Hesap oluştur</a>
+        <a class="dugme" href="{% url 'account_login' %}">Giriş yap</a>
+      </div>
+    </div>
+
+    <aside class="yigin">
+      <div class="kutu kutu-vurgu">
+        <div class="kutu-baslik">
+          <h2>Nasıl kullanırsın?</h2>
+        </div>
+        <ul class="cetvel-liste">
+          <li>
+            <div class="tarih-blogu"><span class="tarih-gun">1</span></div>
+            <div class="tarih-detay">
+              <strong>Grubunu kur</strong>
+              <span class="kucuk solgun">Kuran kişi yönetici olur.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tarih-blogu"><span class="tarih-gun">2</span></div>
+            <div class="tarih-detay">
+              <strong>Davet bağlantısı gönder</strong>
+              <span class="kucuk solgun">Katılmak isteyeni sen onaylarsın.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tarih-blogu"><span class="tarih-gun">3</span></div>
+            <div class="tarih-detay">
+              <strong>Maç ekle ve yoklama al</strong>
+              <span class="kucuk solgun">Kim geliyor anında görünsün.</span>
+            </div>
+          </li>
+          <li>
+            <div class="tarih-blogu"><span class="tarih-gun">4</span></div>
+            <div class="tarih-detay">
+              <strong>Maçtan sonra puanla</strong>
+              <span class="kucuk solgun">Puanlar gizli, ortalamalar açık.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="kutu">
+        <p class="kilit-notu">
+          <span class="kilit-isareti" aria-hidden="true"></span>
+          <strong>Sohbetler uçtan uca şifreli</strong>
+        </p>
+        <p class="kucuk solgun">
+          Grup mesajları tarayıcında şifrelenir. Sunucu ve sunucuyu işleten
+          kişi, mesajların içeriğini okuyamaz.
+        </p>
+      </div>
+    </aside>
+  </div>
+{% endblock %}

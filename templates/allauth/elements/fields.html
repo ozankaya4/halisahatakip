@@ -1,0 +1,5 @@
+{% comment %}
+allauth'un varsayılanı form.as_p kullanıyor; bu, defterin alan yerleşimini
+tamamen atlayıp çıplak HTML üretiyor. Kendi form kısmımızı kullanıyoruz.
+{% endcomment %}
+{% include "partials/_form.html" with form=attrs.form %}

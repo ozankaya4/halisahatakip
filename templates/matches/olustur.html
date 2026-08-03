@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block baslik %}Maç ekle · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+        <h1>Maç ekle</h1>
+      </div>
+    </div>
+
+    <p class="solgun">
+      Tarih ve saat zorunlu; saha adı isteğe bağlı. Yoklamayı açık bırakırsan
+      gruba bildirim gider ve herkes “Geliyorum / Yokum / Belki” diyebilir.
+    </p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form.html" %}
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Maçı ekle</button>
+        <a class="dugme dugme-sessiz" href="{% url 'matches:liste' grup.genel_id %}">Vazgeç</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

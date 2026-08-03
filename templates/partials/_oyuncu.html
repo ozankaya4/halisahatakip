@@ -1,0 +1,12 @@
+{# Oyuncu satırı: avatar + ad. `kisi` bağlamda User olmalı. #}
+<a class="oyuncu" href="{% url 'accounts:profil' kisi.pk %}">
+  {% if kisi.profil.avatar_url %}
+    <img class="avatar" src="{{ kisi.profil.avatar_url }}" alt="" width="40" height="40" loading="lazy">
+  {% else %}
+    <span class="avatar avatar-bos" aria-hidden="true">{{ kisi.bas_harfler }}</span>
+  {% endif %}
+  <span>
+    <span class="oyuncu-ad">{{ kisi.gorunen_ad }}</span>
+    {% if alt_yazi %}<span class="oyuncu-alt">{{ alt_yazi }}</span>{% endif %}
+  </span>
+</a>

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Grup</p>
+      <h1>{{ grup.ad }}</h1>
+      {% if grup.aciklama %}<p>{{ grup.aciklama }}</p>{% endif %}
+    </div>
+    <div class="satir">
+      <a class="dugme" href="{% url 'chat:sohbet' grup.genel_id %}">Sohbet</a>
+      {% if yonetici_mi %}
+        <a class="dugme dugme-birincil" href="{% url 'matches:olustur' grup.genel_id %}">Maç ekle</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if yonetici_mi and bekleyen_sayisi %}
+    <div class="serit serit-uyari">
+      <strong>{{ bekleyen_sayisi }} kişi</strong> gruba katılmak için onayını bekliyor.
+      <a href="{% url 'groups:uyeler' grup.genel_id %}">Üyeler sayfasına git</a>.
+    </div>
+  {% endif %}
+
+  <div class="iki-sutun">
+    <div class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Yaklaşan maçlar</h2>
+          <a class="kucuk" href="{% url 'matches:liste' grup.genel_id %}">Tümü</a>
+        </div>
+        {% if yaklasan_maclar %}
+          <ul class="cetvel-liste">
+            {% for mac in yaklasan_maclar %}
+              <li>
+                <div class="tarih-blogu">
+                  <span class="tarih-gun rakam">{{ mac.baslangic|date:"j" }}</span>
+                  <span class="tarih-ay">{{ mac.baslangic|date:"M" }}</span>
+                </div>
+                <div class="tarih-detay">
+                  <strong><a href="{% url 'matches:detay' mac.pk %}">{{ mac.baslangic|date:"l, H:i" }}</a></strong>
+                  <span class="kucuk solgun">{{ mac.konum|default:"Saha belirtilmemiş" }}</span>
+                </div>
+                {% if mac.iptal %}
+                  <span class="rozet rozet-kiremit sag">İptal</span>
+                {% elif mac.yoklama_alinabilir %}
+                  <span class="rozet rozet-yesil sag">Yoklama açık</span>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="solgun">Planlanmış maç yok.</p>
+        {% endif %}
+      </section>
+
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Geçmiş maçlar</h2>
+        </div>
+        {% if gecmis_maclar %}
+          <ul class="cetvel-liste">
+            {% for mac in gecmis_maclar %}
+              <li>
+                <div class="tarih-blogu">
+                  <span class="tarih-gun rakam">{{ mac.baslangic|date:"j" }}</span>
+                  <span class="tarih-ay">{{ mac.baslangic|date:"M" }}</span>
+                </div>
+                <div class="tarih-detay">
+                  <strong><a href="{% url 'matches:detay' mac.pk %}">{{ mac.baslangic|date:"j F Y, H:i" }}</a></strong>
+                  <span class="kucuk solgun">{{ mac.konum|default:"Saha belirtilmemiş" }}</span>
+                </div>
+                {% if mac.puanlama_acik %}
+                  <a class="dugme dugme-kucuk sag" href="{% url 'ratings:puanla' mac.pk %}">Puanla</a>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="solgun">Henüz oynanmış maç yok.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Grup</h2>
+        </div>
+        <ul class="cetvel-liste">
+          <li><a href="{% url 'groups:uyeler' grup.genel_id %}">Üyeler ({{ grup.uye_sayisi }})</a></li>
+          <li><a href="{% url 'matches:liste' grup.genel_id %}">Maç takvimi</a></li>
+          <li><a href="{% url 'ratings:siralama' grup.genel_id %}">Puan sıralaması</a></li>
+          <li><a href="{% url 'chat:sohbet' grup.genel_id %}">Şifreli sohbet</a></li>
+          {% if yonetici_mi %}
+            <li><a href="{% url 'groups:davetler' grup.genel_id %}">Davet bağlantıları</a></li>
+            <li><a href="{% url 'groups:duzenle' grup.genel_id %}">Grubu düzenle</a></li>
+          {% endif %}
+        </ul>
+      </section>
+
+      <section class="kutu kutu-vurgu">
+        <div class="kutu-baslik">
+          <h2>Form durumu</h2>
+          <span class="kucuk solgun">En yüksek ortalamalar</span>
+        </div>
+        {% if en_iyiler %}
+          <ul class="cetvel-liste">
+            {% for uyelik in en_iyiler %}
+              <li>
+                {% include "partials/_oyuncu.html" with kisi=uyelik.kullanici %}
+                <span class="sag">
+                  <span class="puan-degeri rakam">{{ uyelik.kullanici.profil.ortalama_puan }}</span>
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="solgun">Sıralama için yeterli puan birikmedi.</p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+{% endblock %}

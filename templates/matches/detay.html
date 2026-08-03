@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ mac.baslangic|date:"j F Y" }} · {{ grup.ad }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div class="satir">
+      <div class="tarih-blogu">
+        <span class="tarih-gun rakam">{{ mac.baslangic|date:"j" }}</span>
+        <span class="tarih-ay">{{ mac.baslangic|date:"M" }}</span>
+      </div>
+      <div>
+        <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+        <h1>{{ mac.baslangic|date:"l, H:i" }}</h1>
+        <p class="solgun">
+          {{ mac.konum|default:"Saha belirtilmemiş" }} · {{ mac.sure_dakika }} dakika
+        </p>
+      </div>
+    </div>
+    {% if yonetici_mi %}
+      <div class="satir">
+        <a class="dugme dugme-sessiz" href="{% url 'matches:duzenle' mac.pk %}">Düzenle</a>
+        {% if mac.gecmis_mi %}
+          <a class="dugme" href="{% url 'matches:kadro_duzenle' mac.pk %}">Kadroyu işaretle</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  {% if mac.iptal %}
+    <div class="serit serit-hata"><strong>Bu maç iptal edildi.</strong></div>
+  {% endif %}
+  {% if mac.notlar %}
+    <div class="serit">{{ mac.notlar }}</div>
+  {% endif %}
+
+  <div class="iki-sutun">
+    <div class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Yoklama</h2>
+          <span class="kucuk solgun">
+            {% if mac.yoklama_alinabilir %}Açık{% else %}Kapalı{% endif %}
+          </span>
+        </div>
+
+        <div class="yigin-dar">
+          <div class="satir-ayrik">
+            <span class="olcek-yazisi">
+              {{ sayim.geliyorum }} geliyor · {{ sayim.yokum }} yok ·
+              {{ sayim.belki }} belki · {{ sayim.yanitsiz }} yanıtsız
+            </span>
+          </div>
+          <div class="yoklama-cubugu" data-yuzde="{{ geliyorum_yuzde }}"
+               role="img"
+               aria-label="{{ grup.uye_sayisi }} oyuncudan {{ sayim.geliyorum }} tanesi geliyor"></div>
+        </div>
+
+        {% if mac.yoklama_alinabilir and not mac.iptal %}
+          <form class="satir" method="post" action="{% url 'matches:yoklama_oyu' mac.pk %}">
+            {% csrf_token %}
+            <button class="dugme {% if benim_katilimim.yanit == 'geliyorum' %}dugme-birincil{% endif %}"
+                    type="submit" name="yanit" value="geliyorum">Geliyorum</button>
+            <button class="dugme {% if benim_katilimim.yanit == 'yokum' %}dugme-birincil{% endif %}"
+                    type="submit" name="yanit" value="yokum">Yokum</button>
+            <button class="dugme {% if benim_katilimim.yanit == 'belki' %}dugme-birincil{% endif %}"
+                    type="submit" name="yanit" value="belki">Belki</button>
+          </form>
+        {% endif %}
+
+        <ul class="cetvel-liste">
+          {% for satir in satirlar %}
+            <li>
+              {% include "partials/_oyuncu.html" with kisi=satir.kullanici %}
+              <span class="sag">
+                {% if satir.katilim.yanit == 'geliyorum' %}
+                  <span class="rozet rozet-yesil">Geliyor</span>
+                {% elif satir.katilim.yanit == 'yokum' %}
+                  <span class="rozet rozet-kiremit">Yok</span>
+                {% elif satir.katilim.yanit == 'belki' %}
+                  <span class="rozet rozet-hardal">Belki</span>
+                {% else %}
+                  <span class="rozet rozet-sessiz">Yanıt yok</span>
+                {% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Maçtan kareler</h2>
+          <span class="kucuk solgun">{{ fotograflar|length }} / {{ foto_siniri }}</span>
+        </div>
+
+        {% if fotograflar %}
+          <ul class="foto-izgara">
+            {% for foto in fotograflar %}
+              <li>
+                <img src="{{ foto.url }}" alt="{{ foto.aciklama|default:'Maç fotoğrafı' }}" loading="lazy">
+                {% if yonetici_mi or foto.yukleyen_id == user.pk %}
+                  <form class="foto-sil" method="post"
+                        action="{% url 'matches:fotograf_sil' foto.pk %}"
+                        data-onay="Bu fotoğraf silinsin mi?">
+                    {% csrf_token %}
+                    <button class="dugme dugme-kucuk dugme-tehlike" type="submit">Sil</button>
+                  </form>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="solgun">Henüz fotoğraf yüklenmemiş.</p>
+        {% endif %}
+
+        {% if yonetici_mi %}
+          <hr>
+          <form method="post" action="{% url 'matches:fotograf_yukle' mac.pk %}"
+                enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            {% include "partials/_form.html" with form=foto_formu %}
+            <p class="alan-yardim">
+              Yüklenen görseller sunucuda yeniden kodlanır: konum bilgisi dâhil
+              tüm EXIF verisi silinir ve yalnızca grup üyeleri görebilir.
+            </p>
+            <button class="dugme dugme-birincil" type="submit">Fotoğrafları yükle</button>
+          </form>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu kutu-vurgu">
+        <div class="kutu-baslik">
+          <h2>Puanlama</h2>
+        </div>
+        <p class="solgun">{{ mac.puanlama_durumu }}</p>
+        {% if mac.puanlama_acik %}
+          <p class="kucuk solgun">
+            Puanlama {{ mac.puanlama_bitis|date:"j F Y, H:i" }} tarihinde kapanır.
+          </p>
+          {% if puanlayabilir %}
+            <p><a class="dugme dugme-birincil dugme-genis" href="{% url 'ratings:puanla' mac.pk %}">Oyuncuları puanla</a></p>
+          {% else %}
+            <p class="kucuk">
+              Bu maçta kadroda görünmediğin için puan veremezsin.
+            </p>
+          {% endif %}
+        {% endif %}
+        <p class="kucuk"><a href="{% url 'ratings:sonuclar' mac.pk %}">Sonuçları gör</a></p>
+      </section>
+
+      {% if yonetici_mi %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>Yönetim</h2>
+          </div>
+          <div class="yigin-dar">
+            <form method="post" action="{% url 'matches:yoklama_durumu' mac.pk %}">
+              {% csrf_token %}
+              <button class="dugme dugme-genis" type="submit">
+                {% if mac.yoklama_acik %}Yoklamayı kapat{% else %}Yoklamayı aç{% endif %}
+              </button>
+            </form>
+            <form method="post" action="{% url 'matches:iptal_durumu' mac.pk %}">
+              {% csrf_token %}
+              <button class="dugme dugme-genis {% if not mac.iptal %}dugme-tehlike{% endif %}" type="submit">
+                {% if mac.iptal %}İptali geri al{% else %}Maçı iptal et{% endif %}
+              </button>
+            </form>
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

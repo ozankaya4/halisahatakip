@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block baslik %}Oyuncuları puanla · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }} · {{ mac.baslangic|date:"j F Y" }}</a></p>
+      <h1>Oyuncuları puanla</h1>
+    </div>
+    <p class="kucuk solgun">
+      Puanlama kapanmasına
+      {% if kalan_gun %}{{ kalan_gun }} gün{% else %}{{ kalan_saat }} saat{% endif %} kaldı
+    </p>
+  </div>
+
+  <div class="kutu kutu-vurgu">
+    <p class="kucuk">
+      Verdiğin puanlar <strong>gizlidir</strong>. Kimin kime kaç verdiği
+      hiçbir yerde gösterilmez, yalnızca ortalamalar açıktır. Kendine puan
+      veremezsin. Puan vermek istemediğin oyuncuyu boş bırakabilirsin.
+    </p>
+  </div>
+
+  {% if satirlar %}
+    <form method="post">
+      {% csrf_token %}
+      <section class="kutu">
+        <ul class="cetvel-liste">
+          {% for satir in satirlar %}
+            <li>
+              {% include "partials/_oyuncu.html" with kisi=satir.kullanici %}
+              <fieldset class="puan-secim sag">
+                <legend class="gizli">{{ satir.kullanici.gorunen_ad }} için puan</legend>
+                {% for deger in satir.araliklar %}
+                  <input type="radio"
+                         id="puan-{{ satir.kullanici.pk }}-{{ deger }}"
+                         name="puan_{{ satir.kullanici.pk }}"
+                         value="{{ deger }}"
+                         {% if satir.mevcut == deger %}checked{% endif %}>
+                  <label for="puan-{{ satir.kullanici.pk }}-{{ deger }}">{{ deger }}</label>
+                {% endfor %}
+              </fieldset>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">
+          {% if zaten_puanladi %}Puanları güncelle{% else %}Puanları kaydet{% endif %}
+        </button>
+        <a class="dugme dugme-sessiz" href="{% url 'matches:detay' mac.pk %}">Vazgeç</a>
+      </div>
+    </form>
+  {% else %}
+    <div class="bos-durum">
+      <p><strong>Puanlanacak oyuncu yok.</strong></p>
+      <p>Bu maçın kadrosunda senden başka işaretli oyuncu bulunmuyor.</p>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} sıralaması · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Puan sıralaması</h1>
+    </div>
+  </div>
+
+  {% if listelenen %}
+    <section class="kutu">
+      <div class="tablo-sarmal">
+        <table class="tablo">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Oyuncu</th>
+              <th class="sag-hiza">Ortalama</th>
+              <th>Ölçek</th>
+              <th class="sag-hiza">Oy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for satir in listelenen %}
+              <tr>
+                <td class="sira rakam">{{ forloop.counter }}</td>
+                <td><a href="{% url 'accounts:profil' satir.puanlanan_id %}">{{ satir.ad }}</a></td>
+                <td class="sag-hiza"><span class="puan-degeri rakam">{{ satir.ortalama }}</span></td>
+                <td>
+                  <span class="puan-cetveli" data-yuzde="{{ satir.yuzde }}"
+                        role="img" aria-label="10 üzerinden {{ satir.ortalama }}"></span>
+                </td>
+                <td class="sag-hiza rakam solgun">{{ satir.oy_sayisi }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% else %}
+    <div class="bos-durum">
+      <p><strong>Sıralama için yeterli puan yok.</strong></p>
+      <p>Bir oyuncunun listeye girmesi için en az {{ esik }} puan alması gerekiyor.</p>
+    </div>
+  {% endif %}
+
+  {% if yetersiz %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Henüz yeterli oyu olmayanlar</h2>
+        <span class="kucuk solgun">En az {{ esik }} puan gerekiyor</span>
+      </div>
+      <ul class="cetvel-liste">
+        {% for satir in yetersiz %}
+          <li>
+            <a href="{% url 'accounts:profil' satir.puanlanan_id %}">{{ satir.ad }}</a>
+            <span class="olcek-yazisi sag">{{ satir.oy_sayisi }} puan</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+{% endblock %}

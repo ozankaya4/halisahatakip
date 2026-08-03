@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block baslik %}Sunucu hatası · {{ site_adi }}{% endblock %}
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">500</p>
+        <h1>Bir şeyler ters gitti</h1>
+      </div>
+    </div>
+    <p class="solgun">
+      Sunucuda beklenmedik bir hata oluştu. Kaydın bozulmadı; birazdan tekrar
+      dene.
+    </p>
+    <p><a class="dugme" href="{% url 'core:home' %}">Başa dön</a></p>
+  </div>
+{% endblock %}

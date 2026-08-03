@@ -1,0 +1,12 @@
+{% load allauth %}
+<section class="kutu">
+  <div class="kutu-baslik">
+    <h2>{% slot title %}{% endslot %}</h2>
+  </div>
+  {% slot body %}{% endslot %}
+  {% if slots.actions %}
+    <div class="satir">
+      {% for action in slots.actions %}{{ action }}{% endfor %}
+    </div>
+  {% endif %}
+</section>

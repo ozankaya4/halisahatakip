@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ gosterilen.gorunen_ad }} · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div class="oyuncu">
+      {% if profil.avatar_url %}
+        <img class="avatar avatar-buyuk" src="{{ profil.avatar_url }}" alt="" width="88" height="88">
+      {% else %}
+        <span class="avatar avatar-buyuk avatar-bos" aria-hidden="true">{{ gosterilen.bas_harfler }}</span>
+      {% endif %}
+      <span>
+        <p class="uststart">Oyuncu</p>
+        <h1>{{ gosterilen.gorunen_ad }}</h1>
+        {% if profil.mevki or profil.forma_no %}
+          <p class="solgun kucuk">
+            {% if profil.mevki %}{{ profil.get_mevki_display }}{% endif %}
+            {% if profil.mevki and profil.forma_no %} · {% endif %}
+            {% if profil.forma_no %}{{ profil.forma_no }} numara{% endif %}
+          </p>
+        {% endif %}
+      </span>
+    </div>
+    {% if kendi_profili %}
+      <a class="dugme" href="{% url 'accounts:profil_duzenle' %}">Profili düzenle</a>
+    {% endif %}
+  </div>
+
+  <div class="iki-sutun">
+    <div class="yigin">
+      {% if profil.hakkinda %}
+        <p>{{ profil.hakkinda }}</p>
+      {% endif %}
+
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Grup bazlı ortalamalar</h2>
+        </div>
+        {% if grup_ozetleri %}
+          <div class="tablo-sarmal">
+            <table class="tablo">
+              <thead>
+                <tr>
+                  <th>Grup</th>
+                  <th class="sag-hiza">Ortalama</th>
+                  <th class="sag-hiza">Puan sayısı</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for satir in grup_ozetleri %}
+                  <tr>
+                    <td>{{ satir.mac__grup__ad }}</td>
+                    <td class="sag-hiza rakam">{{ satir.ortalama|floatformat:2 }}</td>
+                    <td class="sag-hiza rakam solgun">{{ satir.adet }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="solgun">
+            Ortak bir grupta henüz puan kaydı yok.
+          </p>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu kutu-vurgu">
+        <div class="kutu-baslik">
+          <h2>Genel ortalama</h2>
+        </div>
+        {% if profil.ortalama_gosterilsin %}
+          <p class="puan-degeri puan-buyuk rakam">{{ profil.ortalama_puan }}</p>
+          <p class="olcek-yazisi">10 üzerinden · {{ profil.puan_sayisi }} puandan</p>
+        {% else %}
+          <p class="solgun">
+            Ortalama, en az {{ esik }} puan toplandıktan sonra gösterilir.
+            Şu an {{ profil.puan_sayisi }} puan var.
+          </p>
+        {% endif %}
+      </section>
+
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Oynadığı maç</h2>
+        </div>
+        <p class="puan-degeri rakam">{{ profil.oynanan_mac }}</p>
+      </section>
+
+      <p class="kucuk solgun">
+        Kimin kaç verdiği hiçbir yerde gösterilmez, yalnızca ortalamalar açıktır.
+      </p>
+    </aside>
+  </div>
+{% endblock %}

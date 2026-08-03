@@ -1,0 +1,42 @@
+{% load allauth %}
+{% if attrs.type == "checkbox" or attrs.type == "radio" %}
+  <div class="alan">
+    <label class="onay-satiri" for="{{ attrs.id }}">
+      <input {% if attrs.required %}required{% endif %}
+             {% if attrs.disabled %}disabled{% endif %}
+             {% if attrs.checked %}checked{% endif %}
+             {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+             {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+             {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
+             type="{{ attrs.type }}">
+      <span>{% slot label %}{% endslot %}</span>
+    </label>
+    {% if slots.help_text %}<span class="alan-yardim">{% slot help_text %}{% endslot %}</span>{% endif %}
+    {% if attrs.errors %}<span class="alan-hata">{{ attrs.errors }}</span>{% endif %}
+  </div>
+{% else %}
+  <div class="alan">
+    <label for="{{ attrs.id }}">{% slot label %}{% endslot %}</label>
+    {% if attrs.type == "textarea" %}
+      <textarea {% if attrs.required %}required{% endif %}
+                {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
+                {% if attrs.disabled %}disabled{% endif %}
+                {% if attrs.readonly %}readonly{% endif %}
+                {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+                {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+                {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}>{% slot value %}{% endslot %}</textarea>
+    {% else %}
+      <input {% if attrs.required %}required{% endif %}
+             {% if attrs.disabled %}disabled{% endif %}
+             {% if attrs.readonly %}readonly{% endif %}
+             {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+             {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+             {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
+             {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
+             {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
+             type="{{ attrs.type }}">
+    {% endif %}
+    {% if slots.help_text %}<span class="alan-yardim">{% slot help_text %}{% endslot %}</span>{% endif %}
+    {% if attrs.errors %}<span class="alan-hata">{{ attrs.errors }}</span>{% endif %}
+  </div>
+{% endif %}

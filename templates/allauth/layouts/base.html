@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% comment %}
+allauth'un tüm sayfaları bu düzenin içine oturur; böylece giriş/kayıt/parola
+ekranları da defterin kendi kabuğunu kullanır.
+
+"hesap-sayfasi" sınıfı önemli: bu sayfaların şablonları allauth paketinden
+geliyor, yani içlerine sınıf ekleyemiyoruz. Kart görünümünü ve başlık
+düzenini defter.css bu sınıfın altından veriyor.
+{% endcomment %}
+
+{% block baslik %}{% block head_title %}Hesap{% endblock %} · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar hesap-sayfasi">
+    {% block content %}{% endblock %}
+  </div>
+{% endblock %}

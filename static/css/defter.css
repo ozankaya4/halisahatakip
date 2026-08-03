@@ -1,0 +1,1497 @@
+/*
+ * "Saha Defteri" — Halısaha Takip arayüz sistemi.
+ *
+ * Tasarım niyeti: elle tutulan bir fikstür defteri. Basılı iş estetiği:
+ * kağıt zemin, mürekkep yeşili, ince cetvel çizgileri, iri serif başlıklar,
+ * asimetrik yerleşim. Kutu gölgesi ve büyük köşe yuvarlaması bilinçli olarak
+ * kullanılmıyor; ayrım gölgeyle değil çizgiyle ve boşlukla yapılıyor.
+ */
+
+@import url("yazitipi.css");
+
+/* =========================================================================
+   1. Değişkenler
+   ====================================================================== */
+:root {
+  --kagit: #f6f3ea;
+  --kagit-ust: #fffdf7;
+  --kagit-golge: #ece7d9;
+  --murekkep: #1b1c17;
+  --murekkep-yumusak: #55564b;
+  --murekkep-soluk: #8b8b7d;
+  --cetvel: #d6d1c0;
+  --cetvel-koyu: #bab48f;
+
+  --yesil: #1f4d38;
+  --yesil-parlak: #2f6f50;
+  --yesil-sis: #e4ece5;
+
+  --kiremit: #b64a26;
+  --kiremit-sis: #f6e6de;
+  --hardal: #9a7514;
+  --hardal-sis: #f5ecd4;
+
+  --olcu: 1200px;
+  --kose: 2px;
+  --gecis: 140ms ease;
+
+  color-scheme: light;
+}
+
+:root[data-tema="koyu"] {
+  --kagit: #14150f;
+  --kagit-ust: #1c1e17;
+  --kagit-golge: #101109;
+  --murekkep: #eae6d8;
+  --murekkep-yumusak: #a8a698;
+  --murekkep-soluk: #77766a;
+  --cetvel: #33352a;
+  --cetvel-koyu: #4a4c3c;
+
+  --yesil: #85bf9d;
+  --yesil-parlak: #a2d4b6;
+  --yesil-sis: #1b2a21;
+
+  --kiremit: #e08a63;
+  --kiremit-sis: #2c1f18;
+  --hardal: #d2ab52;
+  --hardal-sis: #2a2416;
+
+  color-scheme: dark;
+}
+
+/* =========================================================================
+   2. Sıfırlama ve temel
+   ====================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--kagit);
+  color: var(--murekkep);
+  font-family: "Plex Sans", "Segoe UI", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* Kağıt dokusu hissi: çok hafif, iki yönlü doğrusal degrade. */
+  background-image: linear-gradient(
+    180deg,
+    var(--kagit-ust) 0,
+    var(--kagit) 320px
+  );
+  background-repeat: no-repeat;
+}
+
+img,
+picture,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--yesil);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--kiremit);
+}
+
+:focus-visible {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
+}
+
+/* Tarayıcının 3B "inset" çizgisi defterin diline uymuyor: ince cetvel çizgisi. */
+hr {
+  border: 0;
+  border-block-start: 1px solid var(--cetvel);
+  margin-block: 1.75rem;
+}
+
+/* Katlanır bölüm (örn. "parolamı unuttum"). Varsayılan üçgen yerine
+   kendi çizdiğimiz ok kullanılıyor. */
+details {
+  border-block-start: 1px solid var(--cetvel);
+  padding-block-start: 1rem;
+}
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.94rem;
+  color: var(--murekkep-yumusak);
+  padding-block: 0.35rem;
+  transition: color var(--gecis);
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  rotate: -45deg;
+  translate: 2px 0;
+  flex: none;
+  transition: rotate var(--gecis);
+}
+
+details[open] > summary::before {
+  rotate: 45deg;
+  translate: 0 -2px;
+}
+
+details > summary:hover {
+  color: var(--murekkep);
+}
+
+details > summary:focus-visible {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
+}
+
+details > *:not(summary) {
+  margin-block-start: 0.85rem;
+}
+
+::selection {
+  background: var(--hardal-sis);
+  color: var(--murekkep);
+}
+
+/* =========================================================================
+   3. Tipografi
+   ====================================================================== */
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  /* WONK ekseni Fraunces'a o "elle çizilmiş" tuhaflığı veriyor. */
+  font-variation-settings: "SOFT" 24, "WONK" 1, "opsz" 96;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 3.1rem);
+}
+
+h2 {
+  font-size: clamp(1.45rem, 1.2rem + 1.1vw, 1.95rem);
+}
+
+h3 {
+  font-size: 1.2rem;
+  font-variation-settings: "SOFT" 20, "WONK" 0, "opsz" 40;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+.uststart {
+  font-family: "Plex Sans", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--murekkep-soluk);
+}
+
+.solgun {
+  color: var(--murekkep-yumusak);
+}
+
+.kucuk {
+  font-size: 0.86rem;
+}
+
+.rakam {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Sayfa başlığı: iri serif + altında kalın cetvel çizgisi. */
+.defter-basligi {
+  margin-block-end: 1.75rem;
+  padding-block-end: 0.85rem;
+  border-block-end: 2px solid var(--murekkep);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.defter-basligi p {
+  color: var(--murekkep-yumusak);
+  max-width: 52ch;
+}
+
+/* =========================================================================
+   4. Yerleşim
+   ====================================================================== */
+.kap {
+  width: 100%;
+  max-width: var(--olcu);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 2.5rem);
+}
+
+.govde {
+  flex: 1;
+  padding-block: clamp(1.75rem, 4vw, 3rem) 4rem;
+}
+
+/* Asimetrik iki sütun: ana içerik geniş, yan sütun dar. */
+.iki-sutun {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 3.25rem);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 62rem) {
+  .iki-sutun {
+    grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+  }
+}
+
+.yigin {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.yigin-dar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.satir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.satir-ayrik {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+}
+
+.sag {
+  margin-inline-start: auto;
+}
+
+/* =========================================================================
+   5. Üst çubuk
+   ====================================================================== */
+.ust-cubuk {
+  border-block-end: 1px solid var(--cetvel);
+  background: var(--kagit-ust);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.ust-cubuk-ic {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 64px;
+  flex-wrap: wrap;
+}
+
+.marka {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.22rem;
+  font-weight: 700;
+  font-variation-settings: "SOFT" 30, "WONK" 1, "opsz" 40;
+  letter-spacing: -0.02em;
+  color: var(--murekkep);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.marka:hover {
+  color: var(--yesil);
+}
+
+/* Logo yerine çizilmiş bir saha işareti — emoji kullanmıyoruz. */
+.marka-isaret {
+  width: 26px;
+  height: 18px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  position: relative;
+  flex: none;
+}
+
+.marka-isaret::before {
+  content: "";
+  position: absolute;
+  inset-block: -1.5px;
+  inset-inline-start: 50%;
+  border-inline-start: 1.5px solid currentColor;
+}
+
+.marka-isaret::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.ust-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.ust-menu a {
+  color: var(--murekkep-yumusak);
+  text-decoration: none;
+  font-size: 0.92rem;
+  padding: 0.4rem 0.6rem;
+  border-block-end: 2px solid transparent;
+  transition: color var(--gecis), border-color var(--gecis);
+}
+
+.ust-menu a:hover {
+  color: var(--murekkep);
+  border-block-end-color: var(--cetvel-koyu);
+}
+
+.ust-menu a[aria-current="page"] {
+  color: var(--murekkep);
+  border-block-end-color: var(--yesil);
+  font-weight: 600;
+}
+
+.ust-arac {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+}
+
+/* Bildirim rozeti */
+.zil {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  color: var(--murekkep-yumusak);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.zil:hover {
+  color: var(--murekkep);
+}
+
+.zil-sayi {
+  background: var(--kiremit);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.2rem 0.38rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
+   6. Düğmeler
+   ====================================================================== */
+.dugme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.62rem 1.05rem;
+  border: 1.5px solid var(--murekkep);
+  border-radius: var(--kose);
+  background: transparent;
+  color: var(--murekkep);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--gecis), color var(--gecis), border-color var(--gecis);
+}
+
+.dugme:hover {
+  background: var(--murekkep);
+  color: var(--kagit);
+}
+
+.dugme-birincil {
+  background: var(--yesil);
+  border-color: var(--yesil);
+  color: var(--kagit-ust);
+}
+
+:root[data-tema="koyu"] .dugme-birincil {
+  color: #10120c;
+}
+
+.dugme-birincil:hover {
+  background: var(--yesil-parlak);
+  border-color: var(--yesil-parlak);
+  color: var(--kagit-ust);
+}
+
+:root[data-tema="koyu"] .dugme-birincil:hover {
+  color: #10120c;
+}
+
+.dugme-sessiz {
+  border-color: var(--cetvel);
+  color: var(--murekkep-yumusak);
+  font-weight: 500;
+}
+
+.dugme-sessiz:hover {
+  background: transparent;
+  border-color: var(--murekkep-yumusak);
+  color: var(--murekkep);
+}
+
+.dugme-tehlike {
+  border-color: var(--kiremit);
+  color: var(--kiremit);
+}
+
+.dugme-tehlike:hover {
+  background: var(--kiremit);
+  color: #fff;
+}
+
+.dugme-kucuk {
+  font-size: 0.82rem;
+  padding: 0.36rem 0.68rem;
+}
+
+.dugme-genis {
+  width: 100%;
+}
+
+.dugme:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bağlantı görünümlü düğme (form içindeki tekil eylemler için) */
+.baglanti-dugme {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--yesil);
+  font-size: 0.86rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.baglanti-dugme:hover {
+  color: var(--kiremit);
+}
+
+/* =========================================================================
+   7. Kutular ve listeler
+   ====================================================================== */
+.kutu {
+  background: var(--kagit-ust);
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  padding: clamp(1.1rem, 2.5vw, 1.6rem);
+}
+
+.kutu-baslik {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-block-end: 1rem;
+  padding-block-end: 0.6rem;
+  border-block-end: 1px solid var(--cetvel);
+}
+
+.kutu-vurgu {
+  border-inline-start: 3px solid var(--yesil);
+}
+
+.kutu-uyari {
+  background: var(--hardal-sis);
+  border-color: var(--hardal);
+}
+
+.kutu-tehlike {
+  background: var(--kiremit-sis);
+  border-color: var(--kiremit);
+}
+
+/* Cetvelli liste — kutu değil, çizgiyle ayrılmış satırlar. */
+.cetvel-liste {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cetvel-liste > li {
+  padding-block: 0.85rem;
+  border-block-end: 1px solid var(--cetvel);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.cetvel-liste > li:first-child {
+  padding-block-start: 0;
+}
+
+.cetvel-liste > li:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+
+.bos-durum {
+  padding: 2.25rem 1rem;
+  text-align: center;
+  color: var(--murekkep-yumusak);
+  border: 1px dashed var(--cetvel-koyu);
+  border-radius: var(--kose);
+}
+
+.bos-durum p {
+  max-width: 44ch;
+  margin-inline: auto;
+}
+
+/* =========================================================================
+   8. Tarih bloğu — defterin imza öğesi
+   ====================================================================== */
+.tarih-blogu {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex: none;
+  min-width: 5.4rem;
+}
+
+.tarih-gun {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 0.9;
+  font-variation-settings: "SOFT" 30, "WONK" 1, "opsz" 120;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.tarih-ay {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--murekkep-yumusak);
+  writing-mode: horizontal-tb;
+}
+
+.tarih-detay {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.tarih-detay strong {
+  font-weight: 600;
+}
+
+/* =========================================================================
+   9. Rozetler
+   ====================================================================== */
+.rozet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: var(--kose);
+  white-space: nowrap;
+}
+
+.rozet-yesil {
+  color: var(--yesil);
+  background: var(--yesil-sis);
+}
+
+.rozet-kiremit {
+  color: var(--kiremit);
+  background: var(--kiremit-sis);
+}
+
+.rozet-hardal {
+  color: var(--hardal);
+  background: var(--hardal-sis);
+}
+
+.rozet-sessiz {
+  color: var(--murekkep-soluk);
+  background: transparent;
+  border-color: var(--cetvel);
+}
+
+/* =========================================================================
+   10. Formlar
+   ====================================================================== */
+.alan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-block-end: 1.15rem;
+}
+
+.alan > label,
+.alan-etiket {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--murekkep-yumusak);
+}
+
+.alan input[type="text"],
+.alan input[type="email"],
+.alan input[type="password"],
+.alan input[type="number"],
+.alan input[type="url"],
+.alan input[type="datetime-local"],
+.alan input[type="date"],
+.alan input[type="file"],
+.alan select,
+.alan textarea,
+.girdi {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--kagit-ust);
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  color: var(--murekkep);
+  transition: border-color var(--gecis);
+}
+
+.alan input:focus,
+.alan select:focus,
+.alan textarea:focus,
+.girdi:focus {
+  border-color: var(--yesil);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--yesil-sis);
+}
+
+.alan textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+/* Açılır liste: tarayıcının kendi oku yerine çizilmiş ok. */
+.alan select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-inline-end: 2.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2355564b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 10px 6px;
+}
+
+:root[data-tema="koyu"] .alan select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a8a698' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Dosya seçme alanı: içindeki düğme de defterin dilinde olsun. */
+.alan input[type="file"] {
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+}
+
+.alan input[type="file"]::file-selector-button {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-inline-end: 0.75rem;
+  padding: 0.35rem 0.8rem;
+  border: 1.5px solid var(--murekkep);
+  border-radius: var(--kose);
+  background: transparent;
+  color: var(--murekkep);
+  cursor: pointer;
+  transition: background var(--gecis), color var(--gecis);
+}
+
+.alan input[type="file"]::file-selector-button:hover {
+  background: var(--murekkep);
+  color: var(--kagit);
+}
+
+.alan-yardim {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--murekkep-soluk);
+}
+
+/* Django parola kurallarını <ul> olarak veriyor; varsayılan madde imi ve
+   girintisi forma yamuk oturuyordu. */
+.alan-yardim ul {
+  margin: 0.3rem 0 0;
+  padding-inline-start: 1.05rem;
+}
+
+.alan-yardim li {
+  line-height: 1.45;
+}
+
+.alan-yardim li::marker {
+  color: var(--cetvel-koyu);
+}
+
+.alan-hata {
+  font-size: 0.84rem;
+  color: var(--kiremit);
+  font-weight: 500;
+}
+
+.onay-satiri {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+}
+
+.onay-satiri input[type="checkbox"] {
+  margin-block-start: 0.28rem;
+  accent-color: var(--yesil);
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.form-dar {
+  max-width: 30rem;
+}
+
+/* Google ile giriş düğmesi — markanın kendi rengi yerine defter dili. */
+.saglayici-dugme {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.68rem 1rem;
+  border: 1.5px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  background: var(--kagit-ust);
+  color: var(--murekkep);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color var(--gecis), background var(--gecis);
+}
+
+.saglayici-dugme:hover {
+  border-color: var(--murekkep);
+  color: var(--murekkep);
+}
+
+.ayirac {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  color: var(--murekkep-soluk);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-block: 1.35rem;
+}
+
+.ayirac::before,
+.ayirac::after {
+  content: "";
+  flex: 1;
+  border-block-start: 1px solid var(--cetvel);
+}
+
+/* =========================================================================
+   11. Bildirim şeritleri
+   ====================================================================== */
+.serit {
+  border: 1px solid var(--cetvel);
+  border-inline-start: 3px solid var(--murekkep-yumusak);
+  background: var(--kagit-ust);
+  padding: 0.8rem 1rem;
+  border-radius: var(--kose);
+  font-size: 0.94rem;
+}
+
+.serit-basari {
+  border-inline-start-color: var(--yesil);
+  background: var(--yesil-sis);
+}
+
+.serit-hata,
+.serit-error {
+  border-inline-start-color: var(--kiremit);
+  background: var(--kiremit-sis);
+}
+
+.serit-uyari,
+.serit-warning {
+  border-inline-start-color: var(--hardal);
+  background: var(--hardal-sis);
+}
+
+.serit-listesi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-block-end: 1.75rem;
+}
+
+/* JS durum satırları (şifreleme formları) */
+.islem-durumu {
+  font-size: 0.88rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--kose);
+  border: 1px solid var(--cetvel);
+}
+
+.islem-durumu[data-tur="hata"] {
+  color: var(--kiremit);
+  border-color: var(--kiremit);
+  background: var(--kiremit-sis);
+}
+
+.islem-durumu[data-tur="basari"] {
+  color: var(--yesil);
+  border-color: var(--yesil);
+  background: var(--yesil-sis);
+}
+
+/* =========================================================================
+   12. Oyuncu / avatar
+   ====================================================================== */
+.oyuncu {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.oyuncu:hover .oyuncu-ad {
+  color: var(--yesil);
+}
+
+.avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--cetvel-koyu);
+  flex: none;
+  background: var(--kagit-golge);
+}
+
+.avatar-bos {
+  display: grid;
+  place-items: center;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--murekkep-yumusak);
+  letter-spacing: 0.02em;
+}
+
+.avatar-buyuk {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 1.7rem;
+}
+
+.oyuncu-ad {
+  font-weight: 600;
+  transition: color var(--gecis);
+  overflow-wrap: anywhere;
+}
+
+.oyuncu-alt {
+  font-size: 0.82rem;
+  color: var(--murekkep-soluk);
+}
+
+/* =========================================================================
+   13. Puan göstergeleri
+   ====================================================================== */
+.puan-degeri {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-variation-settings: "SOFT" 20, "WONK" 0, "opsz" 60;
+  line-height: 1;
+}
+
+.puan-buyuk {
+  font-size: 3rem;
+}
+
+/* On kutucuklu ölçek — yüzde JS ile --yuzde değişkenine yazılır. */
+.puan-cetveli {
+  --yuzde: 0;
+  display: block;
+  width: 100%;
+  max-width: 9rem;
+  height: 6px;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: 1px;
+  background-image: linear-gradient(
+    to right,
+    var(--yesil) 0,
+    var(--yesil) calc(var(--yuzde) * 1%),
+    transparent calc(var(--yuzde) * 1%)
+  );
+}
+
+.olcek-yazisi {
+  font-size: 0.78rem;
+  color: var(--murekkep-soluk);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Yoklama çubuğu */
+.yoklama-cubugu {
+  --yuzde: 0;
+  height: 10px;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: 1px;
+  background-image: linear-gradient(
+    to right,
+    var(--yesil) 0,
+    var(--yesil) calc(var(--yuzde) * 1%),
+    transparent calc(var(--yuzde) * 1%)
+  );
+}
+
+/* Puanlama ızgarası (1-10 radyo düğmeleri) */
+.puan-secim {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.puan-secim input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.puan-secim label {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--gecis), border-color var(--gecis), color var(--gecis);
+}
+
+.puan-secim label:hover {
+  border-color: var(--yesil);
+  color: var(--yesil);
+}
+
+.puan-secim input[type="radio"]:checked + label {
+  background: var(--yesil);
+  border-color: var(--yesil);
+  color: var(--kagit-ust);
+}
+
+:root[data-tema="koyu"] .puan-secim input[type="radio"]:checked + label {
+  color: #10120c;
+}
+
+.puan-secim input[type="radio"]:focus-visible + label {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
+}
+
+/* =========================================================================
+   14. Tablolar
+   ====================================================================== */
+.tablo-sarmal {
+  overflow-x: auto;
+}
+
+.tablo {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+
+.tablo th {
+  text-align: start;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--murekkep-soluk);
+  padding: 0.5rem 0.65rem;
+  border-block-end: 1.5px solid var(--murekkep);
+  white-space: nowrap;
+}
+
+.tablo td {
+  padding: 0.7rem 0.65rem;
+  border-block-end: 1px solid var(--cetvel);
+  vertical-align: middle;
+}
+
+.tablo tbody tr:last-child td {
+  border-block-end: none;
+}
+
+.tablo .sira {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--murekkep-soluk);
+  font-variant-numeric: tabular-nums;
+  width: 2.5rem;
+}
+
+.tablo .sag-hiza {
+  text-align: end;
+}
+
+/* =========================================================================
+   15. Fotoğraf ızgarası
+   ====================================================================== */
+.foto-izgara {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.7rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.foto-izgara li {
+  position: relative;
+}
+
+.foto-izgara img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  background: var(--kagit-golge);
+}
+
+.foto-sil {
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-end: 0.35rem;
+}
+
+/* =========================================================================
+   16. Sohbet
+   ====================================================================== */
+.sohbet-pencere {
+  display: flex;
+  flex-direction: column;
+  height: min(68vh, 640px);
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  background: var(--kagit-ust);
+  overflow: hidden;
+}
+
+.mesaj-akisi {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.1rem;
+  margin: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  overscroll-behavior: contain;
+}
+
+.baloncuk {
+  max-width: min(78%, 34rem);
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  background: var(--kagit);
+  align-self: flex-start;
+}
+
+.baloncuk.benim {
+  align-self: flex-end;
+  background: var(--yesil-sis);
+  border-color: var(--yesil);
+}
+
+.baloncuk.cozulemedi {
+  background: transparent;
+  border-style: dashed;
+  color: var(--murekkep-soluk);
+  font-style: italic;
+}
+
+.baloncuk-ust {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-block-end: 0.2rem;
+}
+
+.baloncuk-ad {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--murekkep-yumusak);
+}
+
+.baloncuk-zaman {
+  font-size: 0.72rem;
+  color: var(--murekkep-soluk);
+  font-variant-numeric: tabular-nums;
+  margin-inline-start: auto;
+}
+
+.baloncuk-metin {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.mesaj-alani {
+  border-block-start: 1px solid var(--cetvel);
+  padding: 0.75rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+  background: var(--kagit-ust);
+}
+
+.mesaj-alani textarea {
+  flex: 1;
+  min-height: 2.6rem;
+  max-height: 10rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  background: var(--kagit);
+  resize: none;
+  line-height: 1.45;
+}
+
+.mesaj-alani textarea:focus {
+  border-color: var(--yesil);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--yesil-sis);
+}
+
+.kilit-notu {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--murekkep-soluk);
+}
+
+.kilit-isareti {
+  width: 9px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  position: relative;
+  flex: none;
+}
+
+.kilit-isareti::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-block-end: none;
+  border-start-start-radius: 4px;
+  border-start-end-radius: 4px;
+}
+
+/* =========================================================================
+   16a. allauth sayfaları
+   Parola değiştirme, e-posta adresleri, bağlı hesaplar gibi ekranların
+   şablonları allauth paketinden geliyor; içlerine sınıf ekleyemiyoruz.
+   Kart görünümünü ve başlık düzenini buradan veriyoruz.
+   ====================================================================== */
+.hesap-sayfasi > * + * {
+  margin-block-start: 1.25rem;
+}
+
+.hesap-sayfasi > form,
+.hesap-sayfasi > .tablo-sarmal {
+  background: var(--kagit-ust);
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  padding: clamp(1.1rem, 2.5vw, 1.6rem);
+}
+
+/* Formun son alanı ile eylem düğmesi arasına nefes payı. */
+.hesap-sayfasi > form > .dugme,
+.hesap-sayfasi > form > .satir {
+  margin-block-start: 1.15rem;
+}
+
+.hesap-sayfasi h2 {
+  font-size: 1.15rem;
+  padding-block-end: 0.55rem;
+  border-block-end: 1px solid var(--cetvel);
+}
+
+.hesap-sayfasi > p {
+  color: var(--murekkep-yumusak);
+}
+
+/* =========================================================================
+   16b. Ayar / yönlendirme satırları
+   Hesap ayarları gibi "başka bir sayfaya götüren" bağlantılar. Düz bir
+   <a> yerine tıklanabilir bir satır: başlık, açıklama ve yön oku.
+   ====================================================================== */
+.ayar-listesi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ayar-listesi > li + li {
+  border-block-start: 1px solid var(--cetvel);
+}
+
+.ayar-satiri {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 0.35rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--gecis), padding-inline var(--gecis);
+}
+
+.ayar-satiri:hover,
+.ayar-satiri:focus-visible {
+  background: var(--kagit);
+  color: inherit;
+  padding-inline: 0.6rem 0.1rem;
+}
+
+:root[data-tema="koyu"] .ayar-satiri:hover,
+:root[data-tema="koyu"] .ayar-satiri:focus-visible {
+  background: var(--kagit-golge);
+}
+
+.ayar-metin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.ayar-metin strong {
+  font-weight: 600;
+  transition: color var(--gecis);
+}
+
+.ayar-satiri:hover .ayar-metin strong {
+  color: var(--yesil);
+}
+
+.ayar-metin span {
+  font-size: 0.84rem;
+  color: var(--murekkep-soluk);
+}
+
+/* Çizilmiş yön oku — emoji ya da ikon kütüphanesi kullanmıyoruz. */
+.ayar-ok {
+  margin-inline-start: auto;
+  width: 8px;
+  height: 8px;
+  border-inline-end: 1.5px solid var(--murekkep-soluk);
+  border-block-start: 1.5px solid var(--murekkep-soluk);
+  rotate: 45deg;
+  flex: none;
+  transition: translate var(--gecis), border-color var(--gecis);
+}
+
+.ayar-satiri:hover .ayar-ok {
+  border-color: var(--yesil);
+  translate: 3px 0;
+}
+
+/* =========================================================================
+   17. Alt bilgi
+   ====================================================================== */
+.alt-bilgi {
+  border-block-start: 1px solid var(--cetvel);
+  padding-block: 1.5rem;
+  font-size: 0.84rem;
+  color: var(--murekkep-soluk);
+  background: var(--kagit-ust);
+}
+
+.alt-bilgi-ic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* =========================================================================
+   18. Yardımcılar
+   ====================================================================== */
+.gizli {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.atla-baglantisi {
+  position: absolute;
+  inset-block-start: -100%;
+  inset-inline-start: 0.5rem;
+  z-index: 100;
+  background: var(--murekkep);
+  color: var(--kagit);
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--kose);
+}
+
+.atla-baglantisi:focus {
+  inset-block-start: 0.5rem;
+  color: var(--kagit);
+}
+
+.kod-kutusu {
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.84rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--kagit-golge);
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  overflow-wrap: anywhere;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .ust-cubuk,
+  .alt-bilgi,
+  .dugme,
+  .mesaj-alani {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

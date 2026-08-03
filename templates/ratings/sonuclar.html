@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block baslik %}Maç puanları · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }} · {{ mac.baslangic|date:"j F Y" }}</a></p>
+      <h1>Maç puanları</h1>
+    </div>
+    {% if puanlayabilir and mac.puanlama_acik %}
+      <a class="dugme" href="{% url 'ratings:puanla' mac.pk %}">Puanlarımı düzenle</a>
+    {% endif %}
+  </div>
+
+  {% if not gorunur %}
+    <div class="bos-durum">
+      <p><strong>Sonuçlar henüz sana kapalı.</strong></p>
+      <p>
+        Başkalarının ortalamasını görüp ona göre oy vermeyi engellemek için
+        sonuçlar, sen kendi puanlarını verdikten sonra ya da puanlama penceresi
+        kapandığında açılır.
+      </p>
+      {% if puanlayabilir %}
+        <p><a class="dugme dugme-birincil" href="{% url 'ratings:puanla' mac.pk %}">Önce sen puanla</a></p>
+      {% endif %}
+    </div>
+  {% elif ozet %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Ortalamalar</h2>
+        <span class="kucuk solgun">
+          {% if pencere_kapandi %}Puanlama kapandı{% else %}Puanlama sürüyor{% endif %}
+        </span>
+      </div>
+      <div class="tablo-sarmal">
+        <table class="tablo">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Oyuncu</th>
+              <th class="sag-hiza">Ortalama</th>
+              <th>Ölçek</th>
+              <th class="sag-hiza">Oy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for satir in ozet %}
+              <tr>
+                <td class="sira rakam">{{ forloop.counter }}</td>
+                <td><a href="{% url 'accounts:profil' satir.puanlanan_id %}">{{ satir.ad }}</a></td>
+                <td class="sag-hiza"><span class="puan-degeri rakam">{{ satir.ortalama }}</span></td>
+                <td>
+                  <span class="puan-cetveli" data-yuzde="{{ satir.yuzde }}"
+                        role="img" aria-label="10 üzerinden {{ satir.ortalama }}"></span>
+                </td>
+                <td class="sag-hiza rakam solgun">{{ satir.oy_sayisi }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="kucuk solgun">
+        Kimin kime kaç verdiği gösterilmez.
+      </p>
+    </section>
+  {% else %}
+    <div class="bos-durum">
+      <p><strong>Bu maç için henüz puan girilmemiş.</strong></p>
+    </div>
+  {% endif %}
+{% endblock %}

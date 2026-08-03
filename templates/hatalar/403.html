@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block baslik %}Yetkin yok · {{ site_adi }}{% endblock %}
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">403</p>
+        <h1>Bu işlem için yetkin yok</h1>
+      </div>
+    </div>
+    <p class="solgun">
+      Bu sayfa yalnızca ilgili grubun üyelerine ya da yöneticilerine açık.
+      Yanlışlık olduğunu düşünüyorsan grup yöneticisiyle konuş.
+    </p>
+    <p><a class="dugme" href="{% url 'core:dashboard' %}">Panele dön</a></p>
+  </div>
+{% endblock %}

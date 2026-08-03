@@ -1,0 +1,91 @@
+{% load static %}<!doctype html>
+<html lang="tr" data-tema="{{ tema }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>{% block baslik %}{{ site_adi }}{% endblock %}</title>
+    <meta name="description" content="{% block aciklama %}Halı saha maçlarını, kadroları ve oyuncu puanlarını takip eden özel grup defteri.{% endblock %}">
+    <link rel="stylesheet" href="{% static 'css/defter.css' %}">
+    <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+    {% block ekstra_head %}{% endblock %}
+  </head>
+  <body>
+    <a class="atla-baglantisi" href="#ana-icerik">İçeriğe atla</a>
+
+    <header class="ust-cubuk">
+      <div class="kap ust-cubuk-ic">
+        <a class="marka" href="{% if user.is_authenticated %}{% url 'core:dashboard' %}{% else %}{% url 'core:home' %}{% endif %}">
+          <span class="marka-isaret" aria-hidden="true"></span>
+          <span>Halısaha Defteri</span>
+        </a>
+
+        {% if user.is_authenticated %}
+          <nav class="ust-menu" aria-label="Ana menü">
+            <a href="{% url 'core:dashboard' %}"{% if request.resolver_match.view_name == 'core:dashboard' %} aria-current="page"{% endif %}>Panel</a>
+            <a href="{% url 'groups:liste' %}"{% if request.resolver_match.app_name == 'groups' %} aria-current="page"{% endif %}>Gruplar</a>
+            <a href="{% url 'accounts:profil' user.pk %}"{% if request.resolver_match.app_name == 'accounts' %} aria-current="page"{% endif %}>Profilim</a>
+          </nav>
+        {% endif %}
+
+        <div class="ust-arac">
+          {% if user.is_authenticated %}
+            <a class="zil" href="{% url 'notifications:liste' %}">
+              Bildirim
+              {% if okunmamis_bildirim %}
+                <span class="zil-sayi rakam">{{ okunmamis_bildirim }}</span>
+                <span class="gizli">okunmamış bildirim</span>
+              {% endif %}
+            </a>
+          {% endif %}
+
+          <form method="post" action="{% url 'core:tema_degistir' %}">
+            {% csrf_token %}
+            <input type="hidden" name="tema" value="{{ karsi_tema }}">
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="dugme dugme-sessiz dugme-kucuk" type="submit">
+              {% if tema == 'acik' %}Koyu tema{% else %}Açık tema{% endif %}
+            </button>
+          </form>
+
+          {% if user.is_authenticated %}
+            <form method="post" action="{% url 'account_logout' %}">
+              {% csrf_token %}
+              <button class="dugme dugme-sessiz dugme-kucuk" type="submit">Çıkış</button>
+            </form>
+          {% else %}
+            <a class="dugme dugme-kucuk" href="{% url 'account_login' %}">Giriş</a>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <main class="govde" id="ana-icerik">
+      <div class="kap">
+        {% if messages %}
+          <div class="serit-listesi">
+            {% for mesaj in messages %}
+              <div class="serit serit-{{ mesaj.tags|default:'bilgi' }}">{{ mesaj }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% block icerik %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="alt-bilgi">
+      <div class="kap alt-bilgi-ic">
+        <span>Halısaha Defteri. Kendi grubunuz için, kendi sunucunuzda.</span>
+        <span class="kilit-notu">
+          <span class="kilit-isareti" aria-hidden="true"></span>
+          Grup sohbetleri uçtan uca şifrelidir
+        </span>
+      </div>
+    </footer>
+
+    <script type="module" src="{% static 'js/app.js' %}"></script>
+    {% block ekstra_js %}{% endblock %}
+  </body>
+</html>

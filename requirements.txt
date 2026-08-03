@@ -1,0 +1,15 @@
+# Halısaha Takip — üretim bağımlılıkları
+# Kurulum:  .venv\Scripts\python.exe -m pip install -r requirements.txt
+
+Django==5.2.16
+django-allauth[socialaccount]==65.18.0
+django-environ==0.14.0
+django-axes==8.3.1
+django-csp==4.0
+Pillow==12.3.0
+argon2-cffi==25.1.0
+whitenoise==6.12.0
+gunicorn==26.0.0
+
+# PostgreSQL'e geçtiğinizde aşağıdaki satırın yorumunu kaldırın:
+# psycopg[binary]==3.2.9

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block baslik %}Gruplarım · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Halısaha Defteri</p>
+      <h1>Gruplarım</h1>
+    </div>
+    <a class="dugme dugme-birincil" href="{% url 'groups:olustur' %}">Yeni grup kur</a>
+  </div>
+
+  {% if bekleyen %}
+    <section class="kutu kutu-uyari">
+      <div class="kutu-baslik">
+        <h2>Onay bekleyen isteklerin</h2>
+      </div>
+      <ul class="cetvel-liste">
+        {% for uyelik in bekleyen %}
+          <li>
+            <div class="tarih-detay">
+              <strong>{{ uyelik.grup.ad }}</strong>
+              <span class="kucuk solgun">{{ uyelik.olusturulma|date:"j F Y" }} tarihinde istek gönderdin</span>
+            </div>
+            <span class="rozet rozet-hardal sag">Bekliyor</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if onayli %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Üyesi olduğun gruplar</h2>
+      </div>
+      <ul class="cetvel-liste">
+        {% for uyelik in onayli %}
+          <li>
+            <div class="tarih-detay">
+              <strong><a href="{% url 'groups:detay' uyelik.grup.genel_id %}">{{ uyelik.grup.ad }}</a></strong>
+              <span class="kucuk solgun">
+                {{ uyelik.grup.uye_sayisi }} oyuncu
+                {% if uyelik.grup.aciklama %} · {{ uyelik.grup.aciklama }}{% endif %}
+              </span>
+            </div>
+            {% if uyelik.yonetici_mi %}
+              <span class="rozet rozet-yesil">Yönetici</span>
+            {% endif %}
+            <a class="dugme dugme-kucuk sag" href="{% url 'groups:detay' uyelik.grup.genel_id %}">Aç</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% elif not bekleyen %}
+    <div class="bos-durum">
+      <p><strong>Henüz bir gruba üye değilsin.</strong></p>
+      <p>Kendi grubunu kur ya da bir yöneticiden davet bağlantısı iste.</p>
+      <p><a class="dugme dugme-birincil" href="{% url 'groups:olustur' %}">Grup kur</a></p>
+    </div>
+  {% endif %}
+{% endblock %}

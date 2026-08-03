@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ grup.ad }} düzenle · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">{{ grup.ad }}</p>
+        <h1>Grubu düzenle</h1>
+      </div>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_form.html" %}
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Kaydet</button>
+        <a class="dugme dugme-sessiz" href="{% url 'groups:detay' grup.genel_id %}">Vazgeç</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

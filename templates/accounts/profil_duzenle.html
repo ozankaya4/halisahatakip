@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block baslik %}Profili düzenle · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Hesabım</p>
+      <h1>Profili düzenle</h1>
+    </div>
+    <a class="dugme dugme-sessiz" href="{% url 'accounts:profil' user.pk %}">Profilimi gör</a>
+  </div>
+
+  <div class="iki-sutun">
+    <div class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Oyuncu bilgilerin</h2>
+          <span class="kucuk solgun">Grup arkadaşların bunları görür</span>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {% include "partials/_form.html" %}
+          <p class="alan-yardim">
+            Yüklenen fotoğraflar sunucuda yeniden işlenir; konum bilgisi dâhil
+            tüm EXIF verisi silinir.
+          </p>
+          <div class="satir">
+            <button class="dugme dugme-birincil" type="submit">Kaydet</button>
+            <a class="dugme dugme-sessiz" href="{% url 'accounts:profil' user.pk %}">Vazgeç</a>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Profil fotoğrafın</h2>
+        </div>
+        <div class="satir">
+          {% if profil.avatar_url %}
+            <img class="avatar avatar-buyuk" src="{{ profil.avatar_url }}"
+                 alt="Mevcut profil fotoğrafın" width="88" height="88">
+          {% else %}
+            <span class="avatar avatar-buyuk avatar-bos" aria-hidden="true">{{ user.bas_harfler }}</span>
+          {% endif %}
+          <span class="kucuk solgun">
+            {% if profil.avatar_url %}
+              Yeni bir dosya seçersen bunun yerini alır.
+            {% else %}
+              Henüz fotoğraf eklemedin. Soldaki formdan yükleyebilirsin.
+            {% endif %}
+          </span>
+        </div>
+      </section>
+
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Hesap ayarları</h2>
+        </div>
+        <ul class="ayar-listesi">
+          <li>
+            <a class="ayar-satiri" href="{% url 'account_change_password' %}">
+              <span class="ayar-metin">
+                <strong>Parolamı değiştir</strong>
+                <span>Giriş parolanı güncelle</span>
+              </span>
+              <span class="ayar-ok" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="ayar-satiri" href="{% url 'account_email' %}">
+              <span class="ayar-metin">
+                <strong>E-posta adreslerim</strong>
+                <span>Adres ekle ya da doğrula</span>
+              </span>
+              <span class="ayar-ok" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="ayar-satiri" href="{% url 'socialaccount_connections' %}">
+              <span class="ayar-metin">
+                <strong>Bağlı hesaplar</strong>
+                <span>Google bağlantını yönet</span>
+              </span>
+              <span class="ayar-ok" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="ayar-satiri" href="{% url 'chat:anahtar_kurulumu' %}">
+              <span class="ayar-metin">
+                <strong>Sohbet şifreleme anahtarım</strong>
+                <span>Uçtan uca şifreleme parolan</span>
+              </span>
+              <span class="ayar-ok" aria-hidden="true"></span>
+            </a>
+          </li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

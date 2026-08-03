@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block baslik %}Şifreleme anahtarım · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar" id="anahtar-kurulum" data-kullanici-id="{{ user.pk }}">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Uçtan uca şifreleme</p>
+        <h1>Sohbet anahtarım</h1>
+      </div>
+      <span class="kilit-notu" id="kilit-durumu">
+        <span class="kilit-isareti" aria-hidden="true"></span>
+        Bu tarayıcıda kilitli
+      </span>
+    </div>
+
+    <div class="kutu kutu-uyari" id="ortam-uyarisi" hidden>
+      <p>
+        <strong>Tarayıcın şifrelemeyi desteklemiyor.</strong>
+        Sohbet için güvenli bağlam (HTTPS ya da localhost) ve güncel bir tarayıcı
+        gerekiyor.
+      </p>
+    </div>
+
+    {% if not anahtar_var %}
+      <p>
+        Grup sohbetleri uçtan uca şifreli. Başlamak için bir
+        <strong>şifreleme parolası</strong> belirlemen gerekiyor. Bu parola
+        giriş parolandan farklıdır ve <strong>sunucuya hiçbir zaman
+        gönderilmez</strong>. Anahtarın tarayıcında üretilir, sunucuya yalnızca
+        şifrelenmiş hâli yüklenir.
+      </p>
+
+      <div class="kutu kutu-tehlike">
+        <p><strong>Bunu unutursan geri getiremeyiz.</strong></p>
+        <p class="kucuk">
+          Sunucuda bu parolayı çözecek hiçbir bilgi yok. Unutursan anahtarını
+          sıfırlaman gerekir ve o gruptaki eski mesajların senin için kalıcı
+          olarak okunamaz hâle gelir. Parolayı bir parola yöneticisine kaydet.
+        </p>
+      </div>
+
+      <form id="anahtar-olustur-formu" data-en-az-uzunluk="{{ en_az_uzunluk }}">
+        <div class="alan">
+          <label for="id_parola">Şifreleme parolası</label>
+          <input type="password" id="id_parola" name="parola"
+                 autocomplete="new-password" minlength="{{ en_az_uzunluk }}" required>
+          <span class="alan-yardim">En az {{ en_az_uzunluk }} karakter.</span>
+        </div>
+        <div class="alan">
+          <label for="id_parola_tekrar">Parolayı tekrar yaz</label>
+          <input type="password" id="id_parola_tekrar" name="parola_tekrar"
+                 autocomplete="new-password" required>
+        </div>
+        <p class="islem-durumu" hidden></p>
+        <button class="dugme dugme-birincil dugme-genis" type="submit">
+          Anahtarımı oluştur
+        </button>
+      </form>
+    {% else %}
+      <p>
+        Anahtarın hazır. Yeni bir tarayıcıda ya da yeni bir oturumda mesajları
+        okumak için şifreleme parolanla kilidi açman gerekir.
+      </p>
+
+      <form id="anahtar-ac-formu">
+        <div class="alan">
+          <label for="id_parola">Şifreleme parolası</label>
+          <input type="password" id="id_parola" name="parola"
+                 autocomplete="current-password" required>
+        </div>
+        <p class="islem-durumu" hidden></p>
+        <button class="dugme dugme-birincil dugme-genis" type="submit">
+          Kilidi aç
+        </button>
+      </form>
+
+      <hr>
+
+      <details>
+        <summary>Şifreleme parolamı unuttum</summary>
+        <div class="kutu kutu-tehlike">
+          <p>
+            <strong>Sıfırlama geri alınamaz.</strong> Yeni bir anahtar üretilir;
+            eski anahtarla şifrelenmiş <strong>tüm mesajlar senin için kalıcı
+            olarak okunamaz</strong> hâle gelir. Gruptaki diğer kişiler kendi
+            geçmişlerini görmeye devam eder.
+          </p>
+          <form id="anahtar-sifirla-formu">
+            <label class="onay-satiri">
+              <input type="checkbox" name="onay">
+              <span>Eski mesajlarımı kaybedeceğimi anlıyorum.</span>
+            </label>
+            <p class="islem-durumu" hidden></p>
+            <button class="dugme dugme-tehlike" type="submit">
+              Anahtarımı sıfırla
+            </button>
+          </form>
+        </div>
+      </details>
+    {% endif %}
+
+    <div class="kutu">
+      <h2>Nasıl çalışıyor</h2>
+      <ul class="cetvel-liste">
+        <li>Anahtar çiftin tarayıcında üretilir (RSA-OAEP 2048 bit).</li>
+        <li>Özel anahtarın parolandan türetilen bir anahtarla şifrelenir (PBKDF2, 600.000 tur).</li>
+        <li>Sunucuya yalnızca şifreli hâli gider; parolan hiçbir zaman gönderilmez.</li>
+        <li>Grup anahtarı her üye için ayrı ayrı sarmalanır; mesajlar AES-GCM ile şifrelenir.</li>
+        <li>Nihai yönetici dâhil hiç kimse sunucudan mesaj okuyamaz.</li>
+      </ul>
+    </div>
+  </div>
+{% endblock %}
+
+{% block ekstra_js %}
+  <script type="module" src="{% static 'js/anahtar-kurulum.js' %}"></script>
+{% endblock %}

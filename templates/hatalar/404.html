@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block baslik %}Sayfa bulunamadı · {{ site_adi }}{% endblock %}
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">404</p>
+        <h1>Bu sayfa yok</h1>
+      </div>
+    </div>
+    <p class="solgun">
+      Aradığın sayfa taşınmış ya da silinmiş olabilir. Erişim yetkin olmayan
+      bir gruba da ait olabilir.
+    </p>
+    <p><a class="dugme" href="{% url 'core:home' %}">Başa dön</a></p>
+  </div>
+{% endblock %}

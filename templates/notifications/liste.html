@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block baslik %}Bildirimler · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Halısaha Defteri</p>
+      <h1>Bildirimler</h1>
+    </div>
+    {% if okunmamis_bildirim %}
+      <form method="post" action="{% url 'notifications:hepsi_okundu' %}">
+        {% csrf_token %}
+        <button class="dugme dugme-sessiz" type="submit">Hepsini okundu işaretle</button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if sayfa.object_list %}
+    <section class="kutu">
+      <ul class="cetvel-liste">
+        {% for bildirim in sayfa %}
+          <li>
+            <div class="tarih-detay">
+              <strong>
+                {% if bildirim.guvenli_url %}
+                  <form method="post" action="{% url 'notifications:okundu' bildirim.pk %}">
+                    {% csrf_token %}
+                    <button class="baglanti-dugme" type="submit">{{ bildirim.baslik }}</button>
+                  </form>
+                {% else %}
+                  {{ bildirim.baslik }}
+                {% endif %}
+              </strong>
+              {% if bildirim.mesaj %}<span class="kucuk solgun">{{ bildirim.mesaj }}</span>{% endif %}
+              <span class="kucuk solgun">{{ bildirim.olusturulma|date:"j F Y, H:i" }}</span>
+            </div>
+            {% if not bildirim.okundu %}
+              <span class="rozet rozet-kiremit sag">Yeni</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    {% if sayfa.has_other_pages %}
+      <div class="satir">
+        {% if sayfa.has_previous %}
+          <a class="dugme dugme-kucuk" href="?sayfa={{ sayfa.previous_page_number }}">Önceki</a>
+        {% endif %}
+        <span class="kucuk solgun">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+        {% if sayfa.has_next %}
+          <a class="dugme dugme-kucuk" href="?sayfa={{ sayfa.next_page_number }}">Sonraki</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="bos-durum">
+      <p><strong>Bildirimin yok.</strong></p>
+      <p>Katılma istekleri, yeni maçlar ve yoklama duyuruları burada görünür.</p>
+    </div>
+  {% endif %}
+{% endblock %}

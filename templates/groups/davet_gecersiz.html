@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block baslik %}Davet geçersiz · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Davet</p>
+        <h1>Bu bağlantı çalışmıyor</h1>
+      </div>
+    </div>
+
+    <p class="solgun">
+      Davet bağlantısının süresi dolmuş, kullanım hakkı bitmiş ya da yönetici
+      tarafından iptal edilmiş olabilir.
+    </p>
+    <p class="solgun">Grubun yöneticisinden yeni bir bağlantı isteyebilirsin.</p>
+
+    <p><a class="dugme" href="{% url 'core:dashboard' %}">Panele dön</a></p>
+  </div>
+{% endblock %}

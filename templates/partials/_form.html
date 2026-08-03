@@ -1,0 +1,28 @@
+{# Django formunu defter stiliyle basar. Onay kutuları ayrı yerleşim alır. #}
+{% if form.non_field_errors %}
+  <div class="serit serit-hata">
+    {% for hata in form.non_field_errors %}<p>{{ hata }}</p>{% endfor %}
+  </div>
+{% endif %}
+
+{% for alan in form.hidden_fields %}{{ alan }}{% endfor %}
+
+{% for alan in form.visible_fields %}
+  {% if alan.field.widget.input_type == 'checkbox' %}
+    <div class="alan">
+      <label class="onay-satiri" for="{{ alan.id_for_label }}">
+        {{ alan }}
+        <span>{{ alan.label }}</span>
+      </label>
+      {% if alan.help_text %}<span class="alan-yardim">{{ alan.help_text }}</span>{% endif %}
+      {% for hata in alan.errors %}<span class="alan-hata">{{ hata }}</span>{% endfor %}
+    </div>
+  {% else %}
+    <div class="alan">
+      <label for="{{ alan.id_for_label }}">{{ alan.label }}</label>
+      {{ alan }}
+      {% if alan.help_text %}<span class="alan-yardim">{{ alan.help_text }}</span>{% endif %}
+      {% for hata in alan.errors %}<span class="alan-hata">{{ hata }}</span>{% endfor %}
+    </div>
+  {% endif %}
+{% endfor %}
