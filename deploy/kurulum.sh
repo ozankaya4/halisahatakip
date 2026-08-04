@@ -97,6 +97,10 @@ chmod 750 /var/backups/halisaha
 # Yüklenen dosyalar asla çalıştırılabilir olmasın.
 chmod -R u=rwX,g=rX,o= "${UYGULAMA_DIZINI}/media"
 
+# Depo "ubuntu" kullanıcısıyla klonlanıp sonra halisaha'ya devredildiği için
+# git "dubious ownership" diyip guncelle.sh'ı reddedebiliyor. Şimdiden izin ver.
+sudo -u "${KULLANICI}" git config --global --add safe.directory "${UYGULAMA_DIZINI}" 2>/dev/null || true
+
 if [[ -f "${UYGULAMA_DIZINI}/.env" ]]; then
     chown "${KULLANICI}:${KULLANICI}" "${UYGULAMA_DIZINI}/.env"
     chmod 600 "${UYGULAMA_DIZINI}/.env"

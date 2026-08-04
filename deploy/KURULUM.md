@@ -64,21 +64,47 @@ Default Security List → **Add Ingress Rules**:
 | `0.0.0.0/0` | TCP | 80 |
 | `0.0.0.0/0` | TCP | 443 |
 
-## 3. Alan adını yönlendirin
+## 3. Alan adını yönlendirin (Namecheap)
 
-Alan adınızın DNS panelinde iki **A kaydı** açın; ikisi de sunucunun
-**Public IP** adresine baksın:
+Namecheap → **Domain List** → `halisahadefteri.site` yanındaki **Manage**
+→ **Advanced DNS** sekmesi.
 
-```
-@      A    <SUNUCU_IP>
-www    A    <SUNUCU_IP>
-```
+### Önce hazır kayıtları silin
 
-Yayılmayı kontrol edin (birkaç dakika ile birkaç saat sürebilir):
+Namecheap yeni alan adlarına otomatik olarak park sayfası kaydı ekler.
+Bunlar sunucunuza giden trafiği çalar; **silmezseniz site açılmaz**:
+
+| Silinecek | Tipi |
+|---|---|
+| `@` → `http://www.halisahadefteri.site/` | URL Redirect Record |
+| `www` → `parkingpage.namecheap.com` | CNAME Record |
+
+Sağdaki çöp kutusu simgesiyle ikisini de silin.
+
+### Sonra kendi kayıtlarınızı ekleyin
+
+**Add New Record** ile iki adet **A Record**:
+
+| Type | Host | Value | TTL |
+|---|---|---|---|
+| A Record | `@` | `<SUNUCU_IP>` | Automatic |
+| A Record | `www` | `<SUNUCU_IP>` | Automatic |
+
+`<SUNUCU_IP>` = Oracle konsolundaki **Public IP** adresi.
+
+> Nameserver ayarı **Namecheap BasicDNS** kalsın; değiştirmenize gerek yok.
+
+### Yayılmayı bekleyin
 
 ```bash
-dig +short alanadiniz.com
+dig +short halisahadefteri.site
+dig +short www.halisahadefteri.site
 ```
+
+İkisi de sunucunuzun IP'sini yazdırmalı. Namecheap genelde 5-30 dakikada
+yayılır. **Sertifika adımına (adım 8) geçmeden önce bu çıktıyı mutlaka
+görün** — DNS hazır değilken certbot başarısız olur ve Let's Encrypt
+tekrar denemelerinizi bir süreliğine sınırlar.
 
 ## 4. Kodu sunucuya alın
 
@@ -112,8 +138,8 @@ nano .env
 ```ini
 SECRET_KEY=<yukarıda üretilen>
 DEBUG=False
-ALLOWED_HOSTS=alanadiniz.com,www.alanadiniz.com
-CSRF_TRUSTED_ORIGINS=https://alanadiniz.com,https://www.alanadiniz.com
+ALLOWED_HOSTS=halisahadefteri.site,www.halisahadefteri.site
+CSRF_TRUSTED_ORIGINS=https://halisahadefteri.site,https://www.halisahadefteri.site
 
 DATABASE_URL=postgres://halisaha:<DB_PAROLA>@localhost:5432/halisaha
 
@@ -176,7 +202,7 @@ güvenlik güncellemeleri.
 DNS yayıldıktan **sonra**:
 
 ```bash
-sudo certbot --nginx -d alanadiniz.com -d www.alanadiniz.com
+sudo certbot --nginx -d halisahadefteri.site -d www.halisahadefteri.site
 ```
 
 Sonra `.env` içinde `SECURE_SSL_REDIRECT=True` yapın ve yeniden başlatın:
@@ -194,15 +220,15 @@ Sertifika otomatik yenilenir (`certbot.timer`).
 OAuth 2.0 Client ID'niz → **Authorized redirect URIs**'e ekleyin:
 
 ```
-https://alanadiniz.com/hesap/google/login/callback/
-https://www.alanadiniz.com/hesap/google/login/callback/
+https://halisahadefteri.site/hesap/google/login/callback/
+https://www.halisahadefteri.site/hesap/google/login/callback/
 ```
 
 **Authorized JavaScript origins**:
 
 ```
-https://alanadiniz.com
-https://www.alanadiniz.com
+https://halisahadefteri.site
+https://www.halisahadefteri.site
 ```
 
 Localhost adreslerini silmeyin; geliştirmeye devam edeceksiniz.
@@ -256,6 +282,8 @@ bu, sınırı aşarsanız gerçekten ücretlendirilebileceğiniz anlamına gelir
 | Belirti | Bakılacak yer |
 |---|---|
 | Site hiç açılmıyor | Security List (adım 2) **ve** `sudo iptables -L INPUT -n` |
+| Namecheap park sayfası çıkıyor | Adım 3'teki URL Redirect / CNAME kayıtları silinmemiş |
+| `dig` yanlış IP veriyor | DNS henüz yayılmamış ya da A kaydı yanlış |
 | 502 Bad Gateway | `sudo journalctl -u halisaha -n 50` — uygulama çökmüş |
 | Kayıt olurken e-posta gelmiyor | Gmail uygulama parolası, `EMAIL_BACKEND` smtp mi |
 | Google girişi `redirect_uri_mismatch` | Adım 9'daki adresler birebir aynı mı (sondaki `/` dahil) |
