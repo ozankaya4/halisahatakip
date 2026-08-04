@@ -129,7 +129,9 @@ nano deploy/sunucu.env
 
 ```bash
 cp .env.example .env
-.venv/bin/python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+# Sanal ortam henüz yok (adım 7'de kurulacak), bu yüzden sistem
+# python'u ile üretiyoruz.
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 nano .env
 ```
 
