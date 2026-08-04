@@ -6,21 +6,8 @@ Arayüz tamamen Türkçedir.
 
 ---
 
-## Hızlı başlangıç
 
-Proje zaten kurulu durumda. Sunucuyu çalıştırmak için:
-
-```powershell
-.\.venv\Scripts\activate
-python manage.py runserver
-```
-
-Sonra tarayıcıdan: <http://127.0.0.1:8000/>
-
-Yönetici hesabınız oluşturuldu: **hikmetozankaya@gmail.com**
-Giriş: `/hesap/login/` · Django yönetim paneli: `/yonetim/`
-
-### Sıfırdan kurulum (başka bir makinede)
+### Sıfırdan kurulum
 
 ```powershell
 py -3.12 -m venv .venv
@@ -103,7 +90,7 @@ biri, başkasının e-posta adresiyle sağlayıcıda hesap açıp o hesabı devr
 ### Genel
 
 - **Parola saklama:** Argon2 (Django'nun varsayılan PBKDF2'sinden güçlü).
-- **Kaba kuvvet koruması:** `django-axes` — 6 başarısız denemeden sonra
+- **Brute-force koruması:** `django-axes` — 6 başarısız denemeden sonra
   kullanıcı+IP kombinasyonu 1 saat kilitlenir. Ayrıca allauth'un kendi hız
   sınırları (giriş, kayıt, parola sıfırlama) açık.
 - **CSP:** Satır içi script yok, harici kaynak yok (`default-src 'none'`).
@@ -121,7 +108,7 @@ biri, başkasının e-posta adresiyle sağlayıcıda hesap açıp o hesabı devr
 
 ### Dosya yükleme
 
-Bu kısmı özellikle istemiştiniz; `apps/core/images.py` içinde:
+`apps/core/images.py` içinde:
 
 1. Boyut sınırı (8 MB) ve uzantı beyaz listesi.
 2. `Pillow.verify()` ile yapı doğrulaması.
@@ -151,14 +138,14 @@ bir tercihtir ve şu sonuçları vardır:
 | AES-GCM 256 | Grup anahtarı ve mesaj şifreleme |
 
 Akış: Tarayıcı bir anahtar çifti üretir. Özel anahtar, sizin belirlediğiniz
-**şifreleme parolasından** türetilen anahtarla şifrelenip sunucuya öyle yüklenir —
+**şifreleme parolasından** türetilen anahtarla şifrelenip sunucuya öyle yüklenir ve
 parola sunucuya hiçbir zaman gitmez. Her grubun sürümlenmiş bir AES anahtarı
 vardır ve bu anahtar her üye için ayrı ayrı sarmalanır. Mesajlar tarayıcıda
 AES-GCM ile şifrelenir; ek doğrulanmış veri olarak `grup:sürüm:gönderen`
 kullanılır, böylece sunucu bir mesajı başka gruba taşıyamaz veya göndereni
 değiştiremez.
 
-**Bilinçli sınırlar — bunları bilerek kabul ettiniz:**
+**Bilinçli sınırlar:**
 
 - ⚠️ **Şifreleme parolanızı unutursanız mesaj geçmişiniz kurtarılamaz.**
   Sunucuda onu çözecek hiçbir bilgi yok. Parolayı bir parola yöneticisine kaydedin.
@@ -169,7 +156,7 @@ değiştiremez.
   okuyamaz. Daha önce indirdiği mesajları teknik olarak geri alamayız.
 - Grup anahtarını bilen bir üye, teoride başka bir üyenin adına mesaj
   şifreleyebilir. Buna karşı mesaj başına imza gerekir; bu sürümde yoktur.
-  (Grup içi güven varsayımı — halı saha arkadaş grubu için makul.)
+  (Grup içi güven varsayımı, halı saha arkadaş grubu için makul bence.)
 
 Sohbet, güvenli bağlam gerektirir: **HTTPS** ya da `localhost`. Düz HTTP ile
 uzak bir sunucuda WebCrypto çalışmaz.
@@ -178,7 +165,6 @@ uzak bir sunucuda WebCrypto çalışmaz.
 
 ## Üretime alma
 
-Nereye kuracağınıza karar vermediğiniz için proje taşınabilir yazıldı:
 tek bir `.env` değişikliğiyle SQLite'tan PostgreSQL'e geçer.
 
 ### 1. `.env` ayarları
@@ -289,7 +275,7 @@ static/
 Arayüz **"Saha Defteri"** yönünde: kağıt zemini, mürekkep yeşili, ince cetvel
 çizgileri, iri serif başlıklar (Fraunces — "WONK" ekseni açık, elle çizilmiş
 hissi için) ve asimetrik yerleşim. Kutu gölgesi ve büyük köşe yuvarlaması
-bilinçli olarak kullanılmadı; ayrım gölgeyle değil çizgiyle ve boşlukla yapılıyor.
+bilinçli olarak kullanıldı; ayrım gölgeyle değil çizgiyle ve boşlukla yapılıyor.
 
 Açık ve koyu tema var. Tema tercihi çerezde tutulur ve sunucu tarafında
 uygulanır — bu sayede sayfa açılırken yanlış temanın bir an görünmesi (flash)
