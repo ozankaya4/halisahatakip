@@ -1,0 +1,54 @@
+[Unit]
+Description=Halısaha Takip (Gunicorn)
+Documentation=file:/srv/halisaha/deploy/KURULUM.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=notify
+User=halisaha
+Group=halisaha
+WorkingDirectory=/srv/halisaha
+
+# Ayarlar .env dosyasından okunuyor (django-environ, BASE_DIR/.env).
+# systemd'ye ayrıca EnvironmentFile vermiyoruz: .env içindeki tırnaklı
+# değerleri systemd farklı ayrıştırır ve iki farklı yorum çakışır.
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+ExecStart=/srv/halisaha/.venv/bin/gunicorn \
+    --config /srv/halisaha/deploy/gunicorn.conf.py \
+    halisaha.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+
+Restart=always
+RestartSec=3
+
+# /run/halisaha soketi için; servis durunca otomatik silinir.
+RuntimeDirectory=halisaha
+RuntimeDirectoryMode=0750
+
+# --- Sıkılaştırma ---------------------------------------------------------
+# Uygulama yalnızca medya klasörüne yazabilir. Bir açık bulunsa bile
+# sistemin geri kalanı salt okunur kalır.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+ReadWritePaths=/srv/halisaha/media
+
+[Install]
+WantedBy=multi-user.target

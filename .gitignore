@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 
+# Sunucu kurulum sırları (veritabanı parolası burada).
+# Dikkat: yukarıdaki ".env.*" bu dosyayı YAKALAMAZ — adı ".env" ile
+# başlamıyor, onunla bitiyor. Ayrıca yazılması şart.
+deploy/sunucu.env
+
 # Sanal ortam
 .venv/
 venv/

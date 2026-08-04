@@ -1,0 +1,264 @@
+# Yayına Alma — Oracle Cloud (Always Free), Frankfurt
+
+Aylık maliyet: **yalnızca alan adı.** Sunucu, veritabanı, TLS sertifikası ve
+trafik ücretsiz.
+
+Bu belge Ubuntu 24.04 (ARM / Ampere A1) varsayar.
+
+---
+
+## Önce okuyun: iki şey kurulumu kilitler
+
+Sırayla ilerlerseniz ikisine de takılmazsınız, ama sebebini bilmek iyi:
+
+1. **Oracle'da güvenlik duvarı iki katmanlı.** Konsoldaki Security List'te
+   80/443 portlarını açsanız bile, makinenin kendi `iptables` kuralları
+   isteği düşürür. "DNS doğru, nginx çalışıyor, ama site açılmıyor"
+   şikâyetlerinin neredeyse tamamı budur. `kurulum.sh` sunucu tarafını
+   hallediyor; konsol tarafını **siz** yapacaksınız (adım 2).
+
+2. **Üretimde e-posta doğrulaması zorunlu.** `settings.py` içinde
+   `ACCOUNT_EMAIL_VERIFICATION = "mandatory" if not DEBUG` yazıyor. Yani
+   `DEBUG=False` olduğu anda, çalışan bir SMTP olmadan **hiç kimse kayıt
+   olamaz** — doğrulama e-postası gitmez, hesap açılmaz. Ücretsiz çözüm
+   adım 6'da.
+
+---
+
+## 1. Sunucuyu oluşturun
+
+[cloud.oracle.com](https://cloud.oracle.com) → hesap açın. Kayıt sırasında
+kart isteniyor (doğrulama için); Always Free sınırları içinde kalırsanız
+ücret çıkmaz.
+
+**Bölge seçimi kalıcıdır ve sonradan değiştirilemez.** `Germany Central
+(Frankfurt)` seçin — Türkiye'den ~40 ms, ABD bölgelerinde ~150 ms olurdu.
+
+Compute → Instances → Create Instance:
+
+| Alan | Değer |
+|---|---|
+| Image | Canonical Ubuntu 24.04 |
+| Shape | `VM.Standard.A1.Flex` (Ampere ARM) |
+| OCPU / RAM | 2 OCPU / 12 GB |
+| Boot volume | 100 GB |
+| SSH key | Kendi açık anahtarınızı yükleyin |
+
+> **"Out of capacity" hatası alırsanız:** Frankfurt'ta ARM kapasitesi sık
+> sık tükeniyor. Seçenekler: birkaç saat sonra tekrar deneyin, Amsterdam'ı
+> deneyin, ya da shape'i `VM.Standard.E2.1.Micro` (AMD, 1 GB RAM) yapın —
+> bu her zaman müsait. AMD ile de çalışır; sadece PostgreSQL yerine SQLite
+> kullanmanız daha rahat olur (bkz. adım 9).
+
+> **Oracle 15 Haziran 2026'da Always Free ARM kotasını duyurmadan 4 OCPU /
+> 24 GB'dan 2 OCPU / 12 GB'a düşürdü.** Bu uygulama için hâlâ fazlasıyla
+> yeterli, ama ileride tekrar düşerse şaşırmayın.
+
+## 2. Security List (bunu atlamayın)
+
+Networking → Virtual Cloud Networks → VCN'iniz → Security Lists →
+Default Security List → **Add Ingress Rules**:
+
+| Source CIDR | IP Protocol | Destination Port |
+|---|---|---|
+| `0.0.0.0/0` | TCP | 80 |
+| `0.0.0.0/0` | TCP | 443 |
+
+## 3. Alan adını yönlendirin
+
+Alan adınızın DNS panelinde iki **A kaydı** açın; ikisi de sunucunun
+**Public IP** adresine baksın:
+
+```
+@      A    <SUNUCU_IP>
+www    A    <SUNUCU_IP>
+```
+
+Yayılmayı kontrol edin (birkaç dakika ile birkaç saat sürebilir):
+
+```bash
+dig +short alanadiniz.com
+```
+
+## 4. Kodu sunucuya alın
+
+```bash
+ssh ubuntu@<SUNUCU_IP>
+
+sudo mkdir -p /srv/halisaha
+sudo chown ubuntu:ubuntu /srv/halisaha
+git clone https://github.com/ozankaya4/halisahatakip.git /srv/halisaha
+cd /srv/halisaha
+```
+
+## 5. Kurulum ayarları
+
+```bash
+cp deploy/sunucu.env.ornek deploy/sunucu.env
+openssl rand -base64 32          # çıktıyı DB_PAROLA'ya yapıştırın
+nano deploy/sunucu.env
+```
+
+## 6. Uygulama ayarları (`.env`)
+
+```bash
+cp .env.example .env
+.venv/bin/python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+nano .env
+```
+
+Üretim için değiştirilecekler:
+
+```ini
+SECRET_KEY=<yukarıda üretilen>
+DEBUG=False
+ALLOWED_HOSTS=alanadiniz.com,www.alanadiniz.com
+CSRF_TRUSTED_ORIGINS=https://alanadiniz.com,https://www.alanadiniz.com
+
+DATABASE_URL=postgres://halisaha:<DB_PAROLA>@localhost:5432/halisaha
+
+# nginx korumalı dosyaları devralsın
+USE_X_ACCEL_REDIRECT=True
+BEHIND_PROXY=True
+
+# Sertifika alındıktan SONRA True yapın (adım 8)
+SECURE_SSL_REDIRECT=False
+```
+
+### E-posta (zorunlu — bu olmadan kimse kayıt olamaz)
+
+Ücretsiz ve bu ölçek için fazlasıyla yeterli yol: **Gmail uygulama
+parolası**. Günde 500 e-posta sınırı var; 12 kişilik bir grup için bunun
+yanına bile yaklaşmazsınız.
+
+1. Google hesabınızda **iki adımlı doğrulama açık olmalı**
+2. [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+   → yeni uygulama parolası üretin (16 karakter)
+3. `.env` içine:
+
+```ini
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=hikmetozankaya@gmail.com
+EMAIL_HOST_PASSWORD=<16 karakterlik uygulama parolası, boşluksuz>
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=Halısaha Takip <hikmetozankaya@gmail.com>
+```
+
+> Bu, normal Gmail parolanız **değildir**. Uygulama parolası yalnızca SMTP
+> için geçerlidir ve istediğiniz zaman iptal edebilirsiniz.
+
+### İlk yönetici
+
+```ini
+SUPERADMIN_EMAIL=hikmetozankaya@gmail.com
+SUPERADMIN_PASSWORD=<güçlü, yeni bir parola>
+SUPERADMIN_NAME=Ozan Kaya
+```
+
+> Sohbette paylaştığınız eski parolayı kullanmayın. Yöneticiyi
+> oluşturduktan sonra bu üç satırı `.env`'den silin.
+
+## 7. Kurulumu çalıştırın
+
+```bash
+sudo bash /srv/halisaha/deploy/kurulum.sh
+```
+
+Betik şunları yapar: paketler, iptables kuralları, `halisaha` sistem
+kullanıcısı, PostgreSQL rolü + veritabanı, sanal ortam, göçler,
+`collectstatic`, systemd servisi, nginx, günlük yedek görevi, otomatik
+güvenlik güncellemeleri.
+
+## 8. HTTPS
+
+DNS yayıldıktan **sonra**:
+
+```bash
+sudo certbot --nginx -d alanadiniz.com -d www.alanadiniz.com
+```
+
+Sonra `.env` içinde `SECURE_SSL_REDIRECT=True` yapın ve yeniden başlatın:
+
+```bash
+sudo systemctl restart halisaha
+```
+
+Bu, HSTS'i ve `upgrade-insecure-requests` CSP direktifini de açar.
+Sertifika otomatik yenilenir (`certbot.timer`).
+
+## 9. Google ile giriş
+
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials) →
+OAuth 2.0 Client ID'niz → **Authorized redirect URIs**'e ekleyin:
+
+```
+https://alanadiniz.com/hesap/google/login/callback/
+https://www.alanadiniz.com/hesap/google/login/callback/
+```
+
+**Authorized JavaScript origins**:
+
+```
+https://alanadiniz.com
+https://www.alanadiniz.com
+```
+
+Localhost adreslerini silmeyin; geliştirmeye devam edeceksiniz.
+
+## 10. Nihai yöneticiyi oluşturun
+
+```bash
+cd /srv/halisaha
+sudo -u halisaha .venv/bin/python manage.py ilk_yonetici
+```
+
+Ardından `.env`'den `SUPERADMIN_PASSWORD` satırını silin.
+
+---
+
+## Günlük kullanım
+
+```bash
+# Yeni sürümü yayına al (göç öncesi otomatik yedek alır)
+sudo bash /srv/halisaha/deploy/guncelle.sh
+
+# Durum ve günlükler
+sudo systemctl status halisaha
+sudo journalctl -u halisaha -f
+
+# Elle yedek
+sudo /usr/local/bin/halisaha-yedek
+```
+
+Yedekler `/var/backups/halisaha` altında, 14 gün saklanır. **Ayda bir
+kendi bilgisayarınıza da indirin** — sunucu kaybolursa yedek de kaybolur:
+
+```bash
+scp -r ubuntu@<SUNUCU_IP>:/var/backups/halisaha ./yedekler/
+```
+
+## Boşta kalma uyarısı
+
+Oracle, Always Free makineleri **7 gün boyunca %10'un altında CPU *ve*
+ağ kullanımı** görürse durdurabilir. Durdurulan makineyi konsoldan tekrar
+başlatabilirsiniz, ama o süre boyunca site kapalı olur.
+
+Grubunuz düzenli kullanıyorsa sorun çıkmaz. Tamamen garantiye almanın yolu
+hesabı Pay-As-You-Go'ya yükseltmektir — Always Free sınırları içinde
+kaldığınız sürece ücret çıkmaz ve boşta kalma toplaması uygulanmaz. Ancak
+bu, sınırı aşarsanız gerçekten ücretlendirilebileceğiniz anlamına gelir;
+"hiçbir şeye para vermeyeceğim" hedefiniz varsa önce yükseltmeden deneyin.
+
+## Sorun giderme
+
+| Belirti | Bakılacak yer |
+|---|---|
+| Site hiç açılmıyor | Security List (adım 2) **ve** `sudo iptables -L INPUT -n` |
+| 502 Bad Gateway | `sudo journalctl -u halisaha -n 50` — uygulama çökmüş |
+| Kayıt olurken e-posta gelmiyor | Gmail uygulama parolası, `EMAIL_BACKEND` smtp mi |
+| Google girişi `redirect_uri_mismatch` | Adım 9'daki adresler birebir aynı mı (sondaki `/` dahil) |
+| Fotoğraflar 404 | `.env` içinde `USE_X_ACCEL_REDIRECT=True` ve nginx `/korumali-medya/` bloğu |
+| Statik dosyalar gelmiyor | `sudo -u halisaha .venv/bin/python manage.py collectstatic` |
+| CSRF hatası | `CSRF_TRUSTED_ORIGINS` şema (`https://`) ile yazılmış mı |

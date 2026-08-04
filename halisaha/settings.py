@@ -216,7 +216,18 @@ AXES_RESET_ON_SUCCESS = True
 AXES_ENABLE_ADMIN = True
 AXES_LOCKOUT_TEMPLATE = "accounts/kilitlendi.html"
 AXES_VERBOSE = True
-AXES_IPWARE_PROXY_COUNT = 1 if env("BEHIND_PROXY") else None
+# Ters vekil sunucunun arkasındayken bile 0 (None) olmalı.
+#
+# nginx yapılandırmamız X-Forwarded-For başlığını EKLEMİYOR, ÜZERİNE YAZIYOR
+# (proxy_set_header X-Forwarded-For $remote_addr). Böylece başlıkta her zaman
+# tek bir değer var: gerçek istemcinin adresi.
+#
+# Burada 1 yazsaydık ipware soldan ikinci değeri okurdu. nginx eklemeli
+# ($proxy_add_x_forwarded_for) çalışsaydı, saldırgan kendi isteğine
+# "X-Forwarded-For: 1.2.3.4" koyup kilitlemenin hangi IP'ye yazılacağını
+# kendisi seçebilirdi: kendi kilidini atlatabilir ya da başkasını
+# kilitleyebilirdi. İki ayarı birlikte değiştirmek gerekir.
+AXES_IPWARE_PROXY_COUNT = None
 AXES_IPWARE_META_PRECEDENCE_ORDER = (
     ("HTTP_X_FORWARDED_FOR", "REMOTE_ADDR")
     if env("BEHIND_PROXY")
