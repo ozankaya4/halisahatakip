@@ -53,7 +53,7 @@ klasörünün göründüğünü doğrulayın.
 Karşınıza konsolun ana sayfası gelir.
 
 💡 Sağ üstte bölgenin **Germany Central (Frankfurt)** yazdığını kontrol
-edin. Başka bir bölgedeyse oradan Frankfurt'a geçin.
+edin. Başka bir bölgedeyse oradan Frankfurt'a geçin veya yeni hesap olusturun.
 
 ## B2. Instance oluşturma ekranını açın
 
@@ -62,7 +62,7 @@ edin. Başka bir bölgedeyse oradan Frankfurt'a geçin.
 3. Açılan listeden **Instances** seçin
 4. Sayfanın solunda **Compartment** (bölme) seçici var; hesabınızın adıyla
    aynı olan kök bölme seçili olsun
-5. Mavi **Create instance** düğmesine basın
+5. **Create instance** düğmesine basın
 
 ## B3. İsim ve yerleşim
 
@@ -101,18 +101,76 @@ edin. Başka bir bölgedeyse oradan Frankfurt'a geçin.
 > 3. Olmuyorsa **Change shape** → **AMD** sekmesi →
 >    **VM.Standard.E2.1.Micro** (1 GB RAM, her zaman müsait)
 >
-> AMD'yi seçerseniz **bana yazın**: 1 GB RAM'de PostgreSQL yerine SQLite
+> AMD'yi seçerseniz: 1 GB RAM'de PostgreSQL yerine SQLite
 > kullanmak gerekir, kurulum betiğini ona göre değiştiririm.
 
 ## B6. Ağ ayarları
 
-**Networking** bölümünde:
+⚠️ **Ağı instance ekranından oluşturmayın.** Instance oluşturma sayfasının
+içindeki "Create new public subnet" seçeneği kullanıldığında
+**Automatically assign public IPv4 address** anahtarı kapalı ve
+tıklanamaz kalıyor; altında da şu uyarı çıkıyor:
 
-1. **Primary network**: `Create new virtual cloud network` seçili olsun
-2. **New virtual cloud network name**: varsayılan isim kalsın
-3. **Subnet**: `Create new public subnet` seçili olsun
-4. ⚠️ **Assign a public IPv4 address** → **Yes** olmalı. Hayır olursa
-   sunucuya dışarıdan hiç erişemezsiniz.
+> You must select a public subnet to assign a public IPv4 address.
+
+Sebep: alt ağ (subnet) henüz oluşmadığı için konsol onun "public"
+olduğunu doğrulayamıyor. Oracle'ın kendi uyarısı da ağı önce ayrı
+oluşturmanızı söylüyor.
+
+Çözüm: ağı **VCN Wizard** ile önceden kurup instance ekranında hazır ağı
+seçmek. Bu yol daha sağlam, çünkü sihirbaz Internet Gateway ve yönlendirme
+kurallarını da doğru kuruyor.
+
+### B6a. Önce ağı oluşturun (VCN Wizard)
+
+💡 Instance formundaki bilgileri kaybetmemek için **yeni bir tarayıcı
+sekmesi** açın. (Kaybolursa da sorun değil, B3-B5 iki dakika sürüyor.)
+
+1. Yeni sekmede [cloud.oracle.com](https://cloud.oracle.com) konsolu
+2. Sol üstte **☰** menü → **Networking** → **Virtual cloud networks**
+3. Soldaki **Compartment** seçici `hikmetozankaya (root)` olsun
+4. Mavi **Start VCN Wizard** düğmesine basın
+5. Açılan pencerede **Create VCN with Internet Connectivity** seçeneğini
+   işaretleyin
+6. Sağ altta **Start VCN Wizard** düğmesine basın
+
+Sihirbazın 1. adımında:
+
+| Alan | Değer |
+|---|---|
+| VCN Name | `halisaha-vcn` |
+| Compartment | `hikmetozankaya (root)` |
+| VCN CIDR Block | `10.0.0.0/16` (varsayılan) |
+| Public Subnet CIDR Block | `10.0.0.0/24` (varsayılan) |
+| Private Subnet CIDR Block | `10.0.1.0/24` (varsayılan) |
+
+7. **Next** düğmesine basın
+8. Özet ekranını gözden geçirip **Create** düğmesine basın
+9. Sihirbaz sırayla VCN, iki alt ağ, Internet Gateway, NAT Gateway,
+   Service Gateway, yönlendirme tabloları ve güvenlik listelerini oluşturur
+10. Hepsi yeşil tik alınca **View VCN** düğmesine basın
+
+⚠️ Kaynak listesinde **Public Subnet-halisaha-vcn** adında bir alt ağ
+gördüğünüzü doğrulayın. Bir sonraki adımda bunu seçeceksiniz.
+
+### B6b. Instance ekranında hazır ağı seçin
+
+Instance oluşturma sekmesine dönün. (Sekmeyi kapattıysanız B2-B5'i
+tekrarlayın.) **Networking** bölümünde:
+
+1. **Primary network**: `Select existing virtual cloud network` seçeneğini
+   işaretleyin
+2. Altındaki listeden **halisaha-vcn** seçin
+3. **Subnet**: `Select existing subnet` seçeneğini işaretleyin
+4. Listeden **Public Subnet-halisaha-vcn** seçin
+   (⚠️ *Private* olanı değil)
+5. ✅ **Automatically assign public IPv4 address** anahtarı artık
+   tıklanabilir hâle geldi. **Açık konuma getirin.**
+
+💡 VCN listede görünmüyorsa sayfayı yenileyin (F5) ve bölümü tekrar açın.
+
+⚠️ Bu anahtar açılmazsa sunucuya dışarıdan hiç erişemezsiniz; ne SSH ne
+web. Devam etmeden önce açık olduğundan emin olun.
 
 ## B7. SSH anahtarı
 
@@ -171,10 +229,19 @@ sadece sonsuza kadar yüklenir. Oracle'da en çok takılınan yer burası.
 
 1. Sol üstte **☰** menü
 2. **Networking** → **Virtual cloud networks**
-3. Listede B6'da oluşan VCN'e tıklayın (adı `vcn-` ile başlar)
-4. Sol alttaki **Resources** listesinden **Security Lists** seçin
-5. **Default Security List for vcn-...** satırına tıklayın
-6. Mavi **Add Ingress Rules** düğmesine basın
+3. Listeden **halisaha-vcn** üzerine tıklayın
+4. Sol alttaki **Resources** listesinden **Subnets** seçin
+5. **Public Subnet-halisaha-vcn** satırına tıklayın
+6. Açılan sayfada aşağıda **Security Lists** başlığı var; oradaki güvenlik
+   listesinin adına tıklayın
+
+💡 Neden alt ağın üzerinden gidiyoruz: bir VCN'de birden fazla güvenlik
+listesi olur (sihirbaz özel alt ağ için ayrı bir tane kuruyor). Bu yolla
+kuralları **doğrudan sunucunuzun bağlı olduğu** listeye eklediğinizden
+emin olursunuz; yanlış listeye eklenen kural hiçbir işe yaramaz ve
+hata da vermez.
+
+7. Mavi **Add Ingress Rules** düğmesine basın
 
 Açılan formda **birinci kural**:
 
