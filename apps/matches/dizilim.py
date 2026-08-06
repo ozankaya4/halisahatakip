@@ -16,16 +16,15 @@ from django.db.models import Avg, Count, Q
 # Puan aralıkları ve renk sınıfları.
 #
 # Ölçeğin ortası 5: oyuncuya "vasat bir maç çıkardı" demek 5 vermek anlamına
-# geliyor ve bu, puanlama ekranında açıkça yazıyor. Renkler de buna göre
-# dağıtıldı; 5 nötr (gri) bölgenin içinde kalıyor, iyi performanslar yukarı
-# doğru yeşilden mora çıkıyor.
+# geliyor ve bu, puanlama ekranında açıkça yazıyor. 5-6 bandı sarı, yani
+# "ortalama" rengi; altı kırmızıya ve siyaha, üstü yeşilden mora gidiyor.
 #
 # Aralıklar üst sınır dışta (alt <= puan < ust) ve BOŞLUKSUZ; her puan
 # tam olarak bir renge denk geliyor. En üst aralık 10 dâhil.
 PUAN_RENKLERI = [
-    (0.0, 2.0, "puan-siyah"),
-    (2.0, 4.0, "puan-kirmizi"),
-    (4.0, 6.0, "puan-gri"),
+    (0.0, 3.0, "puan-siyah"),
+    (3.0, 5.0, "puan-kirmizi"),
+    (5.0, 6.0, "puan-sari"),
     (6.0, 7.0, "puan-yesil"),
     (7.0, 8.0, "puan-mavi"),
     (8.0, 9.0, "puan-lacivert"),

@@ -1633,12 +1633,6 @@ p {
   color: var(--yesil);
 }
 
-/* Bölüm başlığındaki birleşik skor ("5 - 6"). Takım başına düşen
-   skorlardan ayrı: onlarda kazananın yeşili anlam taşıyor, bu ise maçın
-   sonucunu tek bakışta veren nötr bir vurgu. */
-.mac-skoru {
-  color: var(--hardal);
-}
 
 /* =========================================================================
    15d. Dizilim tahtası (saha)
@@ -1835,11 +1829,12 @@ p {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-/* Ölçeğin ortası 5 (gri). Aşağısı kötü, yukarısı iyi.
-   Açık zeminlerde (gri, açık mavi) metin koyu; aksi hâlde okunmuyor. */
+/* Ölçeğin ortası 5-6 bandı (sarı). Aşağısı kırmızı ve siyaha, yukarısı
+   yeşilden mora gidiyor.
+   Açık zeminlerde (sarı, açık mavi) metin koyu; aksi hâlde okunmuyor. */
 .puan-siyah     { background: #17191a; }
 .puan-kirmizi   { background: #c0392b; }
-.puan-gri       { background: #b9bdc0; color: #1a1c1d; }
+.puan-sari      { background: #e2b93b; color: #221c07; }
 .puan-yesil     { background: #2f8f4e; }
 .puan-mavi      { background: #4aa3df; color: #10222e; }
 .puan-lacivert  { background: #1f3a93; }
@@ -1979,15 +1974,6 @@ p {
 .saha-skor-parca strong {
   font-size: 1.15rem;
   margin-inline-start: 0.3rem;
-  /* Skor sarı: .saha-skor kapsayıcısı gri metin rengi veriyor ve sayı da
-     onu miras alıp soluk kalıyordu. Maç sayfasındaki birleşik skorla
-     (.mac-skoru) aynı renk. */
-  color: var(--hardal);
-}
-
-/* Kazanan takımın adı yeşil kalsın ama skoru yine sarı görünsün. */
-.saha-skor-parca.takim-kazandi strong {
-  color: var(--hardal);
 }
 
 .olcek-aciklama {

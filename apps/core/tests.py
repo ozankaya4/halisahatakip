@@ -1462,16 +1462,15 @@ class PuanRengiTesti(TestCase):
     def test_olcek_dogru_esleniyor(self):
         from apps.matches.dizilim import puan_rengi
 
-        # Ölçeğin ortası 5 (gri). Sınır değerleri de kontrol ediliyor:
-        # aralıklar üst sınır dışta olduğu için 4.0 gri, 3.9 kırmızı olmalı.
+        # Ölçeğin ortası 5-6 bandı (sarı). Sınır değerleri de kontrol
+        # ediliyor: aralıklar üst sınır dışta, yani 5.0 sarı, 4.9 kırmızı.
         beklenen = [
             (0.0, "puan-siyah"),
-            (1.9, "puan-siyah"),
-            (2.0, "puan-kirmizi"),
-            (3.9, "puan-kirmizi"),
-            (4.0, "puan-gri"),
-            (5.0, "puan-gri"),
-            (5.9, "puan-gri"),
+            (2.9, "puan-siyah"),
+            (3.0, "puan-kirmizi"),
+            (4.9, "puan-kirmizi"),
+            (5.0, "puan-sari"),
+            (5.9, "puan-sari"),
             (6.0, "puan-yesil"),
             (6.9, "puan-yesil"),
             (7.0, "puan-mavi"),
