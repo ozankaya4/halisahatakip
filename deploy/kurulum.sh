@@ -240,9 +240,27 @@ systemctl enable halisaha
 
 # --- nginx ----------------------------------------------------------------
 bilgi "nginx yapılandırması"
-sed "s/__ALAN_ADI__/${ALAN_ADI}/g" \
-    "${UYGULAMA_DIZINI}/deploy/nginx.sablon.conf" \
-    > /etc/nginx/sites-available/halisaha
+
+# DİKKAT: Bu dosyayı koşulsuz üretmek, certbot'un eklediği HTTPS bloğunu
+# (listen 443, ssl_certificate satırları) siliyordu. Betik ikinci kez
+# çalıştırıldığında site aniden erişilemez hâle geliyordu: Django
+# SECURE_SSL_REDIRECT ile HTTPS'e yönlendiriyor ama nginx artık 443'ü
+# dinlemiyor. Bu yüzden certbot'un dokunduğu bir dosyanın üzerine yazmıyoruz.
+NGINX_HEDEF="/etc/nginx/sites-available/halisaha"
+
+if [[ -f "${NGINX_HEDEF}" ]] && grep -qE "listen 443|managed by Certbot" "${NGINX_HEDEF}"; then
+    uyari "nginx yapılandırması certbot tarafından düzenlenmiş; korunuyor."
+    echo "    Şablonu yeniden uygulamak isterseniz:"
+    echo "      sudo cp ${NGINX_HEDEF} ${NGINX_HEDEF}.yedek"
+    echo "      sudo rm ${NGINX_HEDEF}"
+    echo "      sudo bash ${UYGULAMA_DIZINI}/deploy/kurulum.sh"
+    echo "      sudo certbot install --nginx --cert-name ${ALAN_ADI}"
+else
+    sed "s/__ALAN_ADI__/${ALAN_ADI}/g" \
+        "${UYGULAMA_DIZINI}/deploy/nginx.sablon.conf" \
+        > "${NGINX_HEDEF}"
+    bilgi "nginx yapılandırması şablondan üretildi."
+fi
 ln -sf /etc/nginx/sites-available/halisaha /etc/nginx/sites-enabled/halisaha
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
