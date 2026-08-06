@@ -20,9 +20,13 @@
     {% if yonetici_mi %}
       <div class="satir">
         <a class="dugme dugme-sessiz" href="{% url 'matches:duzenle' mac.pk %}">Düzenle</a>
-        {% if mac.gecmis_mi and not mac.iptal %}
+        {% if not mac.iptal %}
+          {% comment %}
+          Kadro ve dizilim maçtan önce de kurulabilir: yönetici takımları
+          önceden ayarlayıp planlayabilsin.
+          {% endcomment %}
           <a class="dugme dugme-birincil" href="{% url 'matches:kadro_duzenle' mac.pk %}">
-            Kim oynadı?
+            Kim Oynayacak?
           </a>
         {% endif %}
       </div>
@@ -49,14 +53,12 @@
         {% endif %}
       </div>
 
-      {% if mac.gecmis_mi %}
-        <p class="satir">
-          <a class="dugme" href="{% url 'matches:dizilim' mac.pk %}">Sahadaki dizilimi gör</a>
-          {% if yonetici_mi %}
-            <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Dizilimi düzenle</a>
-          {% endif %}
-        </p>
-      {% endif %}
+      <p class="satir">
+        <a class="dugme" href="{% url 'matches:dizilim' mac.pk %}">Sahadaki dizilimi gör</a>
+        {% if yonetici_mi %}
+          <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Dizilimi düzenle</a>
+        {% endif %}
+      </p>
 
       {% if macin_adamlari %}
         <p class="macin-adami-satiri">
@@ -103,11 +105,12 @@
         </p>
       {% endif %}
     </section>
-  {% elif yonetici_mi and mac.gecmis_mi and not mac.iptal %}
+  {% elif yonetici_mi and not mac.iptal %}
     <div class="serit serit-bilgi">
       Takımlar henüz kurulmadı.
       <a href="{% url 'matches:kadro_duzenle' mac.pk %}">Kadro sayfasından</a>
-      oyuncuları A ve B takımlarına ayırıp skoru girebilirsin.
+      oyuncuları A ve B takımlarına ayırabilirsin
+      {% if mac.gecmis_mi %}ve skoru girebilirsin{% else %}; skoru maçtan sonra girersin{% endif %}.
     </div>
   {% endif %}
 
@@ -141,7 +144,7 @@
         </div>
 
         {% if mac.yoklama_alinabilir and not mac.iptal %}
-          <form class="satir" method="post" action="{% url 'matches:yoklama_oyu' mac.pk %}">
+          <form class="satir yoklama-secim" method="post" action="{% url 'matches:yoklama_oyu' mac.pk %}">
             {% csrf_token %}
             <button class="dugme {% if benim_katilimim.yanit == 'geliyorum' %}dugme-birincil{% endif %}"
                     type="submit" name="yanit" value="geliyorum">Geliyorum</button>

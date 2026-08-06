@@ -1466,15 +1466,54 @@ class PuanRengiTesti(TestCase):
 
 
 class DizilimTesti(_TakimliMacKurulumu):
-    def test_dizilim_mac_oynanmadan_acilmiyor(self):
+    def test_dizilim_mac_oynanmadan_da_acilabiliyor(self):
+        """
+        Yönetici takımları ve dizilimi maçtan ÖNCE kurabilmeli.
+
+        Eskiden bu sayfa yalnızca oynanmış maçlarda açılıyordu; planlama
+        yapılamıyordu. Puan rozetleri doğal olarak boş görünür.
+        """
+        gelecek = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() + timezone.timedelta(days=2),
+            olusturan=self.ozan,
+        )
+        for i, k in enumerate(self.herkes):
+            Katilim.objects.create(
+                mac=gelecek, kullanici=k, yanit=Katilim.Yanit.GELIYORUM,
+                katildi=True, takim="a" if i % 2 == 0 else "b",
+            )
+
+        self.client.force_login(self.ozan)
+        self.assertEqual(
+            self.client.get(reverse("matches:dizilim", args=[gelecek.pk])).status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(
+                reverse("matches:dizilim_duzenle", args=[gelecek.pk])
+            ).status_code,
+            200,
+        )
+
+    def test_oynanmamis_macta_kadro_duzenlenebiliyor(self):
         gelecek = Mac.objects.create(
             grup=self.grup,
             baslangic=timezone.now() + timezone.timedelta(days=2),
             olusturan=self.ozan,
         )
         self.client.force_login(self.ozan)
-        yanit = self.client.get(reverse("matches:dizilim", args=[gelecek.pk]))
+        yanit = self.client.post(
+            reverse("matches:kadro_duzenle", args=[gelecek.pk]),
+            {
+                "oynayan": [str(k.pk) for k in self.herkes],
+                **{
+                    f"takim_{k.pk}": ("a" if i % 2 == 0 else "b")
+                    for i, k in enumerate(self.herkes)
+                },
+            },
+        )
         self.assertEqual(yanit.status_code, 302)
+        self.assertTrue(gelecek.takimlar_kurulmus_mu)
 
     def test_uye_dizilimi_gorebiliyor(self):
         self.client.force_login(self.oyuncular[0])

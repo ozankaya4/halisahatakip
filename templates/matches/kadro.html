@@ -6,7 +6,7 @@
   <div class="defter-basligi">
     <div>
       <p class="uststart"><a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }} · {{ mac.baslangic|date:"j F Y" }}</a></p>
-      <h1>Kadroyu işaretle</h1>
+      <h1>{% if mac.gecmis_mi %}Kim oynadı?{% else %}Kim Oynayacak?{% endif %}</h1>
     </div>
   </div>
 
@@ -14,7 +14,12 @@
     <p class="kucuk">
       Bu liste puanlama yetkisini belirler: <strong>yalnızca burada işaretli
       oyuncular</strong> puan verebilir ve puan alabilir. Yoklamada “Geliyorum”
-      diyenler önceden işaretli gelir; sahaya çıkmayanların işaretini kaldır.
+      diyenler önceden işaretli gelir.
+      {% if mac.gecmis_mi %}
+        Sahaya çıkmayanların işaretini kaldır.
+      {% else %}
+        Maçtan sonra buraya dönüp gelemeyenleri çıkarabilirsin.
+      {% endif %}
     </p>
   </div>
 

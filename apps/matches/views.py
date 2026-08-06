@@ -329,7 +329,11 @@ def yoklama_durumu(request, mac_id: int):
 @login_required
 def kadro_duzenle(request, mac_id: int):
     """
-    Maç sonrası gerçek kadronun işaretlenmesi.
+    Kadro, takımlar ve maç sonucu.
+
+    Maçtan ÖNCE de açılabilir: yönetici takımları önceden kurup planlayabilir.
+    Maçtan sonra da aynı sayfadan düzeltilir (gelemeyenler, son anda katılanlar)
+    ve skor girilir.
 
     Bu liste puanlama yetkisini belirler: yalnızca burada işaretli oyuncular
     puan verebilir ve puan alabilir.
@@ -494,10 +498,9 @@ def dizilim(request, mac_id: int):
     """
     mac = _mac_getir(request, mac_id)
 
-    if not mac.gecmis_mi:
-        messages.info(request, "Dizilim maç oynandıktan sonra görünür.")
-        return redirect("matches:detay", mac_id=mac.pk)
-
+    # Maç oynanmadan da açılabiliyor: yönetici kadroyu önceden kurup
+    # dizilimi planlayabilsin, oyuncular da nerede oynayacaklarını görebilsin.
+    # Puan rozetleri ve maçın adamı yalnızca veri oluştuğunda görünür.
     adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
     return render(
         request,
@@ -521,10 +524,6 @@ def dizilim_duzenle(request, mac_id: int):
     ekran genişliklerinde dizilim bozulurdu.
     """
     mac = _mac_getir(request, mac_id, yonetici_sart=True)
-
-    if not mac.gecmis_mi:
-        messages.info(request, "Dizilim maç oynandıktan sonra düzenlenebilir.")
-        return redirect("matches:detay", mac_id=mac.pk)
 
     if request.method == "POST":
         katilimlar = {

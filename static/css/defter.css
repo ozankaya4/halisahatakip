@@ -1882,6 +1882,12 @@ p {
   }
 }
 
+/* Yoklama düğmeleri ile altındaki oyuncu listesi arasına nefes payı.
+   Bitişik durduklarında düğmeler listenin ilk satırına yapışık görünüyordu. */
+.yoklama-secim {
+  margin-block: 1rem 1.5rem;
+}
+
 /* =========================================================================
    15e. Oyuncu istatistikleri (form şeridi)
    ====================================================================== */
