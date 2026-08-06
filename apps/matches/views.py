@@ -15,6 +15,7 @@ from apps.core.ratelimit import sinir_asildi
 from apps.groups.models import Uyelik
 from apps.groups.yetki import uye_gerekli, yonetici_gerekli
 from apps.notifications.models import Bildirim, toplu_bildir
+from apps.ratings.hesaplar import mac_puanlarini_sil
 
 from .forms import FotografFormu, MacFormu
 from .models import Katilim, Mac, MacFotografi
@@ -169,6 +170,11 @@ def iptal_durumu(request, mac_id: int):
     mac.save(update_fields=["iptal", "guncellenme"])
 
     if mac.iptal:
+        # İptal edilen maçın puanları silinir. Aksi hâlde oynanmamış bir maç
+        # üzerinden puan biriktirmek mümkün olurdu: maçı kur, puanları al,
+        # sonra iptal et. Puanlar gittiği için ortalamalar da düzeliyor.
+        silinen = mac_puanlarini_sil(mac)
+
         alicilar = [
             u.kullanici
             for u in mac.grup.onayli_uyelikler
@@ -182,20 +188,57 @@ def iptal_durumu(request, mac_id: int):
             f"{yerel:%d.%m.%Y %H:%M}",
             reverse("matches:detay", kwargs={"mac_id": mac.pk}),
         )
-        messages.info(request, "Maç iptal edildi ve gruba bildirildi.")
+        if silinen:
+            messages.info(
+                request,
+                f"Maç iptal edildi ve gruba bildirildi. "
+                f"Bu maça verilen {silinen} puan da silindi.",
+            )
+        else:
+            messages.info(request, "Maç iptal edildi ve gruba bildirildi.")
     else:
-        messages.success(request, "Maç yeniden aktif edildi.")
+        messages.success(
+            request,
+            "Maç yeniden aktif edildi. İptal sırasında silinen puanlar geri gelmez; "
+            "puanlama süresi hâlâ açıksa yeniden verilebilir.",
+        )
     return redirect("matches:detay", mac_id=mac.pk)
 
 
 @login_required
 @require_POST
 def sil(request, mac_id: int):
+    """
+    Maçı tamamen siler.
+
+    Yalnızca grup yöneticisi ve yalnızca **henüz oynanmamış** maçlar için.
+    Oynanmış bir maçın silinmesine izin verilmiyor: o maçın puanları,
+    kadrosu ve fotoğrafları grubun geçmiş kaydı; yanlışlıkla ya da işine
+    gelmediği için silinebilmemeli. Oynanmış maçlar yerine "İptal et"
+    kullanılır, o da puanları temizler ama kaydı bırakır.
+    """
     mac = _mac_getir(request, mac_id, yonetici_sart=True)
+
+    if mac.gecmis_mi:
+        messages.error(
+            request,
+            "Oynanmış bir maç silinemez. Geçmiş kayıt olarak kalır; "
+            "istersen “İptal et” diyebilirsin, bu maça verilen puanlar silinir.",
+        )
+        return redirect("matches:detay", mac_id=mac.pk)
+
     grup_id = mac.grup.genel_id
-    # Fotoğraf dosyaları diskte kalmasın diye tek tek siliyoruz.
+
+    # Puanları önce açıkça siliyoruz: veritabanı zaten CASCADE ile silerdi
+    # ama toplu silme model delete()'ini çağırmadığı için profil sayaçları
+    # eski değerde takılı kalırdı.
+    mac_puanlarini_sil(mac)
+
+    # Fotoğraf dosyaları diskte yetim kalmasın diye tek tek siliyoruz;
+    # CASCADE yalnızca satırları siler, dosyalara dokunmaz.
     for foto in mac.fotograflar.all():
         foto.delete()
+
     mac.delete()
     messages.info(request, "Maç silindi.")
     return redirect("matches:liste", genel_id=grup_id)

@@ -163,12 +163,19 @@
                 {% if mac.yoklama_acik %}Yoklamayı kapat{% else %}Yoklamayı aç{% endif %}
               </button>
             </form>
-            <form method="post" action="{% url 'matches:iptal_durumu' mac.pk %}">
+            <form method="post" action="{% url 'matches:iptal_durumu' mac.pk %}"
+                  {% if not mac.iptal %}data-onay="Maç iptal edilsin mi? Bu maça verilmiş puanlar da silinecek."{% endif %}>
               {% csrf_token %}
               <button class="dugme dugme-genis {% if not mac.iptal %}dugme-tehlike{% endif %}" type="submit">
                 {% if mac.iptal %}İptali geri al{% else %}Maçı iptal et{% endif %}
               </button>
             </form>
+            {% if not mac.iptal %}
+              <p class="kucuk solgun">
+                İptal edilen maçın puanları silinir, böylece oynanmamış maçtan
+                puan biriktirilemez.
+              </p>
+            {% endif %}
           </div>
         </section>
       {% endif %}

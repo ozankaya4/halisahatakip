@@ -30,6 +30,10 @@ env = environ.Env(
     GOOGLE_CLIENT_ID=(str, ""),
     GOOGLE_CLIENT_SECRET=(str, ""),
     PUBLIC_PROFILES=(bool, False),
+    # "none"      : e-posta doğrulaması istenmez, kayıttan sonra doğrudan giriş
+    # "optional"  : doğrulama e-postası gider ama zorunlu değildir
+    # "mandatory" : doğrulanmadan giriş yapılamaz (çalışan SMTP şart)
+    EMAIL_VERIFICATION=(str, "none"),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -174,7 +178,11 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 # Kullanıcı modelimizde username alanı yok; allauth'a bunu açıkça söylüyoruz.
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
-ACCOUNT_EMAIL_VERIFICATION = "mandatory" if not DEBUG else "optional"
+# Şimdilik kapalı: kullanıcı e-postasını girip doğrudan giriş yapabiliyor.
+# İleride açmak için .env içinde EMAIL_VERIFICATION=mandatory yeterli — kod
+# değişikliği gerekmez. "mandatory" seçilecekse ÇALIŞAN bir SMTP şart,
+# yoksa hiç kimse kayıt olamaz.
+ACCOUNT_EMAIL_VERIFICATION = env("EMAIL_VERIFICATION")
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_PRESERVE_USERNAME_CASING = False
 ACCOUNT_SESSION_REMEMBER = None

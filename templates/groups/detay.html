@@ -108,15 +108,19 @@
         </div>
         {% if en_iyiler %}
           <ul class="cetvel-liste">
-            {% for uyelik in en_iyiler %}
+            {% for satir in en_iyiler %}
               <li>
-                {% include "partials/_oyuncu.html" with kisi=uyelik.kullanici %}
+                {% include "partials/_oyuncu.html" with kisi=satir.kullanici %}
                 <span class="sag">
-                  <span class="puan-degeri rakam">{{ uyelik.kullanici.profil.ortalama_puan }}</span>
+                  <span class="puan-degeri rakam">{{ satir.ortalama }}</span>
+                  <span class="kucuk solgun">{{ satir.adet }} oy</span>
                 </span>
               </li>
             {% endfor %}
           </ul>
+          <p class="kucuk solgun">
+            Bu ortalamalar yalnızca bu grupta oynanan maçlardan hesaplanır.
+          </p>
         {% else %}
           <p class="solgun">Sıralama için yeterli puan birikmedi.</p>
         {% endif %}

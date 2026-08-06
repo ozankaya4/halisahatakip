@@ -18,6 +18,7 @@ import tempfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -697,6 +698,228 @@ class TumSayfalarRenderTesti(TestCase):
         yanit = self.client.get(reverse("core:dashboard"))
         self.assertEqual(yanit.status_code, 200)
         self.assertContains(yanit, 'data-tema="koyu"')
+
+
+class MacSilmeTesti(TestCase):
+    """Maç silme: yalnızca yönetici, yalnızca oynanmamış maç."""
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Ak")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.mert,
+            rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+        )
+
+    def _mac(self, gun_farki: int) -> Mac:
+        return Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() + timezone.timedelta(days=gun_farki),
+            olusturan=self.ozan,
+        )
+
+    def test_yonetici_oynanmamis_maci_silebilir(self):
+        mac = self._mac(gun_farki=3)
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(reverse("matches:sil", args=[mac.pk]))
+        self.assertEqual(yanit.status_code, 302)
+        self.assertFalse(Mac.objects.filter(pk=mac.pk).exists())
+
+    def test_oynanmis_mac_silinemez(self):
+        """Geçmiş maç grubun kaydı; silinmesi yerine iptal edilmesi gerekir."""
+        mac = self._mac(gun_farki=-3)
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(reverse("matches:sil", args=[mac.pk]))
+        self.assertEqual(yanit.status_code, 302)
+        self.assertTrue(Mac.objects.filter(pk=mac.pk).exists())
+
+    def test_uye_maci_silemez(self):
+        mac = self._mac(gun_farki=3)
+        self.client.force_login(self.mert)
+        self.client.post(reverse("matches:sil", args=[mac.pk]))
+        self.assertTrue(Mac.objects.filter(pk=mac.pk).exists())
+
+    def test_giris_yapmamis_silemez(self):
+        mac = self._mac(gun_farki=3)
+        self.client.post(reverse("matches:sil", args=[mac.pk]))
+        self.assertTrue(Mac.objects.filter(pk=mac.pk).exists())
+
+
+class IptalVeSilmeninPuanaEtkisiTesti(TestCase):
+    """
+    Silinen ya da iptal edilen maçın puanları ortalamalarda kalmamalı.
+
+    Aksi hâlde şöyle bir yol açık olurdu: maçı kur, arkadaşlarından yüksek
+    puan al, sonra maçı iptal et. Puanlar profilde kalır, maç görünmez.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Ak")
+        self.burak = kullanici("burak@example.com", "Burak Yıl")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        for k, rol in [
+            (self.ozan, Uyelik.Rol.YONETICI),
+            (self.mert, Uyelik.Rol.UYE),
+            (self.burak, Uyelik.Rol.UYE),
+        ]:
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k, rol=rol, durum=Uyelik.Durum.ONAYLI
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+        for k in (self.ozan, self.mert, self.burak):
+            Katilim.objects.create(
+                mac=self.mac, kullanici=k, yanit=Katilim.Yanit.GELIYORUM, katildi=True
+            )
+        Puan.objects.create(mac=self.mac, puanlayan=self.ozan, puanlanan=self.mert, deger=9)
+        Puan.objects.create(mac=self.mac, puanlayan=self.burak, puanlanan=self.mert, deger=9)
+
+    def test_iptal_edilince_puanlar_silinir(self):
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:iptal_durumu", args=[self.mac.pk]))
+
+        self.mac.refresh_from_db()
+        self.assertTrue(self.mac.iptal)
+        self.assertEqual(Puan.objects.filter(mac=self.mac).count(), 0)
+
+        self.mert.profil.refresh_from_db()
+        self.assertIsNone(self.mert.profil.ortalama_puan)
+        self.assertEqual(self.mert.profil.puan_sayisi, 0)
+
+    def test_iptal_edilen_mac_grup_siralamasina_girmez(self):
+        from apps.ratings.hesaplar import grup_ozeti
+
+        self.assertEqual(grup_ozeti(self.grup, self.mert)["adet"], 2)
+        self.mac.iptal = True
+        self.mac.save(update_fields=["iptal"])
+        self.assertEqual(grup_ozeti(self.grup, self.mert)["adet"], 0)
+
+    def test_mac_silinince_puanlar_da_gider(self):
+        from apps.ratings.hesaplar import mac_puanlarini_sil
+
+        mac_puanlarini_sil(self.mac)
+        self.assertEqual(Puan.objects.filter(mac=self.mac).count(), 0)
+        self.mert.profil.refresh_from_db()
+        self.assertEqual(self.mert.profil.puan_sayisi, 0)
+
+
+class GrupBazliPuanTesti(TestCase):
+    """
+    Puanlar gruplar arasında toplanmamalı.
+
+    Senaryo: biri kendi "çiftlik" grubunu kurup oradan yüksek puan topluyor.
+    Bu, asıl grubundaki ortalamasını etkilememeli.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.digerleri = [
+            kullanici(f"o{i}@example.com", f"Oyuncu {i}") for i in range(4)
+        ]
+
+    def _grup_kur(self, ad, puan_degeri):
+        grup = Grup.objects.create(ad=ad, kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        for k in self.digerleri:
+            Uyelik.objects.create(
+                grup=grup, kullanici=k, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+            )
+        mac = Mac.objects.create(
+            grup=grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+        for k in [self.ozan, *self.digerleri]:
+            Katilim.objects.create(
+                mac=mac, kullanici=k, yanit=Katilim.Yanit.GELIYORUM, katildi=True
+            )
+        for k in self.digerleri:
+            Puan.objects.create(
+                mac=mac, puanlayan=k, puanlanan=self.ozan, deger=puan_degeri
+            )
+        return grup
+
+    def test_ciftlik_grubu_asil_grubun_ortalamasini_etkilemez(self):
+        from apps.ratings.hesaplar import grup_ozeti
+
+        asil = self._grup_kur("Perşembe Ekibi", puan_degeri=6)
+        ciftlik = self._grup_kur("Kendi Kurdugum Grup", puan_degeri=10)
+
+        self.assertEqual(float(grup_ozeti(asil, self.ozan)["ortalama"]), 6.0)
+        self.assertEqual(float(grup_ozeti(ciftlik, self.ozan)["ortalama"]), 10.0)
+
+    def test_grup_siralamasi_yalnizca_kendi_maclarini_sayar(self):
+        from apps.ratings.hesaplar import grup_siralamasi
+
+        asil = self._grup_kur("Perşembe Ekibi", puan_degeri=6)
+        self._grup_kur("Kendi Kurdugum Grup", puan_degeri=10)
+
+        satirlar = grup_siralamasi(asil)
+        ozan_satiri = next(s for s in satirlar if s["kullanici"].pk == self.ozan.pk)
+        self.assertEqual(float(ozan_satiri["ortalama"]), 6.0)
+        self.assertEqual(ozan_satiri["adet"], 4)
+
+    def test_profil_sayfasinda_genel_ortalama_gosterilmez(self):
+        self._grup_kur("Perşembe Ekibi", puan_degeri=6)
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("accounts:profil", args=[self.ozan.pk])
+        ).content.decode("utf-8")
+        self.assertNotIn("Genel ortalama", govde)
+        self.assertIn("Grup bazlı ortalamalar", govde)
+
+
+class GorselBicimleriTesti(TestCase):
+    """Yaygın telefon/kamera biçimleri kabul edilmeli."""
+
+    @staticmethod
+    def _yukleme(bicim: str, uzanti: str) -> SimpleUploadedFile:
+        """Gerçek bir form yüklemesini taklit eder (size ve content_type gerekli)."""
+        tampon = gorsel_uret(bicim=bicim)
+        return SimpleUploadedFile(
+            f"foto.{uzanti}", tampon.getvalue(), content_type=f"image/{uzanti}"
+        )
+
+    def test_yaygin_bicimler_kabul_edilir(self):
+        from apps.core.images import AVATAR, gorseli_isle
+
+        for bicim, uzanti in [("JPEG", "jpeg"), ("PNG", "png"), ("BMP", "bmp"),
+                              ("TIFF", "tiff"), ("GIF", "gif"), ("WEBP", "webp")]:
+            with self.subTest(bicim=bicim):
+                icerik, ad = gorseli_isle(self._yukleme(bicim, uzanti), AVATAR)
+                # Çıktı her zaman WEBP: girdi ne olursa olsun yeniden kodlanıyor.
+                self.assertTrue(ad.endswith(".webp"))
+                self.assertGreater(len(icerik.read()), 0)
+
+    def test_heic_okuyucusu_kayitli(self):
+        """iPhone fotoğrafları için pillow-heif kaydı yapılmış olmalı."""
+        from PIL import Image
+
+        from apps.core.images import HEIF_DESTEGI
+
+        self.assertTrue(HEIF_DESTEGI, "pillow-heif kurulu değil")
+        self.assertIn("HEIF", Image.registered_extensions().values())
+
+    def test_desteklenmeyen_uzanti_reddedilir(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.core.images import AVATAR, gorseli_isle
+
+        # SVG içinde <script> taşıyabildiği için bilinçli olarak yasak.
+        with self.assertRaises(ValidationError):
+            gorseli_isle(self._yukleme("PNG", "svg"), AVATAR)
 
 
 class VekilArkasindaIstemciIPTesti(TestCase):

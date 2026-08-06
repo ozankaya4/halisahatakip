@@ -67,14 +67,27 @@ def profil(request, kullanici_id: int):
             gorulebilir_grup_idleri = list(benim & onun)
 
         if gorulebilir_grup_idleri:
-            grup_ozetleri = (
+            # mac__iptal=False: iptal edilen maçların puanları hiçbir
+            # ortalamaya girmez. Aksi hâlde maçı kur, puanı topla, sonra
+            # iptal et diye bir yol açık kalırdı.
+            grup_ozetleri = list(
                 Puan.objects.filter(
-                    puanlanan=kullanici, mac__grup_id__in=gorulebilir_grup_idleri
+                    puanlanan=kullanici,
+                    mac__grup_id__in=gorulebilir_grup_idleri,
+                    mac__iptal=False,
                 )
                 .values("mac__grup__ad", "mac__grup__id")
                 .annotate(ortalama=Avg("deger"), adet=Count("id"))
                 .order_by("-ortalama")
             )
+            # Az oyla oluşan ortalama yanıltıcı; eşiğin altındakilerde sayı
+            # gösterilir ama ortalama gizlenir.
+            for satir in grup_ozetleri:
+                satir["gosterilsin"] = (
+                    satir["adet"] >= settings.RATING_MIN_VOTES_TO_DISPLAY
+                )
+                if satir["ortalama"] is not None:
+                    satir["ortalama"] = round(satir["ortalama"], 2)
 
     return render(
         request,

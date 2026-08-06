@@ -22,10 +22,25 @@
 
     <hr>
 
-    <form method="post" action="{% url 'matches:sil' mac.pk %}"
-          data-onay="Maç ve tüm fotoğrafları kalıcı olarak silinsin mi?">
-      {% csrf_token %}
-      <button class="dugme dugme-tehlike" type="submit">Maçı sil</button>
-    </form>
+    {% if mac.gecmis_mi %}
+      <h2>Maçı sil</h2>
+      <p class="kucuk solgun">
+        Oynanmış maçlar silinemez. Kadro, puanlar ve fotoğraflar grubun
+        geçmiş kaydıdır. Maç oynanmadıysa ya da yanlış girildiyse
+        <a href="{% url 'matches:detay' mac.pk %}">maç sayfasından</a>
+        <strong>İptal et</strong> diyebilirsin; bu, maça verilmiş puanları da siler.
+      </p>
+    {% else %}
+      <h2>Maçı sil</h2>
+      <p class="kucuk solgun">
+        Maç henüz oynanmadı, tamamen silinebilir. Yoklama yanıtları ve
+        yüklenmiş fotoğraflar da gider. Bu işlem geri alınamaz.
+      </p>
+      <form method="post" action="{% url 'matches:sil' mac.pk %}"
+            data-onay="Maç, yoklama yanıtları ve tüm fotoğrafları kalıcı olarak silinsin mi? Bu işlem geri alınamaz.">
+        {% csrf_token %}
+        <button class="dugme dugme-tehlike" type="submit">Maçı sil</button>
+      </form>
+    {% endif %}
   </div>
 {% endblock %}

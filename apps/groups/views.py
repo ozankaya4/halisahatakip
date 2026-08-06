@@ -76,12 +76,12 @@ def detay(request, grup):
     )
     gecmis = Mac.objects.filter(grup=grup, baslangic__lt=simdi).order_by("-baslangic")[:5]
 
-    en_iyiler = (
-        grup.onayli_uyelikler.filter(
-            kullanici__profil__puan_sayisi__gte=settings.RATING_MIN_VOTES_TO_DISPLAY
-        )
-        .order_by("-kullanici__profil__ortalama_puan")[:5]
-    )
+    # Sıralama yalnızca BU grupta oynanan maçların puanlarından hesaplanır.
+    # Eskiden profildeki küresel ortalamaya bakılıyordu; o hâliyle biri kendi
+    # grubunu kurup kendine 10 vererek buradaki sıralamayı da yükseltebiliyordu.
+    from apps.ratings.hesaplar import grup_siralamasi
+
+    en_iyiler = grup_siralamasi(grup, limit=5)
 
     return render(
         request,

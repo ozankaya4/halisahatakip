@@ -51,7 +51,13 @@
                 {% for satir in grup_ozetleri %}
                   <tr>
                     <td>{{ satir.mac__grup__ad }}</td>
-                    <td class="sag-hiza rakam">{{ satir.ortalama|floatformat:2 }}</td>
+                    <td class="sag-hiza rakam">
+                      {% if satir.gosterilsin %}
+                        {{ satir.ortalama|floatformat:2 }}
+                      {% else %}
+                        <span class="solgun" title="En az {{ esik }} puan gerekiyor">henüz yok</span>
+                      {% endif %}
+                    </td>
                     <td class="sag-hiza rakam solgun">{{ satir.adet }}</td>
                   </tr>
                 {% endfor %}
@@ -67,31 +73,28 @@
     </div>
 
     <aside class="yigin">
-      <section class="kutu kutu-vurgu">
-        <div class="kutu-baslik">
-          <h2>Genel ortalama</h2>
-        </div>
-        {% if profil.ortalama_gosterilsin %}
-          <p class="puan-degeri puan-buyuk rakam">{{ profil.ortalama_puan }}</p>
-          <p class="olcek-yazisi">10 üzerinden · {{ profil.puan_sayisi }} puandan</p>
-        {% else %}
-          <p class="solgun">
-            Ortalama, en az {{ esik }} puan toplandıktan sonra gösterilir.
-            Şu an {{ profil.puan_sayisi }} puan var.
-          </p>
-        {% endif %}
-      </section>
-
       <section class="kutu">
         <div class="kutu-baslik">
           <h2>Oynadığı maç</h2>
         </div>
         <p class="puan-degeri rakam">{{ profil.oynanan_mac }}</p>
+        <p class="kucuk solgun">İptal edilen maçlar sayılmaz.</p>
       </section>
 
-      <p class="kucuk solgun">
-        Kimin kaç verdiği hiçbir yerde gösterilmez, yalnızca ortalamalar açıktır.
-      </p>
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Puanlar neden gruba özel?</h2>
+        </div>
+        <p class="kucuk solgun">
+          Tek bir genel ortalama gösterilseydi, herkes kendi grubunu kurup
+          kendine yüksek puan vererek onu yükseltebilirdi. Bu yüzden puanlar
+          yalnızca verildikleri grubun içinde geçerli; gruplar arasında
+          toplanmaz.
+        </p>
+        <p class="kucuk solgun">
+          Kimin kaç verdiği hiçbir yerde gösterilmez, yalnızca ortalamalar açıktır.
+        </p>
+      </section>
     </aside>
   </div>
 {% endblock %}

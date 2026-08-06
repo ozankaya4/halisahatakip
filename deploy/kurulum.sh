@@ -264,7 +264,24 @@ fi
 ln -sf /etc/nginx/sites-available/halisaha /etc/nginx/sites-enabled/halisaha
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
-systemctl reload nginx
+
+# DİKKAT: reload DEĞİL, restart.
+# Yukarıda "usermod -aG halisaha www-data" ile nginx'i halisaha grubuna
+# ekliyoruz; medya dosyaları grup okumasına açık (g=rX, o=). Ama bir sürecin
+# ek grupları yalnızca BAŞLARKEN okunur. reload yapılırsa nginx ana süreci
+# eski gruplarıyla devam eder, medya klasörünü okuyamaz ve X-Accel-Redirect
+# ile yönlendirilen her fotoğraf sessizce 403/404 döner.
+# Belirti: site çalışır, ama profil ve maç fotoğrafları hiç görünmez.
+systemctl restart nginx
+
+# Gerçekten okuyabiliyor mu? "Kural eklendi" demek yetmiyor, deneyelim.
+if ! sudo -u www-data test -x "${UYGULAMA_DIZINI}"; then
+    uyari "www-data ${UYGULAMA_DIZINI} klasörüne giremiyor; fotoğraflar görünmez."
+elif ! sudo -u www-data test -r "${UYGULAMA_DIZINI}/media"; then
+    uyari "www-data medya klasörünü okuyamıyor; fotoğraflar görünmez."
+else
+    bilgi "nginx medya klasörünü okuyabiliyor."
+fi
 
 # --- Yedekleme ------------------------------------------------------------
 bilgi "Günlük yedek görevi"

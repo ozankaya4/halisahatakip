@@ -29,21 +29,59 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+# iPhone'lar fotoğrafları varsayılan olarak HEIC kaydediyor. Kayıt eklenmezse
+# Pillow bu dosyaları hiç tanımıyor ve kullanıcı "geçerli bir görsel değil"
+# hatası alıyor — telefonundan seçtiği sıradan bir fotoğraf için.
+# pillow-heif kurulu değilse sessizce geçiyoruz: HEIC desteklenmez, gerisi çalışır.
+try:  # pragma: no cover - kurulu olup olmamasına bağlı
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+    HEIF_DESTEGI = True
+except ImportError:  # pragma: no cover
+    HEIF_DESTEGI = False
+
 # Pillow'un kendi bomba koruması. Kenar sınırımızın karesinden biraz yüksek
 # tutuyoruz; asıl reddi biz aşağıda daha net bir mesajla yapıyoruz.
 Image.MAX_IMAGE_PIXELS = (settings.MAX_IMAGE_DIMENSION**2) * 2
 
-# Pillow'un *çözebildiği* biçimlerden yalnızca bu dördünü kabul ediyoruz.
-IZINLI_BICIMLER = {"JPEG", "PNG", "WEBP", "GIF"}
-IZINLI_UZANTILAR = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+# Pillow'un *çözebildiği* biçimlerden kabul ettiklerimiz.
+# Hepsi WEBP'ye yeniden kodlandığı için burada biçim çeşitliliği artırmak
+# çıktı tarafını değiştirmiyor; yalnızca kullanıcının elindeki dosyayı
+# yükleyebilmesini sağlıyor.
+IZINLI_BICIMLER = {
+    "JPEG", "PNG", "WEBP", "GIF",
+    "BMP", "TIFF",
+    "HEIF", "HEIC",  # iPhone
+    "AVIF",
+}
+IZINLI_UZANTILAR = {
+    ".jpg", ".jpeg", ".jpe", ".png", ".webp", ".gif",
+    ".bmp", ".tif", ".tiff",
+    ".heic", ".heif",
+    ".avif",
+}
 
 # Erken (ucuz) eleme için; güvenlik kararı buna dayanmaz, asıl kontrol Pillow'dur.
+# Telefonlar ve tarayıcılar aynı dosya için farklı content-type gönderebiliyor,
+# hatta boş bırakabiliyor; bu yüzden liste geniş tutuluyor.
 IZINLI_ICERIK_TIPLERI = {
     "image/jpeg",
     "image/pjpeg",
     "image/png",
     "image/webp",
     "image/gif",
+    "image/bmp",
+    "image/x-ms-bmp",
+    "image/tiff",
+    "image/heic",
+    "image/heif",
+    "image/heic-sequence",
+    "image/heif-sequence",
+    "image/avif",
+    # Bazı tarayıcılar tanımadıkları uzantı için bunu gönderiyor. Uzantı ve
+    # Pillow kontrolünden geçmek zorunda olduğu için tek başına bir şey açmıyor.
+    "application/octet-stream",
 }
 
 
@@ -87,7 +125,8 @@ def gorseli_dogrula(yuklenen) -> None:
 
     if _uzanti(getattr(yuklenen, "name", "")) not in IZINLI_UZANTILAR:
         raise ValidationError(
-            "Yalnızca JPG, PNG, WEBP ve GIF dosyaları yüklenebilir."
+            "Bu dosya türü yüklenemiyor. JPG, PNG, WEBP, GIF, BMP, TIFF, "
+            "HEIC ve AVIF destekleniyor."
         )
 
     icerik_tipi = (getattr(yuklenen, "content_type", "") or "").lower().split(";")[0]

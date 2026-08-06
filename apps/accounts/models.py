@@ -161,21 +161,31 @@ class Profil(ZamanDamgaliModel):
         )
 
     def istatistikleri_yenile(self, kaydet: bool = True) -> None:
-        """Puan ortalamasını ve maç sayısını puan kayıtlarından yeniden hesaplar."""
+        """
+        Puan ortalamasını ve maç sayısını puan kayıtlarından yeniden hesaplar.
+
+        DİKKAT: Buradaki ortalama **tüm grupların toplamıdır** ve artık
+        arayüzde gösterilmez; yalnızca yönetim panelinde bilgi amaçlıdır.
+        Herkese açık ortalamalar grup bazında hesaplanır
+        (apps/ratings/hesaplar.py), çünkü küresel tek bir ortalama olsaydı
+        kişi kendi grubunu kurup kendine puan vererek onu şişirebilirdi.
+
+        İptal edilen maçların puanları hiçbir hesaba katılmaz.
+        """
         from django.db.models import Avg, Count
 
         from apps.matches.models import Katilim
         from apps.ratings.models import Puan
 
-        ozet = Puan.objects.filter(puanlanan=self.kullanici).aggregate(
-            ortalama=Avg("deger"), adet=Count("id")
-        )
+        ozet = Puan.objects.filter(
+            puanlanan=self.kullanici, mac__iptal=False
+        ).aggregate(ortalama=Avg("deger"), adet=Count("id"))
         self.ortalama_puan = (
             round(ozet["ortalama"], 2) if ozet["ortalama"] is not None else None
         )
         self.puan_sayisi = ozet["adet"] or 0
         self.oynanan_mac = Katilim.objects.filter(
-            kullanici=self.kullanici, katildi=True
+            kullanici=self.kullanici, katildi=True, mac__iptal=False
         ).count()
         if kaydet:
             self.save(
