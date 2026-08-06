@@ -558,6 +558,27 @@ p {
   border: 1px solid var(--cetvel);
   border-radius: var(--kose);
   padding: clamp(1.1rem, 2.5vw, 1.6rem);
+  /* Art arda gelen kutular birbirine yapışmasın. Sayfanın en üst
+     seviyesindeki bölümler bir kapsayıcıya sarılı olmadığı için aralarında
+     hiç boşluk kalmıyordu. */
+  margin-block-end: 1.5rem;
+}
+
+/* .yigin ve .iki-sutun boşluğu zaten "gap" ile veriyor; orada ayrıca
+   margin uygulanırsa aralıklar iki katına çıkıyor. */
+.yigin > .kutu,
+.iki-sutun > .kutu,
+.yigin > .yigin > .kutu {
+  margin-block-end: 0;
+}
+
+/* Şeritler (uyarı/bilgi kutuları) de aynı ritmi izlesin. */
+.serit {
+  margin-block-end: 1.25rem;
+}
+
+.serit-listesi .serit {
+  margin-block-end: 0;
 }
 
 .kutu-baslik {
@@ -1551,11 +1572,30 @@ p {
   line-height: 1;
 }
 
+/* Takımlar bölümünün üst kısmı: düğmeler + maçın adamı.
+   Kadrolardan ince bir çizgiyle ayrılıyor. */
+.takim-ust {
+  margin-block-end: 1.5rem;
+  padding-block-end: 1.25rem;
+  border-block-end: 1px solid var(--cetvel);
+}
+
 .macin-adami-satiri {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  /* Üstündeki düğmelerle ve altındaki kadrolarla arasında nefes payı;
+     öncekinde üçü birbirine yapışıktı. */
+  margin-block-start: 1.1rem;
+}
+
+/* Kadro sütunları arasındaki dikey ayrım, iki takımın karışmaması için
+   geniş ekranda ayrıca belirginleşiyor. */
+@media (min-width: 900px) {
+  .takim-kadrolari {
+    column-gap: clamp(2rem, 5vw, 4rem);
+  }
 }
 
 /* Takım şeridi */

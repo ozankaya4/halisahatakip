@@ -53,24 +53,31 @@
         {% endif %}
       </div>
 
-      <p class="satir">
-        <a class="dugme" href="{% url 'matches:dizilim' mac.pk %}">Sahadaki dizilimi gör</a>
-        {% if yonetici_mi %}
-          <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Dizilimi düzenle</a>
-        {% endif %}
-      </p>
-
-      {% if macin_adamlari %}
-        <p class="macin-adami-satiri">
-          <span class="rozet rozet-hardal"><span class="yildiz" aria-hidden="true">★</span> Maçın adamı</span>
-          {% for adam in macin_adamlari %}
-            <strong>{{ adam.kullanici.gorunen_ad }}</strong>
-            <span class="kucuk solgun">{{ adam.ortalama }}</span>{% if not forloop.last %} ·{% endif %}
-          {% endfor %}
+      {% comment %}
+      Bölümün üst kısmı (düğmeler + maçın adamı) ile kadrolar arasına
+      görünür bir ayrım konuyor; öncesinde hepsi üst üste yığılıp tek bir
+      blok gibi okunuyordu.
+      {% endcomment %}
+      <div class="takim-ust">
+        <p class="satir">
+          <a class="dugme" href="{% url 'matches:dizilim' mac.pk %}">Sahadaki dizilimi gör</a>
+          {% if yonetici_mi %}
+            <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Dizilimi düzenle</a>
+          {% endif %}
         </p>
-      {% endif %}
 
-      <div class="iki-sutun">
+        {% if macin_adamlari %}
+          <p class="macin-adami-satiri">
+            <span class="rozet rozet-hardal"><span class="yildiz" aria-hidden="true">★</span> Maçın adamı</span>
+            {% for adam in macin_adamlari %}
+              <strong>{{ adam.kullanici.gorunen_ad }}</strong>
+              <span class="kucuk solgun">{{ adam.ortalama }}</span>{% if not forloop.last %} ·{% endif %}
+            {% endfor %}
+          </p>
+        {% endif %}
+      </div>
+
+      <div class="iki-sutun takim-kadrolari">
         {% for takim in takimlar %}
           <div>
             <div class="takim-basligi">
