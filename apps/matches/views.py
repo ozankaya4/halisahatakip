@@ -18,6 +18,7 @@ from apps.notifications.models import Bildirim, toplu_bildir
 from apps.ratings.denetim import macin_adami
 from apps.ratings.hesaplar import mac_puanlarini_sil
 
+from .dizilim import dizilim_verisi
 from .forms import FotografFormu, MacFormu
 from .models import Katilim, Mac, MacFotografi
 
@@ -478,3 +479,104 @@ def fotograf_sil(request, foto_id: int):
     foto.delete()
     messages.info(request, "Fotoğraf silindi.")
     return redirect("matches:detay", mac_id=mac_id)
+
+
+# ---------------------------------------------------------------------------
+# Dizilim (saha görünümü)
+# ---------------------------------------------------------------------------
+@login_required
+def dizilim(request, mac_id: int):
+    """
+    Maçın saha dizilimi. Maç oynandıktan sonra herkese açık.
+
+    Puanlar maç bazlı: oyuncunun grup ortalaması değil, o maçta aldığı
+    ortalama gösteriliyor.
+    """
+    mac = _mac_getir(request, mac_id)
+
+    if not mac.gecmis_mi:
+        messages.info(request, "Dizilim maç oynandıktan sonra görünür.")
+        return redirect("matches:detay", mac_id=mac.pk)
+
+    adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
+    return render(
+        request,
+        "matches/dizilim.html",
+        {
+            "mac": mac,
+            "grup": mac.grup,
+            "takimlar": dizilim_verisi(mac, adam_idleri),
+            "yonetici_mi": mac.grup.yonetici_mi(request.user),
+            "duzenlenebilir": False,
+        },
+    )
+
+
+@login_required
+def dizilim_duzenle(request, mac_id: int):
+    """
+    Dizilim düzenleyici: oyuncular sahada sürüklenerek yerleştirilir.
+
+    Konumlar sahanın yüzdesi olarak geliyor (0-100). Piksel gelseydi farklı
+    ekran genişliklerinde dizilim bozulurdu.
+    """
+    mac = _mac_getir(request, mac_id, yonetici_sart=True)
+
+    if not mac.gecmis_mi:
+        messages.info(request, "Dizilim maç oynandıktan sonra düzenlenebilir.")
+        return redirect("matches:detay", mac_id=mac.pk)
+
+    if request.method == "POST":
+        katilimlar = {
+            k.kullanici_id: k
+            for k in mac.katilimlar.select_related("kullanici").all()
+        }
+        guncellenecek = []
+
+        for kullanici_id, katilim in katilimlar.items():
+            ham_x = request.POST.get(f"x_{kullanici_id}")
+            ham_y = request.POST.get(f"y_{kullanici_id}")
+            if ham_x is None or ham_y is None:
+                continue
+            try:
+                # Saha dışına taşan değerleri kırp: bozuk/kötü niyetli
+                # gönderim dizilimi bozmasın.
+                katilim.poz_x = max(0, min(100, int(float(ham_x))))
+                katilim.poz_y = max(0, min(100, int(float(ham_y))))
+            except (TypeError, ValueError):
+                continue
+
+            katilim.gol = _sayi(request.POST.get(f"gol_{kullanici_id}"), 0, 30)
+            katilim.asist = _sayi(request.POST.get(f"asist_{kullanici_id}"), 0, 30)
+            katilim.sari_kart = _sayi(request.POST.get(f"sari_{kullanici_id}"), 0, 2)
+            katilim.kirmizi_kart = request.POST.get(f"kirmizi_{kullanici_id}") == "1"
+            guncellenecek.append(katilim)
+
+        if guncellenecek:
+            Katilim.objects.bulk_update(
+                guncellenecek,
+                ["poz_x", "poz_y", "gol", "asist", "sari_kart", "kirmizi_kart"],
+            )
+        messages.success(request, "Dizilim kaydedildi.")
+        return redirect("matches:dizilim", mac_id=mac.pk)
+
+    adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
+    return render(
+        request,
+        "matches/dizilim.html",
+        {
+            "mac": mac,
+            "grup": mac.grup,
+            "takimlar": dizilim_verisi(mac, adam_idleri),
+            "yonetici_mi": True,
+            "duzenlenebilir": True,
+        },
+    )
+
+
+def _sayi(ham, en_az: int, en_cok: int) -> int:
+    """Formdan gelen sayıyı güvenli aralığa kırpar."""
+    try:
+        return max(en_az, min(en_cok, int(ham)))
+    except (TypeError, ValueError):
+        return en_az

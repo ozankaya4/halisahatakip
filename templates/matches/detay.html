@@ -49,6 +49,15 @@
         {% endif %}
       </div>
 
+      {% if mac.gecmis_mi %}
+        <p class="satir">
+          <a class="dugme" href="{% url 'matches:dizilim' mac.pk %}">Sahadaki dizilimi gör</a>
+          {% if yonetici_mi %}
+            <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Dizilimi düzenle</a>
+          {% endif %}
+        </p>
+      {% endif %}
+
       {% if macin_adamlari %}
         <p class="macin-adami-satiri">
           <span class="rozet rozet-hardal"><span class="yildiz" aria-hidden="true">★</span> Maçın adamı</span>

@@ -1580,6 +1580,274 @@ p {
 }
 
 /* =========================================================================
+   15d. Dizilim tahtası (saha)
+   ====================================================================== */
+.saha-sarmal {
+  margin-block-end: 1.25rem;
+}
+
+.saha {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  min-height: 320px;
+  border-radius: var(--kose);
+  overflow: hidden;
+  /* Çim dokusu: iki yönlü hafif şeritler. */
+  background-color: #2f6b4a;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.045) 0 6.25%,
+    transparent 6.25% 12.5%
+  );
+  border: 2px solid rgba(246, 243, 234, 0.35);
+  touch-action: none; /* parmakla sürüklerken sayfa kaymasın */
+}
+
+/* --- Saha çizgileri (hepsi süs; ekran okuyucudan gizli) ------------------ */
+.saha-cizgi {
+  position: absolute;
+  border: 2px solid rgba(246, 243, 234, 0.4);
+  pointer-events: none;
+}
+
+.saha-orta-cizgi {
+  inset-block: 0;
+  inset-inline-start: 50%;
+  border-width: 0 0 0 2px;
+}
+
+.saha-orta-daire {
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  width: 22%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+}
+
+.saha-ceza-sol,
+.saha-ceza-sag {
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  width: 13%;
+  height: 46%;
+}
+
+.saha-ceza-sol {
+  inset-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.saha-ceza-sag {
+  inset-inline-end: 0;
+  border-inline-end: 0;
+}
+
+/* --- Oyuncu kartı ------------------------------------------------------- */
+.oyuncu-kart {
+  position: absolute;
+  /* --x/--y JS tarafından yazılıyor; CSP satır içi stile izin vermiyor. */
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  translate: -50% -50%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 4.5rem;
+  text-align: center;
+  touch-action: none;
+}
+
+.saha[data-duzenlenebilir] .oyuncu-kart {
+  cursor: grab;
+}
+
+.oyuncu-kart.suruklerken {
+  cursor: grabbing;
+  z-index: 5;
+  scale: 1.08;
+}
+
+.oyuncu-kart:focus-visible {
+  outline: 2px solid var(--hardal);
+  outline-offset: 3px;
+  border-radius: var(--kose);
+}
+
+.oyuncu-kart-gorsel {
+  position: relative;
+  display: block;
+  line-height: 0;
+}
+
+.oyuncu-kart .avatar {
+  width: 48px;
+  height: 48px;
+  border: 2px solid rgba(246, 243, 234, 0.9);
+  background: var(--kagit-ust);
+}
+
+.oyuncu-kart-ad {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #f6f3ea;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow-wrap: anywhere;
+}
+
+/* Takım renkleri: kart kenarlığı ile ayırt ediliyor. */
+.takim-a .avatar {
+  border-color: #f6f3ea;
+}
+
+.takim-b .avatar {
+  border-color: #1c1f2e;
+}
+
+/* --- Puan rozeti -------------------------------------------------------- */
+.puan-rozeti {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-end: -8px;
+  min-width: 1.55rem;
+  padding: 0.08rem 0.2rem;
+  border-radius: 0.28rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.puan-kirmizi   { background: #c0392b; }
+.puan-turuncu   { background: #d35400; }
+.puan-sari      { background: #c9a227; color: #1a1a12; }
+.puan-yesil     { background: #2f8f4e; }
+.puan-mavi      { background: #4aa3df; color: #10222e; }
+.puan-lacivert  { background: #1f3a93; }
+.puan-mor       { background: #6f3fa8; }
+
+/* --- Maçın adamı yıldızı ve işaretler ----------------------------------- */
+.kart-yildiz {
+  position: absolute;
+  inset-block-start: -8px;
+  inset-inline-start: -6px;
+  font-size: 0.95rem;
+  color: var(--hardal);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  line-height: 1;
+}
+
+.kart-isaretler {
+  position: absolute;
+  inset-block-end: -6px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 2px;
+  line-height: 1;
+}
+
+.isaret {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.05rem 0.22rem;
+  border-radius: 0.2rem;
+  background: rgba(10, 14, 12, 0.85);
+  color: #f6f3ea;
+  white-space: nowrap;
+}
+
+.isaret-sari,
+.isaret-kirmizi {
+  width: 0.5rem;
+  height: 0.7rem;
+  padding: 0;
+  border-radius: 0.08rem;
+}
+
+.isaret-sari {
+  background: #e2c044;
+}
+
+.isaret-kirmizi {
+  background: #c0392b;
+}
+
+/* --- Saha altı skor şeridi ---------------------------------------------- */
+.saha-skor {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--murekkep-yumusak);
+}
+
+.saha-skor-parca strong {
+  font-size: 1.15rem;
+  margin-inline-start: 0.3rem;
+}
+
+.olcek-aciklama {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-block-end: 1.25rem;
+}
+
+/* Ölçek açıklamasındaki rozetler akış içinde dursun. */
+.olcek-aciklama .puan-rozeti {
+  position: static;
+  inset: auto;
+  translate: none;
+}
+
+.sayi-girdi {
+  width: 4rem;
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  background: var(--kagit-ust);
+  color: var(--murekkep);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  /* Dar ekranda sahayı dikey çevirmiyoruz: takımlar sol/sağ yerleşimli ve
+     koordinatlar sahanın yüzdesi. Dikey çevirmek dizilimi bozardı.
+     Bunun yerine saha en boy oranını koruyup yatay kaydırılabiliyor;
+     yönetici telefonda da gerçek dizilimi görüyor. */
+  .saha-sarmal {
+    overflow-x: auto;
+  }
+
+  .saha {
+    min-width: 560px;
+  }
+
+  .oyuncu-kart {
+    width: 3.6rem;
+  }
+
+  .oyuncu-kart .avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .oyuncu-kart-ad {
+    font-size: 0.62rem;
+  }
+}
+
+/* =========================================================================
    16a. allauth sayfaları
    Parola değiştirme, e-posta adresleri, bağlı hesaplar gibi ekranların
    şablonları allauth paketinden geliyor; içlerine sınıf ekleyemiyoruz.

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block baslik %}Dizilim · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">
+        <a href="{% url 'matches:detay' mac.pk %}">{{ grup.ad }} · {{ mac.baslangic|date:"j F Y" }}</a>
+      </p>
+      <h1>{% if duzenlenebilir %}Dizilimi düzenle{% else %}Dizilim{% endif %}</h1>
+    </div>
+    {% if yonetici_mi and not duzenlenebilir %}
+      <a class="dugme" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Düzenle</a>
+    {% endif %}
+  </div>
+
+  {% if duzenlenebilir %}
+    <div class="serit serit-bilgi">
+      Oyuncuları sahada <strong>sürükleyerek</strong> yerleştir. Dokunmatik
+      ekranda parmağınla da sürükleyebilirsin. Bitince aşağıdaki
+      <strong>Kaydet</strong> düğmesine bas.
+    </div>
+  {% endif %}
+
+  <form method="post" id="dizilim-formu"
+        {% if not duzenlenebilir %}data-salt-okunur{% endif %}>
+    {% csrf_token %}
+
+    {% comment %}
+    Saha. Oyuncu kartları yüzde konumlarla yerleştiriliyor; CSS özel
+    değişkenleri (--x/--y) JS tarafından güncelleniyor çünkü CSP satır içi
+    style özniteliğini engelliyor.
+    {% endcomment %}
+    <div class="saha-sarmal">
+      <div class="saha" id="saha" {% if duzenlenebilir %}data-duzenlenebilir{% endif %}>
+        <div class="saha-cizgi saha-orta-cizgi" aria-hidden="true"></div>
+        <div class="saha-cizgi saha-orta-daire" aria-hidden="true"></div>
+        <div class="saha-cizgi saha-ceza-sol" aria-hidden="true"></div>
+        <div class="saha-cizgi saha-ceza-sag" aria-hidden="true"></div>
+
+        {% for takim in takimlar %}
+          {% for oyuncu in takim.oyuncular %}
+            <div class="oyuncu-kart takim-{{ takim.kod }}"
+                 data-oyuncu="{{ oyuncu.kullanici.pk }}"
+                 data-x="{{ oyuncu.x }}" data-y="{{ oyuncu.y }}"
+                 {% if duzenlenebilir %}tabindex="0" role="button"
+                 aria-label="{{ oyuncu.kullanici.gorunen_ad }} — ok tuşlarıyla taşı"{% endif %}>
+
+              <span class="oyuncu-kart-gorsel">
+                {% if oyuncu.kullanici.profil.avatar_url %}
+                  <img class="avatar" src="{{ oyuncu.kullanici.profil.avatar_url }}"
+                       alt="" width="48" height="48" loading="lazy" draggable="false">
+                {% else %}
+                  <span class="avatar avatar-bos" aria-hidden="true">{{ oyuncu.kullanici.bas_harfler }}</span>
+                {% endif %}
+
+                {% if oyuncu.puan %}
+                  <span class="puan-rozeti {{ oyuncu.puan_sinifi }} rakam"
+                        title="Bu maçtaki ortalaması">{{ oyuncu.puan }}</span>
+                {% endif %}
+
+                {% if oyuncu.macin_adami %}
+                  <span class="kart-yildiz" title="Maçın adamı" aria-label="Maçın adamı">★</span>
+                {% endif %}
+
+                <span class="kart-isaretler">
+                  {% if oyuncu.gol %}<span class="isaret isaret-gol" title="{{ oyuncu.gol }} gol">⚽{{ oyuncu.gol }}</span>{% endif %}
+                  {% if oyuncu.asist %}<span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist">A{{ oyuncu.asist }}</span>{% endif %}
+                  {% if oyuncu.sari_kart %}<span class="isaret isaret-sari" title="Sarı kart"></span>{% endif %}
+                  {% if oyuncu.kirmizi_kart %}<span class="isaret isaret-kirmizi" title="Kırmızı kart"></span>{% endif %}
+                </span>
+              </span>
+
+              <span class="oyuncu-kart-ad">{{ oyuncu.kullanici.gorunen_ad }}</span>
+
+              {% if duzenlenebilir %}
+                <input type="hidden" name="x_{{ oyuncu.kullanici.pk }}" value="{{ oyuncu.x }}">
+                <input type="hidden" name="y_{{ oyuncu.kullanici.pk }}" value="{{ oyuncu.y }}">
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+
+      <div class="saha-skor" aria-hidden="true">
+        {% for takim in takimlar %}
+          <span class="saha-skor-parca {% if takim.kazandi %}takim-kazandi{% endif %}">
+            {{ takim.ad }} {% if mac.skor_girildi_mi %}<strong class="rakam">{{ takim.skor }}</strong>{% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <p class="kucuk solgun olcek-aciklama">
+      Rozetteki sayı oyuncunun <strong>bu maçtaki</strong> ortalamasıdır.
+      <span class="puan-rozeti puan-kirmizi rakam">6</span> altı
+      <span class="puan-rozeti puan-sari rakam">7</span> orta
+      <span class="puan-rozeti puan-yesil rakam">7+</span> iyi
+      <span class="puan-rozeti puan-mavi rakam">8+</span> çok iyi
+      <span class="puan-rozeti puan-lacivert rakam">9+</span> üstün
+      <span class="puan-rozeti puan-mor rakam">10</span> kusursuz
+    </p>
+
+    {% if duzenlenebilir %}
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Maç istatistikleri</h2>
+          <a class="kucuk" href="{% url 'groups:duzenle' grup.genel_id %}">Neler görünsün?</a>
+        </div>
+        <p class="alan-yardim">
+          Buraya girilenler grubun ayarına göre sahada gösterilir. Şu anda
+          görünenler:
+          {% if grup.gol_gosterilsin %}gol{% endif %}
+          {% if grup.asist_gosterilsin %}{% if grup.gol_gosterilsin %}, {% endif %}asist{% endif %}
+          {% if grup.kart_gosterilsin %}{% if grup.gol_gosterilsin or grup.asist_gosterilsin %}, {% endif %}kart{% endif %}
+          {% if not grup.gol_gosterilsin and not grup.asist_gosterilsin and not grup.kart_gosterilsin %}
+            <strong>hiçbiri</strong> (grup ayarlarından açabilirsin)
+          {% endif %}
+        </p>
+
+        <div class="tablo-sarmal">
+          <table class="tablo">
+            <thead>
+              <tr>
+                <th>Oyuncu</th>
+                <th class="sag-hiza">Gol</th>
+                <th class="sag-hiza">Asist</th>
+                <th class="sag-hiza">Sarı</th>
+                <th class="sag-hiza">Kırmızı</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for takim in takimlar %}
+                {% for oyuncu in takim.oyuncular %}
+                  <tr>
+                    <td>{{ oyuncu.kullanici.gorunen_ad }} <span class="kucuk solgun">{{ takim.ad }}</span></td>
+                    <td class="sag-hiza"><input class="sayi-girdi" type="number" min="0" max="30" inputmode="numeric" name="gol_{{ oyuncu.kullanici.pk }}" value="{{ oyuncu.katilim.gol }}" aria-label="{{ oyuncu.kullanici.gorunen_ad }} gol sayısı"></td>
+                    <td class="sag-hiza"><input class="sayi-girdi" type="number" min="0" max="30" inputmode="numeric" name="asist_{{ oyuncu.kullanici.pk }}" value="{{ oyuncu.katilim.asist }}" aria-label="{{ oyuncu.kullanici.gorunen_ad }} asist sayısı"></td>
+                    <td class="sag-hiza"><input class="sayi-girdi" type="number" min="0" max="2" inputmode="numeric" name="sari_{{ oyuncu.kullanici.pk }}" value="{{ oyuncu.katilim.sari_kart }}" aria-label="{{ oyuncu.kullanici.gorunen_ad }} sarı kart sayısı"></td>
+                    <td class="sag-hiza"><input type="checkbox" name="kirmizi_{{ oyuncu.kullanici.pk }}" value="1" {% if oyuncu.katilim.kirmizi_kart %}checked{% endif %} aria-label="{{ oyuncu.kullanici.gorunen_ad }} kırmızı kart gördü"></td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Kaydet</button>
+        <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim' mac.pk %}">Vazgeç</a>
+      </div>
+    {% endif %}
+  </form>
+{% endblock %}
+
+{% block ekstra_js %}
+  <script type="module" src="{% static 'js/dizilim.js' %}"></script>
+{% endblock %}

@@ -42,6 +42,15 @@ class Grup(ZamanDamgaliModel):
     # URL'lerde birincil anahtar yerine bu kullanılır (numara sayımını engeller).
     genel_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
+    # --- Dizilimde gösterilecek istatistikler ------------------------------
+    # Bazı gruplar gol/asist/kart tutmak istiyor, bazıları "keyfine oynuyoruz"
+    # deyip bunları görmek istemiyor. Veri her zaman kaydedilebiliyor; bu
+    # ayarlar yalnızca dizilim ekranında gösterilip gösterilmeyeceğini
+    # belirliyor. Varsayılan kapalı: istemeyene zorla istatistik göstermeyelim.
+    gol_gosterilsin = models.BooleanField("goller gösterilsin", default=False)
+    asist_gosterilsin = models.BooleanField("asistler gösterilsin", default=False)
+    kart_gosterilsin = models.BooleanField("kartlar gösterilsin", default=False)
+
     class Meta:
         verbose_name = "grup"
         verbose_name_plural = "gruplar"

@@ -14,6 +14,8 @@ urlpatterns = [
     path("<int:mac_id>/yoklama/", views.yoklama_oyu, name="yoklama_oyu"),
     path("<int:mac_id>/yoklama-durumu/", views.yoklama_durumu, name="yoklama_durumu"),
     path("<int:mac_id>/kadro/", views.kadro_duzenle, name="kadro_duzenle"),
+    path("<int:mac_id>/dizilim/", views.dizilim, name="dizilim"),
+    path("<int:mac_id>/dizilim/duzenle/", views.dizilim_duzenle, name="dizilim_duzenle"),
     path("<int:mac_id>/fotograf/", views.fotograf_yukle, name="fotograf_yukle"),
     path("fotograf/<int:foto_id>/sil/", views.fotograf_sil, name="fotograf_sil"),
 ]

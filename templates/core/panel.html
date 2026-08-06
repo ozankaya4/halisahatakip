@@ -108,17 +108,12 @@
 
         <section class="kutu">
           <div class="kutu-baslik">
-            <h2>Puan ortalaman</h2>
+            <h2>Profilin</h2>
           </div>
-          {% if user.profil.ortalama_gosterilsin %}
-            <p class="puan-degeri puan-buyuk rakam">{{ user.profil.ortalama_puan }}</p>
-            <p class="kucuk solgun">{{ user.profil.puan_sayisi }} puandan · {{ user.profil.oynanan_mac }} maç</p>
-          {% else %}
-            <p class="solgun">
-              Ortalaman henüz gösterilmiyor. Birkaç maç daha oyna ve arkadaşların
-              puan versin.
-            </p>
-          {% endif %}
+          <p class="solgun">
+            Profilini tamamlamak, diğer oyuncuların seni tanımasını kolaylaştırır.
+            Profiline fotoğraf ekleyebilir, adını ve iletişim bilgilerini güncelleyebilirsin.
+          </p>
           <p class="kucuk"><a href="{% url 'accounts:profil_duzenle' %}">Profilini düzenle</a></p>
         </section>
       </aside>

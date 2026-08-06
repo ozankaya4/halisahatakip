@@ -191,6 +191,22 @@ class Katilim(ZamanDamgaliModel):
         "takım", max_length=1, choices=Mac.Takim.choices, blank=True, default=""
     )
 
+    # --- Dizilim ----------------------------------------------------------
+    # Sahadaki konum, sahanın YÜZDESİ olarak (0-100). Piksel değil: saha
+    # telefonda ve masaüstünde farklı boyutlarda çiziliyor, yüzde her ikisinde
+    # de aynı yere denk geliyor.
+    # None: yönetici bu oyuncuyu henüz yerleştirmemiş.
+    poz_x = models.PositiveSmallIntegerField("saha konumu X", null=True, blank=True)
+    poz_y = models.PositiveSmallIntegerField("saha konumu Y", null=True, blank=True)
+
+    # --- Maç istatistikleri ------------------------------------------------
+    # Görünürlükleri grup ayarına bağlı (bkz. Grup.gol_gosterilsin vb.);
+    # veri her hâlükârda tutulur, yalnızca gösterilip gösterilmediği değişir.
+    gol = models.PositiveSmallIntegerField("gol", default=0)
+    asist = models.PositiveSmallIntegerField("asist", default=0)
+    sari_kart = models.PositiveSmallIntegerField("sarı kart", default=0)
+    kirmizi_kart = models.BooleanField("kırmızı kart", default=False)
+
     class Meta:
         verbose_name = "katılım"
         verbose_name_plural = "katılımlar"

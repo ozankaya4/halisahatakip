@@ -7,8 +7,26 @@ from .models import Grup
 class GrupFormu(forms.ModelForm):
     class Meta:
         model = Grup
-        fields = ["ad", "aciklama"]
-        labels = {"ad": "Grup adı", "aciklama": "Açıklama"}
+        fields = [
+            "ad",
+            "aciklama",
+            "gol_gosterilsin",
+            "asist_gosterilsin",
+            "kart_gosterilsin",
+        ]
+        labels = {
+            "ad": "Grup adı",
+            "aciklama": "Açıklama",
+            "gol_gosterilsin": "Goller dizilimde gösterilsin",
+            "asist_gosterilsin": "Asistler dizilimde gösterilsin",
+            "kart_gosterilsin": "Sarı ve kırmızı kartlar dizilimde gösterilsin",
+        }
+        help_texts = {
+            "gol_gosterilsin": (
+                "Kapalıyken yönetici yine de girebilir; yalnızca sahada görünmez. "
+                "Bu istatistikleri tutmak istemeyen gruplar için kapalı bırakın."
+            ),
+        }
         widgets = {
             "ad": forms.TextInput(attrs={"placeholder": "Örn. Perşembe Ekibi", "autofocus": True}),
             "aciklama": forms.TextInput(
