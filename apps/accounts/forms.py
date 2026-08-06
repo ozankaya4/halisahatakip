@@ -1,6 +1,6 @@
 from django import forms
 
-from apps.core.images import AVATAR, gorseli_isle
+from apps.core.images import AVATAR, DOSYA_SECICI_ACCEPT, gorseli_isle
 
 from .models import Mevki, Profil
 
@@ -32,7 +32,7 @@ class ProfilFormu(forms.ModelForm):
     avatar = forms.ImageField(
         label="Profil fotoğrafı",
         required=False,
-        widget=forms.ClearableFileInput(attrs={"accept": "image/jpeg,image/png,image/webp,image/gif"}),
+        widget=forms.ClearableFileInput(attrs={"accept": DOSYA_SECICI_ACCEPT}),
     )
     avatari_sil = forms.BooleanField(label="Mevcut fotoğrafı kaldır", required=False)
 

@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from apps.core.images import MAC_FOTOGRAFI, gorseli_isle
+from apps.core.images import DOSYA_SECICI_ACCEPT, MAC_FOTOGRAFI, gorseli_isle
 
 from .models import Mac
 
@@ -87,7 +87,7 @@ class FotografFormu(forms.Form):
         widget=CokluDosyaGirdisi(
             attrs={
                 "multiple": True,
-                "accept": "image/jpeg,image/png,image/webp,image/gif",
+                "accept": DOSYA_SECICI_ACCEPT,
             }
         ),
         help_text="JPG, PNG, WEBP veya GIF · dosya başına en fazla 8 MB.",

@@ -84,6 +84,22 @@ IZINLI_ICERIK_TIPLERI = {
     "application/octet-stream",
 }
 
+# <input type="file" accept="..."> için hazır dizge.
+#
+# Formlarda elle yazılmıyor: daha önce doğrulama HEIC'i kabul ederken accept
+# listesi eski hâlinde kalmıştı ve iPhone'da dosya seçicide HEIC dosyaları
+# soluk görünüp seçilemiyordu. Tek kaynaktan üretilince iki liste birbirinden
+# ayrı düşemiyor.
+#
+# Hem uzantı hem MIME türü veriyoruz: HEIC için tarayıcıların MIME bilgisi
+# güvenilmez, uzantı eşleşmesi daha çok tutuyor.
+# application/octet-stream bilinçli olarak dışarıda: accept'e konursa dosya
+# seçici her türlü dosyayı gösterir, süzgeç anlamsızlaşırdı.
+DOSYA_SECICI_ACCEPT = ",".join(
+    sorted(IZINLI_UZANTILAR)
+    + sorted(t for t in IZINLI_ICERIK_TIPLERI if t.startswith("image/"))
+)
+
 
 @dataclass(frozen=True)
 class GorselProfili:

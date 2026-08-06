@@ -912,6 +912,52 @@ class GorselBicimleriTesti(TestCase):
         self.assertTrue(HEIF_DESTEGI, "pillow-heif kurulu değil")
         self.assertIn("HEIF", Image.registered_extensions().values())
 
+    def test_heic_dosyasi_gercekten_islenebiliyor(self):
+        """
+        iPhone'dan gelen bir HEIC baştan sona geçmeli.
+
+        Yalnızca "okuyucu kayıtlı mı" demek yetmiyor; asıl soru dosyanın
+        çözülüp WEBP'ye kodlanabildiği.
+        """
+        from PIL import Image
+
+        from apps.core.images import AVATAR, gorseli_isle
+
+        ham = io.BytesIO()
+        Image.new("RGB", (80, 60), (20, 120, 70)).save(ham, format="HEIF")
+        ham.seek(0)
+
+        yuklenen = SimpleUploadedFile("IMG_0421.HEIC", ham.getvalue(), content_type="image/heic")
+        icerik, ad = gorseli_isle(yuklenen, AVATAR)
+
+        self.assertTrue(ad.endswith(".webp"), "HEIC çıktısı WEBP olmalı")
+        with Image.open(io.BytesIO(icerik.read())) as cikti:
+            self.assertEqual(cikti.format, "WEBP")
+
+    def test_buyuk_harfli_uzanti_kabul_edilir(self):
+        """iPhone dosyaları .HEIC diye büyük harfle geliyor."""
+        from apps.core.images import IZINLI_UZANTILAR, _uzanti
+
+        self.assertIn(_uzanti("IMG_0421.HEIC"), IZINLI_UZANTILAR)
+        self.assertIn(_uzanti("FOTO.JPG"), IZINLI_UZANTILAR)
+
+    def test_dosya_secici_heic_gosteriyor(self):
+        """
+        Form <input accept="..."> ile doğrulama listesi ayrı düşmemeli.
+
+        Ayrı düştüğünde arka uç HEIC'i kabul ediyor ama dosya seçicide
+        HEIC dosyaları soluk görünüp seçilemiyordu.
+        """
+        from apps.accounts.forms import ProfilFormu
+        from apps.core.images import DOSYA_SECICI_ACCEPT
+        from apps.matches.forms import FotografFormu
+
+        for parca in (".heic", ".heif", "image/heic"):
+            self.assertIn(parca, DOSYA_SECICI_ACCEPT)
+
+        self.assertIn(".heic", str(ProfilFormu()["avatar"]))
+        self.assertIn(".heic", str(FotografFormu()["dosyalar"]))
+
     def test_desteklenmeyen_uzanti_reddedilir(self):
         from django.core.exceptions import ValidationError
 
