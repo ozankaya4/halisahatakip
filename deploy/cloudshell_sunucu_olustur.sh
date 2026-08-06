@@ -40,12 +40,25 @@ if [[ ! -f "${SSH_ACIK_ANAHTAR}" ]]; then
     echo "  (sunucuya konur). Şimdi burada oluşturabilirim."
     echo
     read -rp "Anahtar şimdi oluşturulsun mu? (evet/hayir): " ANAHTAR_ONAY
-    if [[ "${ANAHTAR_ONAY}" == "evet" ]]; then
-        ssh-keygen -t ed25519 -f "${SSH_ACIK_ANAHTAR%.pub}" -N "" -C "halisaha" >/dev/null
-        bilgi "Anahtar oluşturuldu: ${SSH_ACIK_ANAHTAR%.pub} (gizli) ve ${SSH_ACIK_ANAHTAR} (açık)"
+    [[ "${ANAHTAR_ONAY}" == "evet" ]] || hata "Anahtar olmadan devam edilemez."
+
+    GIZLI_ANAHTAR="${SSH_ACIK_ANAHTAR%.pub}"
+
+    # Oracle Cloud Shell FIPS kipinde çalışıyor ve ed25519'a izin vermiyor
+    # ("ED25519 keys are not allowed in FIPS mode"). Önce ed25519 deneyip,
+    # reddedilirse FIPS'in kabul ettiği RSA 4096'ya düşüyoruz. RSA 4096
+    # de fazlasıyla güvenli; tek farkı anahtar dosyasının büyük olması.
+    if ssh-keygen -t ed25519 -f "${GIZLI_ANAHTAR}" -N "" -C "halisaha" >/dev/null 2>&1; then
+        bilgi "Anahtar oluşturuldu (ed25519)."
     else
-        hata "Anahtar olmadan devam edilemez."
+        uyari "Bu ortam ed25519'a izin vermiyor (FIPS kipi). RSA 4096 kullanılıyor."
+        rm -f "${GIZLI_ANAHTAR}" "${SSH_ACIK_ANAHTAR}"
+        ssh-keygen -t rsa -b 4096 -f "${GIZLI_ANAHTAR}" -N "" -C "halisaha" >/dev/null \
+            || hata "Anahtar oluşturulamadı. Çıktıyı Claude'a yapıştırın."
+        bilgi "Anahtar oluşturuldu (RSA 4096)."
     fi
+    echo "    gizli: ${GIZLI_ANAHTAR}"
+    echo "    açık : ${SSH_ACIK_ANAHTAR}"
 fi
 
 grep -q '^ssh-' "${SSH_ACIK_ANAHTAR}" \
