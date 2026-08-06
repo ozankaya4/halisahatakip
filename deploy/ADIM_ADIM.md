@@ -40,6 +40,73 @@ klasörünün göründüğünü doğrulayın.
 
 ---
 
+# BÖLÜM A2 — Pay-As-You-Go'ya geçin (0 €, kapasite sorununu çözer)
+
+## Neden
+
+Always Free hesapları ARM donanımı dağıtılırken **en sona** konuyor. Bu
+yüzden sunucu oluştururken üç kullanılabilirlik alanında da
+"Out of host capacity / kapasite yok" hatası alınıyor. Sorun sizin
+yapılandırmanızda değil, sıradaki yerinizde.
+
+Oracle'ın bu duruma önerdiği çözüm hesabı **Pay-As-You-Go**'ya
+yükseltmek. Adı yanıltıcı: bu ücretli bir plana geçmek **değil**.
+
+| | Always Free | Pay-As-You-Go |
+|---|---|---|
+| Always Free kaynaklarının ücreti | 0 € | **0 €** (aynen devam eder) |
+| Donanım sırasındaki yeriniz | en son | **öncelikli** |
+| 7 gün boşta kalınca durdurulma | var | **yok** |
+| Sınırı aşarsanız | oluşturulmaz | ücretlendirilir |
+
+Yani sınırların içinde kaldığınız sürece fatura **0 €** olmaya devam
+eder; değişen tek şey donanım kuyruğundaki önceliğiniz.
+
+💡 PAYG hesaplarının eski **4 OCPU / 24 GB** kotasını koruduğuna dair
+raporlar var (Always Free 15 Haziran 2026'da 2/12'ye düşürülmüştü).
+Yükseltmeden sonra denemeye değer, bkz. B0.4.
+
+## A2.1. Yükseltin
+
+1. Oracle konsolunda **sağ üstteki profil simgesine** tıklayın
+2. Açılan menüden **Upgrade to Pay As You Go** seçin
+   (görünmüyorsa: ☰ → **Billing & Cost Management** → **Upgrade and
+   Payment** → **Upgrade** düğmesi)
+3. Kart bilgilerinizi girin ve onaylayın
+
+Yükseltme genelde birkaç dakikada etkinleşir, bazen 1 saati bulur.
+
+## A2.2. Bütçe uyarısı kurun — bu adımı atlamayın
+
+Hesap artık faturalandırılabilir durumda. İlk kuruş harcandığında haber
+almak için:
+
+1. ☰ menü → **Billing & Cost Management**
+2. **Budgets** → **Create Budget**
+3. Doldurun:
+
+| Alan | Değer |
+|---|---|
+| Name | `sifir-harcama-uyarisi` |
+| Target Compartment | `hikmetozankaya (root)` |
+| Monthly Budget Amount | `1` |
+| Alert Rule: Threshold | `100` |
+| Threshold Metric | `Actual Spend` (gerçekleşen harcama) |
+| Email Recipients | `hikmetozankaya@gmail.com` |
+
+4. **Create**
+
+⚠️ Bu, "1 €'yu geçersem bana yaz" demek. Betiklerimiz Always Free
+dışına çıkan hiçbir kaynak oluşturmuyor, dolayısıyla bu e-postanın hiç
+gelmemesi gerekir. Gelirse bir şeyin ters gittiğini hemen anlarsınız.
+
+## A2.3. Sonra ne olacak
+
+Yükseltme etkinleştikten sonra doğrudan B0'a dönüp sunucuyu oluşturun.
+Daha önce kapasite hatası veren komut artık geçmeli.
+
+---
+
 # BÖLÜM B0 — KOLAY YOL: Cloud Shell (önerilen)
 
 Aşağıdaki B ve C bölümleri konsolda tıklayarak ilerliyor. Oracle arayüzü
@@ -121,6 +188,31 @@ Betik sırayla şunları yapar ve her adımı ekrana yazar:
 > **"Genel alt ağ bulunamadı" hatası alırsanız:** ağınız henüz yok
 > demektir. B6a bölümündeki VCN Wizard adımını yapın (6 tıklama), sonra
 > bu komutu tekrar çalıştırın.
+
+> ### "Kapasite yok" hatası alırsanız
+>
+> **1. Önce PAYG'ye geçin.** Sebebin neredeyse tamamı bu: Always Free
+> hesapları ARM sırasında en sonda. Bkz. **BÖLÜM A2**. Ücretsiz ve
+> kalıcı çözüm budur.
+>
+> **2. PAYG'den sonra hâlâ olmuyorsa** daha küçük bir makine isteyin;
+> küçük parçalar çok daha kolay bulunuyor:
+> ```bash
+> OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
+> ```
+>
+> **3. Israrla deneyin.** Kapasite gün içinde açılıp kapanıyor:
+> ```bash
+> TEKRAR=50 BEKLEME=300 OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
+> ```
+> 5 dakikada bir, ~4 saat dener. Cloud Shell oturumu kapanırsa komut da
+> durur; sekmeyi açık tutun. Ctrl+C ile durdurulur.
+>
+> 💡 PAYG'ye geçtiyseniz büyük makineyi de deneyebilirsiniz:
+> ```bash
+> OCPU=4 BELLEK_GB=24 bash cloudshell_sunucu_olustur.sh
+> ```
+> Kapasite hatası verirse varsayılan 2/12'ye dönmek yeterli.
 
 ## B0.5. Güvenlik kurallarını açın
 
@@ -221,14 +313,22 @@ edin. Başka bir bölgedeyse oradan Frankfurt'a geçin veya yeni hesap olusturun
 6. **Select shape** düğmesine basın
 
 > ### "Out of host capacity" hatası alırsanız
-> Frankfurt'ta ARM kapasitesi sık tükeniyor. Sırayla deneyin:
+>
+> **Asıl çözüm: BÖLÜM A2'deki Pay-As-You-Go yükseltmesi.** Always Free
+> hesapları ARM donanımı sırasında en sona konuyor; hata bundan
+> kaynaklanıyor. Yükseltme ücretsiz ve kalıcı çözüm.
+>
+> Yükseltmeden sonra hâlâ olmuyorsa sırayla:
 > 1. B3'e dönüp **AD-2**, sonra **AD-3** seçin
-> 2. Birkaç saat sonra tekrar deneyin (sabah erken saatler daha şanslı)
-> 3. Olmuyorsa **Change shape** → **AMD** sekmesi →
+> 2. B5'te OCPU/bellek değerlerini düşürün (1 OCPU / 6 GB çok daha
+>    kolay bulunuyor)
+> 3. Birkaç saat sonra tekrar deneyin (sabah erken saatler daha şanslı)
+> 4. Son çare **Change shape** → **AMD** sekmesi →
 >    **VM.Standard.E2.1.Micro** (1 GB RAM, her zaman müsait)
 >
-> AMD'yi seçerseniz: 1 GB RAM'de PostgreSQL yerine SQLite
-> kullanmak gerekir, kurulum betiğini ona göre değiştiririm.
+> AMD'yi seçerseniz Claude'a haber verin: 1 GB RAM'de PostgreSQL yerine
+> SQLite kullanmak, takas alanı eklemek ve Argon2 parola karma
+> ayarlarını hafifletmek gerekiyor (yoksa girişler yavaşlar).
 
 ## B6. Ağ ayarları
 

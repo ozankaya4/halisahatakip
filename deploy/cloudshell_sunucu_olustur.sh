@@ -15,6 +15,16 @@ set -euo pipefail
 # Ayarlar komut satırından geçilebilir, dosyayı düzenlemeye gerek yok:
 #     OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
 #     TEKRAR=50 BEKLEME=300 bash cloudshell_sunucu_olustur.sh
+#
+# KAPASİTE HATASI ALIYORSANIZ: sebebi neredeyse her zaman hesabın Always
+# Free olması. Oracle bu hesapları ARM donanımı sırasında en sona koyuyor.
+# Çözüm hesabı Pay-As-You-Go'ya yükseltmek; sınırlar içinde kalındığı
+# sürece fatura yine 0 € olur. Bkz. ADIM_ADIM.md, Bölüm A2.
+#
+# PAYG'ye geçtiyseniz büyük makineyi de deneyebilirsiniz (bu hesapların
+# eski 4 OCPU / 24 GB kotasını koruduğuna dair raporlar var):
+#     OCPU=4 BELLEK_GB=24 bash cloudshell_sunucu_olustur.sh
+# Kapasite hatası verirse varsayılan 2/12'ye dönmek yeterli.
 INSTANCE_ADI="${INSTANCE_ADI:-halisaha}"
 SHAPE="${SHAPE:-VM.Standard.A1.Flex}"
 OCPU="${OCPU:-2}"
@@ -180,21 +190,29 @@ done
 if [[ -z "${INSTANCE_ID}" ]]; then
     hata "Kapasite bulunamadı (${SHAPE}, ${OCPU} OCPU / ${BELLEK_GB} GB).
 
-Sırayla şunları deneyin:
+  ÖNCE BUNU YAPIN: hesabınız hâlâ Always Free ise, sebep büyük
+  ihtimalle bu. Oracle Always Free hesaplarını ARM donanımı sırasında
+  en sona koyuyor. Pay-As-You-Go'ya yükseltmek öncelik kazandırır ve
+  Always Free sınırları içinde kaldığınız sürece fatura yine 0 € olur.
+       -> ADIM_ADIM.md, Bölüm A2
 
-  1) Daha küçük ARM isteyin (çok daha kolay bulunuyor):
+  Yükselttikten sonra hâlâ olmuyorsa:
+
+  1) Daha küçük ARM isteyin (küçük parçalar çok daha kolay bulunuyor):
        OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
 
   2) Israrla deneyin. Kapasite gün içinde açılıp kapanıyor:
-       TEKRAR=50 BEKLEME=300 bash cloudshell_sunucu_olustur.sh
+       TEKRAR=50 BEKLEME=300 OCPU=1 BELLEK_GB=6 \\
+         bash cloudshell_sunucu_olustur.sh
      (5 dakikada bir, ~4 saat boyunca dener. Cloud Shell oturumu
-      kapanırsa komut da durur; sekmeyi açık tutun.)
+      kapanırsa komut da durur; sekmeyi açık tutun. Ctrl+C durdurur.)
 
-  3) AMD'ye geçin. Her zaman müsait, 1 GB RAM:
+  3) Son çare, AMD. Her zaman müsait ama zayıf: 1 GB RAM, 1/8 çekirdek:
        SHAPE=VM.Standard.E2.1.Micro OCPU=1 BELLEK_GB=1 \\
          bash cloudshell_sunucu_olustur.sh
-     Bu durumda Claude'a haber verin: 1 GB RAM'de PostgreSQL yerine
-     SQLite kullanmak ve takas alanı eklemek gerekiyor."
+     Bu durumda Claude'a haber verin: PostgreSQL yerine SQLite, takas
+     alanı ve hafifletilmiş Argon2 ayarları gerekiyor (yoksa girişler
+     yavaşlar)."
 fi
 
 # --- 8. Genel IP ----------------------------------------------------------

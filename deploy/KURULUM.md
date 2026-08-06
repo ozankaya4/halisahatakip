@@ -267,17 +267,26 @@ kendi bilgisayarınıza da indirin** — sunucu kaybolursa yedek de kaybolur:
 scp -r ubuntu@<SUNUCU_IP>:/var/backups/halisaha ./yedekler/
 ```
 
-## Boşta kalma uyarısı
+## Boşta kalma toplaması (bu kurulumda geçerli değil)
 
-Oracle, Always Free makineleri **7 gün boyunca %10'un altında CPU *ve*
-ağ kullanımı** görürse durdurabilir. Durdurulan makineyi konsoldan tekrar
-başlatabilirsiniz, ama o süre boyunca site kapalı olur.
+Oracle, **Always Free** hesaplardaki makineleri 7 gün boyunca %10'un
+altında CPU *ve* ağ kullanımı görürse durdurabiliyor.
 
-Grubunuz düzenli kullanıyorsa sorun çıkmaz. Tamamen garantiye almanın yolu
-hesabı Pay-As-You-Go'ya yükseltmektir — Always Free sınırları içinde
-kaldığınız sürece ücret çıkmaz ve boşta kalma toplaması uygulanmaz. Ancak
-bu, sınırı aşarsanız gerçekten ücretlendirilebileceğiniz anlamına gelir;
-"hiçbir şeye para vermeyeceğim" hedefiniz varsa önce yükseltmeden deneyin.
+**Bu kurulumda böyle bir risk yok**, çünkü hesap Pay-As-You-Go'ya
+yükseltildi (bkz. `ADIM_ADIM.md`, Bölüm A2). PAYG hesaplarına boşta kalma
+toplaması uygulanmıyor.
+
+Yükseltmenin asıl sebebi ARM kapasitesiydi: Always Free hesapları donanım
+sırasında en sona konduğu için sunucu bir türlü oluşturulamıyordu. Boşta
+kalma riskinin ortadan kalkması ikinci bir kazanç oldu.
+
+⚠️ Hesap artık faturalandırılabilir durumda. Always Free sınırları içinde
+kaldığı sürece tutar 0 € kalır; güvence için 1 €'luk bütçe uyarısı
+kurulmuş olmalı (ADIM_ADIM.md, A2.2). Harcamayı ara sıra kontrol edin:
+**Billing & Cost Management → Cost Analysis**.
+
+> İleride Always Free'ye geri dönerseniz yukarıdaki boşta kalma kuralı
+> tekrar geçerli olur; bu bölüm o yüzden silinmedi.
 
 ## Sorun giderme
 
