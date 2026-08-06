@@ -1590,11 +1590,25 @@ p {
   margin-block-start: 1.1rem;
 }
 
-/* Kadro sütunları arasındaki dikey ayrım, iki takımın karışmaması için
-   geniş ekranda ayrıca belirginleşiyor. */
-@media (min-width: 900px) {
+/* İki takım kadrosu: tam ortadan bölünmüş eşit sütunlar.
+   .iki-sutun'un masaüstü varsayılanı 1.85fr / 1fr, yani "içerik + kenar
+   çubuğu" için asimetrik. İki takım için yanlış: A Takımı belirgin biçimde
+   daha geniş görünüyordu. Burada eşitliyoruz ve tam ortaya bir ayraç
+   koyuyoruz — boşluk sütunlara eşit dağıtıldığı için çizgi gerçekten
+   ortada duruyor. */
+@media (min-width: 62rem) {
   .takim-kadrolari {
-    column-gap: clamp(2rem, 5vw, 4rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .takim-kadrolari > :first-child {
+    padding-inline-end: clamp(1.25rem, 3vw, 2.5rem);
+    border-inline-end: 1px solid var(--cetvel);
+  }
+
+  .takim-kadrolari > :last-child {
+    padding-inline-start: clamp(1.25rem, 3vw, 2.5rem);
   }
 }
 
