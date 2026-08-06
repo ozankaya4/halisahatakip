@@ -12,12 +12,20 @@
 
 set -euo pipefail
 
-INSTANCE_ADI="halisaha"
-SHAPE="VM.Standard.A1.Flex"
-OCPU=2
-BELLEK_GB=12
-DISK_GB=100
-SSH_ACIK_ANAHTAR="${HOME}/halisaha_anahtar.pub"
+# Ayarlar komut satırından geçilebilir, dosyayı düzenlemeye gerek yok:
+#     OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
+#     TEKRAR=50 BEKLEME=300 bash cloudshell_sunucu_olustur.sh
+INSTANCE_ADI="${INSTANCE_ADI:-halisaha}"
+SHAPE="${SHAPE:-VM.Standard.A1.Flex}"
+OCPU="${OCPU:-2}"
+BELLEK_GB="${BELLEK_GB:-12}"
+DISK_GB="${DISK_GB:-100}"
+SSH_ACIK_ANAHTAR="${SSH_ACIK_ANAHTAR:-${HOME}/halisaha_anahtar.pub}"
+
+# Kapasite bulunamazsa kaç tur denensin ve turlar arasında kaç saniye
+# beklensin. ARM kapasitesi gün içinde açılıp kapanıyor; ısrar işe yarıyor.
+TEKRAR="${TEKRAR:-1}"
+BEKLEME="${BEKLEME:-300}"
 
 bilgi() { printf '\n\033[1;32m==>\033[0m %s\n' "$1"; }
 uyari() { printf '\033[1;33m!!\033[0m %s\n' "$1"; }
@@ -127,44 +135,66 @@ read -rp "Devam edilsin mi? (evet/hayir): " ONAY
 [[ "${ONAY}" == "evet" ]] || { echo "Vazgeçildi."; exit 0; }
 
 # --- 7. Sırayla her AD'de dene -------------------------------------------
-# ARM kapasitesi sık tükeniyor; tek bir AD'de kalmak yerine hepsini deniyoruz.
+# ARM kapasitesi sık tükeniyor. İki katmanlı deniyoruz: önce her
+# kullanılabilirlik alanı, sonra (istenirse) belli aralıklarla baştan.
 INSTANCE_ID=""
-for AD in "${ADLAR[@]}"; do
-    bilgi "Deneniyor: ${AD}"
-    if CIKTI=$(oci compute instance launch \
-        --availability-domain "${AD}" \
-        --compartment-id "${TENANCY}" \
-        --display-name "${INSTANCE_ADI}" \
-        --shape "${SHAPE}" \
-        --shape-config "{\"ocpus\":${OCPU},\"memoryInGBs\":${BELLEK_GB}}" \
-        --image-id "${IMAGE}" \
-        --subnet-id "${SUBNET}" \
-        --assign-public-ip true \
-        --boot-volume-size-in-gbs "${DISK_GB}" \
-        --metadata "{\"ssh_authorized_keys\":\"$(cat "${SSH_ACIK_ANAHTAR}")\"}" \
-        --wait-for-state RUNNING \
-        2>&1); then
-        INSTANCE_ID=$(echo "${CIKTI}" | grep -o '"id": "ocid1.instance[^"]*"' | head -1 | cut -d'"' -f4)
-        bilgi "Sunucu oluşturuldu."
-        break
-    else
-        if echo "${CIKTI}" | grep -qi "capacity"; then
-            uyari "${AD}: kapasite yok, sıradaki alan deneniyor."
-            continue
+TUR=1
+
+while :; do
+    for AD in "${ADLAR[@]}"; do
+        bilgi "Deneniyor: ${AD}  (tur ${TUR}/${TEKRAR})"
+        if CIKTI=$(oci compute instance launch \
+            --availability-domain "${AD}" \
+            --compartment-id "${TENANCY}" \
+            --display-name "${INSTANCE_ADI}" \
+            --shape "${SHAPE}" \
+            --shape-config "{\"ocpus\":${OCPU},\"memoryInGBs\":${BELLEK_GB}}" \
+            --image-id "${IMAGE}" \
+            --subnet-id "${SUBNET}" \
+            --assign-public-ip true \
+            --boot-volume-size-in-gbs "${DISK_GB}" \
+            --metadata "{\"ssh_authorized_keys\":\"$(cat "${SSH_ACIK_ANAHTAR}")\"}" \
+            --wait-for-state RUNNING \
+            2>&1); then
+            INSTANCE_ID=$(echo "${CIKTI}" | grep -o '"id": "ocid1.instance[^"]*"' | head -1 | cut -d'"' -f4)
+            bilgi "Sunucu oluşturuldu."
+            break 2
+        else
+            if echo "${CIKTI}" | grep -qiE "capacity|LimitExceeded"; then
+                uyari "${AD}: kapasite yok."
+                continue
+            fi
+            echo "${CIKTI}" >&2
+            hata "Beklenmeyen hata. Yukarıdaki mesajı Claude'a yapıştırın."
         fi
-        echo "${CIKTI}" >&2
-        hata "Beklenmeyen hata. Yukarıdaki mesajı Claude'a yapıştırın."
+    done
+
+    if (( TUR >= TEKRAR )); then
+        break
     fi
+    uyari "Tur ${TUR} bitti. ${BEKLEME} saniye sonra yeniden denenecek. (Ctrl+C ile durdurun)"
+    sleep "${BEKLEME}"
+    TUR=$(( TUR + 1 ))
 done
 
 if [[ -z "${INSTANCE_ID}" ]]; then
-    hata "Hiçbir alanda ARM kapasitesi yok.
+    hata "Kapasite bulunamadı (${SHAPE}, ${OCPU} OCPU / ${BELLEK_GB} GB).
 
-Seçenekler:
-  1) Birkaç saat sonra tekrar deneyin (sabah saatleri daha şanslı)
-  2) Bu betiğin başındaki ayarları küçültün: OCPU=1, BELLEK_GB=6
-  3) AMD'ye geçin: SHAPE=\"VM.Standard.E2.1.Micro\" (1 GB RAM)
-     Bu durumda Claude'a haber verin, kurulum betiği değişmeli."
+Sırayla şunları deneyin:
+
+  1) Daha küçük ARM isteyin (çok daha kolay bulunuyor):
+       OCPU=1 BELLEK_GB=6 bash cloudshell_sunucu_olustur.sh
+
+  2) Israrla deneyin. Kapasite gün içinde açılıp kapanıyor:
+       TEKRAR=50 BEKLEME=300 bash cloudshell_sunucu_olustur.sh
+     (5 dakikada bir, ~4 saat boyunca dener. Cloud Shell oturumu
+      kapanırsa komut da durur; sekmeyi açık tutun.)
+
+  3) AMD'ye geçin. Her zaman müsait, 1 GB RAM:
+       SHAPE=VM.Standard.E2.1.Micro OCPU=1 BELLEK_GB=1 \\
+         bash cloudshell_sunucu_olustur.sh
+     Bu durumda Claude'a haber verin: 1 GB RAM'de PostgreSQL yerine
+     SQLite kullanmak ve takas alanı eklemek gerekiyor."
 fi
 
 # --- 8. Genel IP ----------------------------------------------------------
