@@ -1764,16 +1764,48 @@ p {
 .isaret-asist {
   inset-block-end: -5px;
   inset-inline-end: -9px;
-  background: rgba(30, 62, 92, 0.95);
+  background: rgba(32, 68, 100, 0.95);
+  padding-inline-start: 0.18rem;
 }
 
-/* Gol işaretindeki küçük top: emoji yerine çizilmiş, her yerde aynı. */
+/* Asist işareti: pas oku.
+   Önceden rozetin başında düz bir "A" harfi vardı; rakamın yanında kaba
+   duruyordu. Yerine küçük bir ok çiziliyor — uygulamadaki diğer oklarla
+   (.ayar-ok) aynı yapım tekniği, dolayısıyla aynı dile ait. */
+.isaret-asist::before {
+  content: "";
+  width: 0.28rem;
+  height: 0.28rem;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-start: 1.5px solid currentColor;
+  rotate: 45deg;
+  translate: 0 -0.5px;
+  opacity: 0.95;
+}
+
+/* Gol işaretindeki futbol topu.
+   Emoji kullanılmıyor: her işletim sisteminde farklı çiziliyor ve
+   uygulamanın geri kalanıyla uyuşmuyor. Beyaz küre + koyu beşgen lekeler
+   radial-gradient ile çiziliyor; bu boyutta top olarak okunuyor. */
 .isaret-top {
-  width: 0.42rem;
-  height: 0.42rem;
+  width: 0.58rem;
+  height: 0.58rem;
   border-radius: 50%;
-  background: #f6f3ea;
-  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.45);
+  flex: none;
+  /* Merkezde beşgen, kenarlarda küreye kırpılan dilimler. Lekeler bilerek
+     kenara itildi: ortada toplanınca top değil "puanlı küre" gibi
+     görünüyordu. */
+  background:
+    radial-gradient(circle at 50% 44%, #16181a 0 21%, transparent 22%),
+    radial-gradient(circle at 50% 2%, #16181a 0 13%, transparent 14%),
+    radial-gradient(circle at 4% 62%, #16181a 0 13%, transparent 14%),
+    radial-gradient(circle at 96% 62%, #16181a 0 13%, transparent 14%),
+    radial-gradient(circle at 30% 100%, #16181a 0 12%, transparent 13%),
+    radial-gradient(circle at 70% 100%, #16181a 0 12%, transparent 13%),
+    #f6f3ea;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.5),
+    inset -1px -1.5px 1px rgba(0, 0, 0, 0.25);
 }
 
 .kart-yildiz {

@@ -76,7 +76,13 @@
                 {% endif %}
 
                 {% if oyuncu.asist %}
-                  <span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist">A{{ oyuncu.asist }}</span>
+                  {% comment %}
+                  Asist işareti: pas okunu CSS çiziyor (::before). Eskiden
+                  başında düz bir "A" harfi vardı, rozetin içinde kaba
+                  duruyordu.
+                  {% endcomment %}
+                  <span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist"
+                        aria-label="{{ oyuncu.asist }} asist">{{ oyuncu.asist }}</span>
                 {% endif %}
 
                 {% if oyuncu.macin_adami %}
