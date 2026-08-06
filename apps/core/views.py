@@ -151,13 +151,17 @@ def servis_calisani(request):
 # ---------------------------------------------------------------------------
 # Korumalı dosya sunumu
 # ---------------------------------------------------------------------------
-def _dosyayi_gonder(request, alan, indirilecek_ad: str) -> HttpResponse:
+def _dosyayi_gonder(
+    request, alan, indirilecek_ad: str, indir: bool = False
+) -> HttpResponse:
     """
     Bir FieldFile'ı güvenli başlıklarla gönderir.
 
     Dosya adı ve yolu istekten değil veritabanından gelir. İçerik tipi
     tahmin edilmez; yalnızca bizim ürettiğimiz biçimlere izin verilir ve
     tarayıcının içeriği yeniden yorumlaması nosniff ile engellenir.
+
+    indir=True verilirse tarayıcı dosyayı göstermek yerine kaydeder.
     """
     if not alan:
         raise Http404("Dosya yok.")
@@ -192,8 +196,21 @@ def _dosyayi_gonder(request, alan, indirilecek_ad: str) -> HttpResponse:
     else:
         yanit = FileResponse(open(cozulmus, "rb"), content_type=icerik_tipi)
 
-    # inline: görsel olarak gösterilsin; ama tarayıcı türü kendi tahmin etmesin.
-    yanit["Content-Disposition"] = f'inline; filename="{indirilecek_ad}"'
+    # inline : sayfada görsel olarak gösterilsin
+    # attachment: tarayıcı "kaydet" akışını başlatsın (telefonda galeriye iner)
+    #
+    # Sunucu tarafında karar veriyoruz; HTML'deki download özniteliğine
+    # bırakmıyoruz. Sebebi: download özniteliği yalnızca aynı kaynaktaki
+    # bağlantılarda ve bazı tarayıcılarda çalışıyor, iOS Safari'de ise
+    # görmezden gelinip dosya yeni sekmede açılıyor. attachment başlığı
+    # her yerde aynı davranıyor.
+    #
+    # Dosya adı ASCII'ye indirgenmiş hâliyle veriliyor: başlıkta Türkçe
+    # karakter olursa bazı tarayıcılar adı bozuyor.
+    if indir:
+        yanit["Content-Disposition"] = f'attachment; filename="{indirilecek_ad}"'
+    else:
+        yanit["Content-Disposition"] = f'inline; filename="{indirilecek_ad}"'
     yanit["X-Content-Type-Options"] = "nosniff"
     yanit["Content-Security-Policy"] = "default-src 'none'; sandbox; img-src 'self'"
     yanit["Cache-Control"] = "private, max-age=3600"
@@ -235,7 +252,16 @@ def mac_fotografi(request, dosya_id):
         if not yetkili:
             raise Http404("Bulunamadı.")
 
-    return _dosyayi_gonder(request, foto.dosya, "mac-fotografi.webp")
+    # ?indir=1 ile gelen istekte tarayıcı dosyayı kaydeder. Telefonda
+    # galeriye/indirilenler klasörüne düşmesi için gereken tek şey bu.
+    indir = request.GET.get("indir") == "1"
+
+    # Kaydedilen dosyanın adı: karışık UUID yerine maçın tarihi.
+    # Yalnızca ASCII: başlıkta Türkçe karakter bazı tarayıcılarda adı bozuyor.
+    yerel = timezone.localtime(foto.mac.baslangic)
+    ad = f"halisaha-{yerel:%Y-%m-%d}-{str(foto.dosya_id)[:8]}.webp"
+
+    return _dosyayi_gonder(request, foto.dosya, ad, indir=indir)
 
 
 # ---------------------------------------------------------------------------

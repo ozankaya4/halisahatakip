@@ -1118,6 +1118,88 @@ class AnaEkranUygulamasiTesti(TestCase):
                 self.assertTrue((kok / ad).is_file(), f"{ad} yok")
 
 
+class FotografIndirmeTesti(TestCase):
+    """Maç fotoğraflarının telefona indirilebilmesi."""
+
+    def setUp(self):
+        from apps.core.images import MAC_FOTOGRAFI, gorseli_isle
+        from apps.matches.models import MacFotografi
+
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.yabanci = kullanici("yabanci@example.com", "Yabancı Kişi")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+
+        self.gecici = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.gecici, True)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            icerik, _ = gorseli_isle(
+                SimpleUploadedFile("a.jpg", gorsel_uret().read(), content_type="image/jpeg"),
+                MAC_FOTOGRAFI,
+            )
+            self.foto = MacFotografi(mac=self.mac, yukleyen=self.ozan)
+            self.foto.dosya.save(icerik.name, icerik, save=True)
+
+    def _oku(self, yanit):
+        """Windows'ta dosya kolu açık kalmasın."""
+        if hasattr(yanit, "streaming_content"):
+            b"".join(yanit.streaming_content)
+        yanit.close()
+        return yanit
+
+    def test_indir_parametresi_attachment_donduruyor(self):
+        self.client.force_login(self.ozan)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            yanit = self._oku(self.client.get(self.foto.url + "?indir=1"))
+        self.assertEqual(yanit.status_code, 200)
+        self.assertTrue(yanit["Content-Disposition"].startswith("attachment;"))
+
+    def test_parametresiz_istek_hala_sayfada_gosteriliyor(self):
+        """Galeride fotoğrafın inline görünmesi bozulmamalı."""
+        self.client.force_login(self.ozan)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            yanit = self._oku(self.client.get(self.foto.url))
+        self.assertTrue(yanit["Content-Disposition"].startswith("inline;"))
+
+    def test_indirilen_dosya_adi_mac_tarihini_tasiyor(self):
+        self.client.force_login(self.ozan)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            yanit = self._oku(self.client.get(self.foto.url + "?indir=1"))
+        ad = yanit["Content-Disposition"]
+        self.assertIn(timezone.localtime(self.mac.baslangic).strftime("%Y-%m-%d"), ad)
+        self.assertIn(".webp", ad)
+        # Başlıkta ASCII dışı karakter olmamalı; bazı tarayıcılar adı bozuyor.
+        ad.encode("ascii")
+
+    def test_indirme_yetki_kontrolunu_atlatamiyor(self):
+        """?indir=1 grup dışındakine kapı açmamalı."""
+        self.client.force_login(self.yabanci)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            yanit = self.client.get(self.foto.url + "?indir=1")
+        self.assertEqual(yanit.status_code, 404)
+
+    def test_giris_yapmamis_indiremiyor(self):
+        with override_settings(MEDIA_ROOT=self.gecici):
+            yanit = self.client.get(self.foto.url + "?indir=1")
+        self.assertIn(yanit.status_code, (302, 404))
+
+    def test_galeride_indirme_adresi_var(self):
+        self.client.force_login(self.ozan)
+        with override_settings(MEDIA_ROOT=self.gecici):
+            govde = self.client.get(
+                reverse("matches:detay", args=[self.mac.pk])
+            ).content.decode("utf-8")
+        self.assertIn(f'data-buyutec-indir="{self.foto.url}?indir=1"', govde)
+
+
 class FotografBuyutecTesti(TestCase):
     """Profil fotoğrafına tıklayınca büyüyen katman."""
 

@@ -109,7 +109,13 @@
         </button>
       </form>
       <img class="buyutec-gorsel" data-buyutec-gorsel alt="">
-      <p class="buyutec-baslik" data-buyutec-baslik></p>
+      <div class="buyutec-alt">
+        <p class="buyutec-baslik" data-buyutec-baslik></p>
+        {# İndirme bağlantısı yalnızca indirilebilir fotoğraflarda görünür. #}
+        <a class="buyutec-indir" data-buyutec-indir hidden download>
+          Telefona indir
+        </a>
+      </div>
     </dialog>
 
     <script type="module" src="{% static 'js/app.js' %}"></script>

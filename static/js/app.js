@@ -74,12 +74,28 @@ function buyutecBagla() {
   const gorsel = katman.querySelector("[data-buyutec-gorsel]");
   const baslik = katman.querySelector("[data-buyutec-baslik]");
   const kapat = katman.querySelector("[data-buyutec-kapat]");
+  const indir = katman.querySelector("[data-buyutec-indir]");
 
   tetikleyiciler.forEach((tetik) => {
     tetik.addEventListener("click", () => {
       gorsel.src = tetik.dataset.buyutec;
       gorsel.alt = tetik.dataset.buyutecAlt || "";
       if (baslik) baslik.textContent = tetik.dataset.buyutecBaslik || "";
+
+      // İndirme bağlantısı yalnızca fotoğrafta indirme adresi varsa görünür.
+      // Profil fotoğraflarında yok: başkasının fotoğrafına indirme düğmesi
+      // koymak istemedik.
+      if (indir) {
+        const adres = tetik.dataset.buyutecIndir;
+        if (adres) {
+          indir.href = adres;
+          indir.hidden = false;
+        } else {
+          indir.removeAttribute("href");
+          indir.hidden = true;
+        }
+      }
+
       katman.showModal();
     });
   });

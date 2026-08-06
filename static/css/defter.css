@@ -1358,6 +1358,18 @@ p {
   background: transparent;
   overflow: visible;
   color: var(--kagit);
+
+  /* Ekranın ortasında dursun.
+     Tarayıcı modal <dialog>'u kendi varsayılan "margin: auto" kuralıyla
+     ortalıyor; ama yukarıdaki "* { margin: 0 }" sıfırlaması bunu da
+     eziyordu ve katman sol üst köşeye yapışıyordu. Burada geri veriyoruz.
+     inset ile birlikte yazılması şart: auto kenar boşluğunun paylaştıracağı
+     bir alan olması gerekiyor. */
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
 }
 
 .buyutec::backdrop {
@@ -1377,11 +1389,51 @@ p {
   background: var(--kagit-ust);
 }
 
+.buyutec-alt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  margin-block-start: 0.85rem;
+}
+
 .buyutec-baslik {
-  margin: 0.75rem 0 0;
+  margin: 0;
   text-align: center;
   font-size: 0.92rem;
   color: #e8e5dc;
+}
+
+.buyutec-baslik:empty {
+  display: none;
+}
+
+.buyutec-indir {
+  display: inline-block;
+  padding: 0.5rem 1.1rem;
+  border: 1.5px solid rgba(246, 243, 234, 0.5);
+  border-radius: var(--kose);
+  background: rgba(20, 24, 22, 0.75);
+  color: #f6f3ea;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--gecis), border-color var(--gecis);
+}
+
+.buyutec-indir:hover {
+  background: var(--yesil);
+  border-color: var(--yesil);
+  color: #f6f3ea;
+}
+
+.buyutec-indir:focus-visible {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
+}
+
+.buyutec-indir[hidden] {
+  display: none;
 }
 
 .buyutec-kapat-sarmal {
