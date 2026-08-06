@@ -201,7 +201,11 @@ fi
 
 # --- Dizinler ve izinler --------------------------------------------------
 bilgi "Dizin izinleri"
-mkdir -p "${UYGULAMA_DIZINI}/media" "${UYGULAMA_DIZINI}/staticfiles" /var/backups/halisaha
+# .gunicorn: systemd ProtectSystem=strict yüzünden uygulama dizini salt
+# okunur; gunicorn'un denetim soketi için bu klasör önceden var olmalı ve
+# servis dosyasında ReadWritePaths ile açılmalı.
+mkdir -p "${UYGULAMA_DIZINI}/media" "${UYGULAMA_DIZINI}/staticfiles" \
+         "${UYGULAMA_DIZINI}/.gunicorn" /var/backups/halisaha
 chown -R "${KULLANICI}:${KULLANICI}" "${UYGULAMA_DIZINI}"
 chown root:root /var/backups/halisaha
 chmod 750 /var/backups/halisaha

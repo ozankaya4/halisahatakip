@@ -48,7 +48,13 @@ RestrictNamespaces=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
-ReadWritePaths=/srv/halisaha/media
+# Uygulama yalnızca bu iki yere yazabilir; gerisi salt okunur.
+#   media      : yüklenen fotoğraflar
+#   .gunicorn  : gunicorn 26'nın denetim soketi için kullandığı çalışma
+#                klasörü. Yoksa günlüklere şu hata düşüyor (ölümcül değil,
+#                ama gürültü yapıyor ve gerçek hataları gizliyor):
+#                  Control server error: [Errno 30] Read-only file system
+ReadWritePaths=/srv/halisaha/media /srv/halisaha/.gunicorn
 
 [Install]
 WantedBy=multi-user.target
