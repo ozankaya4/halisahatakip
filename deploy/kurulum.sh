@@ -101,13 +101,68 @@ paket_kur "Yardımcı"   git curl iptables-persistent unattended-upgrades
 # Bu, kurulumda herkesin takıldığı yer: Security List'te portu açsanız bile
 # makinenin kendi iptables kuralı isteği düşürür. İkisi de gerekli.
 bilgi "Güvenlik duvarı kuralları (iptables)"
-if ! iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-fi
-if ! iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-fi
+
+# Kuralın sırası kritik: iptables zinciri yukarıdan aşağı işletir ve ilk
+# eşleşen kural kazanır. Oracle'ın Ubuntu görüntüsünde zincirin sonunda
+# "REJECT all" var. ACCEPT kuralımız ondan SONRA eklenirse hiç
+# değerlendirilmez; kural listede görünür ama trafik yine düşer.
+#
+# Eskiden sabit "6. sıraya ekle" deniyordu; bu, zincirin her görüntüde
+# aynı sırada olduğunu varsayıyordu. Artık REJECT/DROP kuralını arayıp
+# onun hemen öncesine ekliyoruz.
+kural_ekle() {
+    local port="$1"
+
+    # Kuralın VAR OLMASI yetmiyor, DOĞRU SIRADA olması gerekiyor. Bu yüzden
+    # "varsa dokunma" demiyoruz: önce bu porta ait tüm kuralları siliyoruz,
+    # sonra REJECT'in önüne bir tane ekliyoruz.
+    #
+    # Neden böyle: eski sürüm sabit 6. sıraya ekliyordu ve "zaten var mı"
+    # kontrolü de hatalıydı. Sonuç: REJECT 5. sıradayken kurallar 6-11'e
+    # yığılıyor, hiçbiri değerlendirilmiyor, üstelik her çalıştırmada bir
+    # kopya daha ekleniyordu. Liste doluydu ama port kapalıydı.
+    local silinen=0
+    while iptables -C INPUT -m state --state NEW -p tcp --dport "${port}" -j ACCEPT 2>/dev/null; do
+        iptables -D INPUT -m state --state NEW -p tcp --dport "${port}" -j ACCEPT
+        silinen=$(( silinen + 1 ))
+    done
+
+    local konum
+    konum=$(iptables -L INPUT --line-numbers -n \
+            | awk '$2=="REJECT" || $2=="DROP" {print $1; exit}')
+
+    if [[ -n "${konum}" ]]; then
+        iptables -I INPUT "${konum}" -m state --state NEW -p tcp --dport "${port}" -j ACCEPT
+        printf '    - %s açıldı (%s. sıraya, REJECT kuralının önüne; %s eski kopya silindi)\n' \
+            "${port}" "${konum}" "${silinen}"
+    else
+        iptables -A INPUT -m state --state NEW -p tcp --dport "${port}" -j ACCEPT
+        printf '    - %s açıldı (zincirde REJECT yok, sona eklendi; %s eski kopya silindi)\n' \
+            "${port}" "${silinen}"
+    fi
+}
+
+kural_ekle 80
+kural_ekle 443
 netfilter-persistent save >/dev/null
+
+# Doğrulama: kuralın var olması DEĞİL, REJECT'ten ÖNCE olması gerekiyor.
+# Yanlış sırada duran bir kural da listede görünür ama hiçbir işe yaramaz.
+REJECT_SIRA=$(iptables -L INPUT --line-numbers -n \
+              | awk '$2=="REJECT" || $2=="DROP" {print $1; exit}')
+if [[ -n "${REJECT_SIRA}" ]]; then
+    for port in 80 443; do
+        PORT_SIRA=$(iptables -L INPUT --line-numbers -n \
+                    | awk -v p="dpt:${port}" '$0 ~ p && $2=="ACCEPT" {print $1; exit}')
+        if [[ -z "${PORT_SIRA}" ]]; then
+            uyari "${port} için ACCEPT kuralı bulunamadı."
+        elif (( PORT_SIRA > REJECT_SIRA )); then
+            uyari "${port} kuralı REJECT'ten SONRA (${PORT_SIRA} > ${REJECT_SIRA}). Bu port kapalı sayılır."
+        else
+            printf '    - %s doğrulandı (sıra %s, REJECT %s)\n' "${port}" "${PORT_SIRA}" "${REJECT_SIRA}"
+        fi
+    done
+fi
 uyari "Oracle konsolunda Security List'e de 80/443 ingress kuralı eklemeyi unutmayın."
 
 # --- Kullanıcı ------------------------------------------------------------
