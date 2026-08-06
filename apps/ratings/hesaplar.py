@@ -19,8 +19,10 @@ from django.db.models import Avg, Count, Q
 
 from .models import Puan
 
-# İptal edilmiş maçların puanları hiçbir hesaba katılmaz.
-GECERLI_PUAN = Q(mac__iptal=False)
+# Hiçbir hesaba katılmayanlar:
+#   * iptal edilmiş maçların puanları
+#   * karantinadaki puanlar (şüpheli oylama, yönetici kararı bekliyor)
+GECERLI_PUAN = Q(mac__iptal=False) & Q(karantinada=False)
 
 
 def grup_ozeti(grup, kullanici) -> dict:
@@ -79,12 +81,14 @@ def grup_siralamasi(grup, limit: int | None = None) -> list[dict]:
             grup_ortalama=Avg(
                 "kullanici__aldigi_puanlar__deger",
                 filter=Q(kullanici__aldigi_puanlar__mac__grup=grup)
-                & Q(kullanici__aldigi_puanlar__mac__iptal=False),
+                & Q(kullanici__aldigi_puanlar__mac__iptal=False)
+                & Q(kullanici__aldigi_puanlar__karantinada=False),
             ),
             grup_oy_sayisi=Count(
                 "kullanici__aldigi_puanlar",
                 filter=Q(kullanici__aldigi_puanlar__mac__grup=grup)
-                & Q(kullanici__aldigi_puanlar__mac__iptal=False),
+                & Q(kullanici__aldigi_puanlar__mac__iptal=False)
+                & Q(kullanici__aldigi_puanlar__karantinada=False),
             ),
         )
         .filter(grup_oy_sayisi__gte=settings.RATING_MIN_VOTES_TO_DISPLAY)

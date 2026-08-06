@@ -703,6 +703,26 @@ p {
   border-color: var(--cetvel);
 }
 
+/* Geliştirici (nihai yönetici). Grup rozetlerinden ayrı bir renk:
+   bu yetki gruba değil uygulamanın tamamına ait. */
+.rozet-mor {
+  color: #7c5cbf;
+  background: rgba(124, 92, 191, 0.1);
+}
+
+:root[data-tema="koyu"] .rozet-mor {
+  color: #b49ce4;
+  background: rgba(124, 92, 191, 0.18);
+}
+
+/* Ad yanında satır içi kullanılan küçük rozet. */
+.rozet-kucuk {
+  font-size: 0.62rem;
+  padding: 0.1rem 0.35rem;
+  letter-spacing: 0.05em;
+  vertical-align: 0.1em;
+}
+
 /* =========================================================================
    10. Formlar
    ====================================================================== */
@@ -1477,6 +1497,86 @@ p {
     opacity: 0;
     scale: 0.97;
   }
+}
+
+/* =========================================================================
+   15c. Kadro ve skor girişi
+   ====================================================================== */
+.kadro-sag {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-inline-start: auto;
+}
+
+.takim-secici {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--cetvel-koyu);
+  border-radius: var(--kose);
+  background: var(--kagit-ust);
+  color: var(--murekkep);
+}
+
+.skor-girisi {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.skor-girisi .alan {
+  max-width: 7rem;
+  margin: 0;
+}
+
+.skor-girisi input {
+  text-align: center;
+  font-family: var(--yazi-rakam, inherit);
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.skor-ayrac {
+  padding-block-end: 0.7rem;
+  font-size: 1.4rem;
+  color: var(--murekkep-soluk);
+}
+
+/* Maçın adamı yıldızı */
+.yildiz {
+  color: var(--hardal);
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+.macin-adami-satiri {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Takım şeridi */
+.takim-basligi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block-end: 0.5rem;
+  border-block-end: 1px solid var(--cetvel);
+  margin-block-end: 0.75rem;
+}
+
+.takim-skoru {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.takim-kazandi {
+  color: var(--yesil);
 }
 
 /* =========================================================================

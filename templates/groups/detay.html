@@ -24,6 +24,14 @@
     </div>
   {% endif %}
 
+  {% if yonetici_mi and bekleyen_oy_incelemesi %}
+    <div class="serit serit-uyari">
+      <strong>{{ bekleyen_oy_incelemesi }} oylama</strong> incelemeni bekliyor.
+      Bu puanlar şu anda ortalamalara katılmıyor.
+      <a href="{% url 'ratings:oy_incelemesi' grup.genel_id %}">İncele</a>.
+    </div>
+  {% endif %}
+
   <div class="iki-sutun">
     <div class="yigin">
       <section class="kutu">

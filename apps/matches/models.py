@@ -18,6 +18,10 @@ def mac_foto_yolu(ornek: "MacFotografi", dosya_adi: str) -> str:
 
 
 class Mac(ZamanDamgaliModel):
+    class Takim(models.TextChoices):
+        A = "a", "A Takımı"
+        B = "b", "B Takımı"
+
     grup = models.ForeignKey(
         "groups.Grup", on_delete=models.CASCADE, related_name="maclar", verbose_name="grup"
     )
@@ -37,6 +41,11 @@ class Mac(ZamanDamgaliModel):
     yoklama_acik = models.BooleanField("yoklama açık", default=True)
     yoklama_son = models.DateTimeField("yoklama son tarihi", null=True, blank=True)
     iptal = models.BooleanField("iptal edildi", default=False)
+
+    # Maç sonucu. İkisi birden girilene kadar skor "girilmemiş" sayılır;
+    # 0-0 geçerli bir sonuç olduğu için varsayılan 0 değil None.
+    skor_a = models.PositiveSmallIntegerField("A takımı skoru", null=True, blank=True)
+    skor_b = models.PositiveSmallIntegerField("B takımı skoru", null=True, blank=True)
 
     class Meta:
         verbose_name = "maç"
@@ -87,6 +96,40 @@ class Mac(ZamanDamgaliModel):
         if simdi > self.puanlama_bitis:
             return "Puanlama süresi doldu"
         return "Puanlama açık"
+
+    # --- sonuç -------------------------------------------------------------
+    @property
+    def skor_girildi_mi(self) -> bool:
+        """0-0 geçerli bir sonuç; bu yüzden None kontrolü yapılıyor."""
+        return self.skor_a is not None and self.skor_b is not None
+
+    @property
+    def berabere_mi(self) -> bool:
+        return self.skor_girildi_mi and self.skor_a == self.skor_b
+
+    @property
+    def kazanan_takim(self) -> str | None:
+        """Kazanan takımın kodu ("a"/"b"). Beraberlikte ve skor yokken None."""
+        if not self.skor_girildi_mi or self.berabere_mi:
+            return None
+        return self.Takim.A if self.skor_a > self.skor_b else self.Takim.B
+
+    @property
+    def skor_yazisi(self) -> str:
+        return f"{self.skor_a} - {self.skor_b}" if self.skor_girildi_mi else "—"
+
+    def takim_katilimlari(self, takim: str):
+        return self.oynayan_katilimlar().filter(takim=takim)
+
+    @property
+    def takimlar_kurulmus_mu(self) -> bool:
+        """En az bir oyuncu her iki takıma da atanmış mı?"""
+        takimlar = set(
+            self.oynayan_katilimlar()
+            .exclude(takim="")
+            .values_list("takim", flat=True)
+        )
+        return {self.Takim.A, self.Takim.B} <= takimlar
 
     # --- katılım -----------------------------------------------------------
     def oynayan_katilimlar(self):
@@ -143,6 +186,10 @@ class Katilim(ZamanDamgaliModel):
     yanit = models.CharField("yanıt", max_length=10, choices=Yanit.choices)
     # None: yönetici kadroyu işaretlememiş, yanıt esas alınır.
     katildi = models.BooleanField("sahaya çıktı", null=True, blank=True, default=None)
+    # Boş: takım atanmamış. Yalnızca sahaya çıkanlara takım verilir.
+    takim = models.CharField(
+        "takım", max_length=1, choices=Mac.Takim.choices, blank=True, default=""
+    )
 
     class Meta:
         verbose_name = "katılım"

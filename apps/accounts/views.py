@@ -75,6 +75,7 @@ def profil(request, kullanici_id: int):
                     puanlanan=kullanici,
                     mac__grup_id__in=gorulebilir_grup_idleri,
                     mac__iptal=False,
+                    karantinada=False,
                 )
                 .values("mac__grup__ad", "mac__grup__id")
                 .annotate(ortalama=Avg("deger"), adet=Count("id"))

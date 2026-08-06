@@ -178,7 +178,7 @@ class Profil(ZamanDamgaliModel):
         from apps.ratings.models import Puan
 
         ozet = Puan.objects.filter(
-            puanlanan=self.kullanici, mac__iptal=False
+            puanlanan=self.kullanici, mac__iptal=False, karantinada=False
         ).aggregate(ortalama=Avg("deger"), adet=Count("id"))
         self.ortalama_puan = (
             round(ozet["ortalama"], 2) if ozet["ortalama"] is not None else None

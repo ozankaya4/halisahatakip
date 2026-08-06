@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -16,6 +17,7 @@ from apps.core.ratelimit import sinir_asildi
 from apps.groups.yetki import uye_gerekli
 from apps.matches.models import Mac
 
+from .denetim import karantinadaki_oylar, karantinayi_coz, mac_oylarini_denetle
 from .models import Puan
 
 
@@ -104,9 +106,29 @@ def puanla(request, mac_id: int):
             for profil in Profil.objects.filter(kullanici_id__in=kaydedilecek):
                 profil.istatistikleri_yenile()
 
-        messages.success(
-            request, f"{len(kaydedilecek)} oyuncu için puanların kaydedildi."
-        )
+        # Oy dağılımını denetle. Herkese aynı uç puanı verildiyse puanlar
+        # silinir; dağılımsız ama uç olmayan durumlarda karantinaya alınıp
+        # yöneticiye bildirilir. Ayrıntılar: apps/ratings/denetim.py
+        denetim = mac_oylarini_denetle(mac, request.user)
+
+        if denetim.karar == "bariz":
+            messages.error(
+                request,
+                "Bütün oyunculara aynı uç puanı verdiğin için puanların "
+                "kaydedilmedi. Puanlar oyuncuları birbirinden ayırmak için var; "
+                "süre dolmadan yeniden değerlendirebilirsin.",
+            )
+        elif denetim.karar == "supheli":
+            messages.warning(
+                request,
+                "Puanların kaydedildi ama birbirine çok yakın olduğu için "
+                "şimdilik ortalamalara katılmıyor. Grup yöneticisi bakıp "
+                "onaylayacak.",
+            )
+        else:
+            messages.success(
+                request, f"{len(kaydedilecek)} oyuncu için puanların kaydedildi."
+            )
         return redirect("ratings:sonuclar", mac_id=mac.pk)
 
     satirlar = [
@@ -150,7 +172,7 @@ def sonuclar(request, mac_id: int):
     ozet = []
     if gorunur:
         ozet = list(
-            Puan.objects.filter(mac=mac)
+            Puan.objects.filter(mac=mac, karantinada=False)
             .values("puanlanan_id", "puanlanan__ad_soyad", "puanlanan__email")
             .annotate(ortalama=Avg("deger"), oy_sayisi=Count("id"))
             .order_by("-ortalama")
@@ -177,8 +199,9 @@ def sonuclar(request, mac_id: int):
 @uye_gerekli
 def siralama(request, grup):
     """Grup içi genel sıralama — yalnızca ortalamalar."""
+    # İptal edilen maçların ve karantinadaki oyların puanları sayılmaz.
     satirlar = (
-        Puan.objects.filter(mac__grup=grup)
+        Puan.objects.filter(mac__grup=grup, mac__iptal=False, karantinada=False)
         .values("puanlanan_id", "puanlanan__ad_soyad", "puanlanan__email")
         .annotate(ortalama=Avg("deger"), oy_sayisi=Count("id"))
         .order_by("-ortalama")
@@ -201,4 +224,46 @@ def siralama(request, grup):
             "yetersiz": yetersiz,
             "esik": esik,
         },
+    )
+
+
+@uye_gerekli
+def oy_incelemesi(request, grup):
+    """
+    Karantinaya alınmış oyların yönetici incelemesi.
+
+    Buraya düşen puanlar ortalamalara ZATEN katılmıyor; yani karar
+    verilene kadar kimse zarar görmüyor. Yönetici ya "hile" deyip siler ya
+    da "sorun yok" deyip serbest bırakır.
+
+    Tek tek puanların kime verildiği burada gösterilmiyor: puanlar gizli
+    kalmalı. Yönetici yalnızca dağılımı görüyor, bu da karar için yeterli.
+    """
+    if not grup.yonetici_mi(request.user):
+        raise PermissionDenied("Bu sayfa grup yöneticilerine açık.")
+
+    if request.method == "POST":
+        mac = get_object_or_404(Mac, pk=request.POST.get("mac"), grup=grup)
+        puanlayan = get_object_or_404(
+            get_user_model(), pk=request.POST.get("puanlayan")
+        )
+        sil = request.POST.get("karar") == "sil"
+        adet = karantinayi_coz(mac, puanlayan, sil=sil)
+
+        if not adet:
+            messages.info(request, "Bu kayıt zaten sonuçlanmış.")
+        elif sil:
+            messages.success(
+                request, f"{adet} puan silindi ve oyuncuya bildirildi."
+            )
+        else:
+            messages.success(
+                request, f"{adet} puan geçerli sayıldı ve ortalamalara katıldı."
+            )
+        return redirect("ratings:oy_incelemesi", genel_id=grup.genel_id)
+
+    return render(
+        request,
+        "ratings/oy_incelemesi.html",
+        {"grup": grup, "kayitlar": karantinadaki_oylar(grup)},
     )

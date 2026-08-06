@@ -19,6 +19,9 @@ class Bildirim(models.Model):
         YOKLAMA_ACILDI = "yoklama_acildi", "Yoklama açıldı"
         PUANLAMA_ACILDI = "puanlama_acildi", "Puanlama açıldı"
         GRUPTAN_CIKARILDI = "gruptan_cikarildi", "Gruptan çıkarıldı"
+        SUPHELI_OYLAMA = "supheli_oylama", "Şüpheli oylama"
+        PUANLARIN_SILINDI = "puanlarin_silindi", "Puanların silindi"
+        MACIN_ADAMI = "macin_adami", "Maçın adamı"
 
     alici = models.ForeignKey(
         settings.AUTH_USER_MODEL,

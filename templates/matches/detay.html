@@ -38,6 +38,70 @@
     </div>
   {% endif %}
 
+  {% if takimlar %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Takımlar</h2>
+        {% if mac.skor_girildi_mi %}
+          <span class="takim-skoru rakam">{{ mac.skor_yazisi }}</span>
+        {% else %}
+          <span class="kucuk solgun">Sonuç girilmedi</span>
+        {% endif %}
+      </div>
+
+      {% if macin_adamlari %}
+        <p class="macin-adami-satiri">
+          <span class="rozet rozet-hardal"><span class="yildiz" aria-hidden="true">★</span> Maçın adamı</span>
+          {% for adam in macin_adamlari %}
+            <strong>{{ adam.kullanici.gorunen_ad }}</strong>
+            <span class="kucuk solgun">{{ adam.ortalama }}</span>{% if not forloop.last %} ·{% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
+
+      <div class="iki-sutun">
+        {% for takim in takimlar %}
+          <div>
+            <div class="takim-basligi">
+              <h3>
+                {{ takim.ad }}
+                {% if takim.kazandi %}<span class="rozet rozet-yesil">Kazandı</span>{% endif %}
+              </h3>
+              {% if mac.skor_girildi_mi %}
+                <span class="takim-skoru rakam {% if takim.kazandi %}takim-kazandi{% endif %}">{{ takim.skor }}</span>
+              {% endif %}
+            </div>
+            <ul class="cetvel-liste">
+              {% for oyuncu in takim.oyuncular %}
+                <li>
+                  {% include "partials/_oyuncu.html" with kisi=oyuncu.kullanici %}
+                  {% if oyuncu.macin_adami %}
+                    <span class="yildiz sag" title="Maçın adamı" aria-label="Maçın adamı">★</span>
+                  {% endif %}
+                </li>
+              {% empty %}
+                <li><span class="solgun kucuk">Bu takıma oyuncu atanmadı.</span></li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if mac.berabere_mi %}
+        <p class="kucuk solgun">
+          Maç berabere bitti; maçın adamı iki takım arasından en yüksek puanlı
+          oyuncu olarak seçildi.
+        </p>
+      {% endif %}
+    </section>
+  {% elif yonetici_mi and mac.gecmis_mi and not mac.iptal %}
+    <div class="serit serit-bilgi">
+      Takımlar henüz kurulmadı.
+      <a href="{% url 'matches:kadro_duzenle' mac.pk %}">Kadro sayfasından</a>
+      oyuncuları A ve B takımlarına ayırıp skoru girebilirsin.
+    </div>
+  {% endif %}
+
   {% if mac.iptal %}
     <div class="serit serit-hata"><strong>Bu maç iptal edildi.</strong></div>
   {% endif %}

@@ -1046,6 +1046,367 @@ class GorselBicimleriTesti(TestCase):
             gorseli_isle(zararli, AVATAR)
 
 
+class _TakimliMacKurulumu(TestCase):
+    """Takım/skor/puan testleri için ortak kurulum."""
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.oyuncular = [kullanici(f"o{i}@example.com", f"Oyuncu {i}") for i in range(10)]
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        for k in self.oyuncular:
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+        self.herkes = [self.ozan, *self.oyuncular]
+        for i, k in enumerate(self.herkes):
+            Katilim.objects.create(
+                mac=self.mac, kullanici=k,
+                yanit=Katilim.Yanit.GELIYORUM, katildi=True,
+                takim=Mac.Takim.A if i % 2 == 0 else Mac.Takim.B,
+            )
+
+    def _a_takimi(self):
+        return [k for i, k in enumerate(self.herkes) if i % 2 == 0]
+
+    def _b_takimi(self):
+        return [k for i, k in enumerate(self.herkes) if i % 2 == 1]
+
+    def _puanla(self, puanlanan, degerler):
+        """Birden çok kişiden puan verdirir."""
+        for veren, deger in degerler:
+            Puan.objects.create(
+                mac=self.mac, puanlayan=veren, puanlanan=puanlanan, deger=deger
+            )
+
+
+class TakimVeSkorTesti(_TakimliMacKurulumu):
+    def test_skor_girilmeden_kazanan_yok(self):
+        self.assertFalse(self.mac.skor_girildi_mi)
+        self.assertIsNone(self.mac.kazanan_takim)
+
+    def test_sifir_sifir_gecerli_bir_sonuc(self):
+        """0-0 ile 'skor girilmedi' karıştırılmamalı."""
+        self.mac.skor_a = 0
+        self.mac.skor_b = 0
+        self.mac.save()
+        self.assertTrue(self.mac.skor_girildi_mi)
+        self.assertTrue(self.mac.berabere_mi)
+        self.assertIsNone(self.mac.kazanan_takim)
+
+    def test_kazanan_dogru_belirleniyor(self):
+        self.mac.skor_a, self.mac.skor_b = 5, 3
+        self.mac.save()
+        self.assertEqual(self.mac.kazanan_takim, Mac.Takim.A)
+
+        self.mac.skor_a, self.mac.skor_b = 2, 6
+        self.mac.save()
+        self.assertEqual(self.mac.kazanan_takim, Mac.Takim.B)
+
+    def test_yonetici_kadro_ve_skoru_kaydedebiliyor(self):
+        self.client.force_login(self.ozan)
+        veri = {"skor_a": "4", "skor_b": "2"}
+        for k in self.herkes:
+            veri.setdefault("oynayan", [])
+        veri["oynayan"] = [str(k.pk) for k in self.herkes]
+        for i, k in enumerate(self.herkes):
+            veri[f"takim_{k.pk}"] = "a" if i % 2 == 0 else "b"
+
+        yanit = self.client.post(
+            reverse("matches:kadro_duzenle", args=[self.mac.pk]), veri
+        )
+        self.assertEqual(yanit.status_code, 302)
+        self.mac.refresh_from_db()
+        self.assertEqual((self.mac.skor_a, self.mac.skor_b), (4, 2))
+        self.assertTrue(self.mac.takimlar_kurulmus_mu)
+
+    def test_oynamayanin_takimi_temizleniyor(self):
+        """Kadrodan çıkarılan oyuncunun eski takım ataması kalmamalı."""
+        self.client.force_login(self.ozan)
+        kalanlar = self.herkes[:-1]
+        veri = {
+            "oynayan": [str(k.pk) for k in kalanlar],
+            "skor_a": "1", "skor_b": "1",
+        }
+        for i, k in enumerate(self.herkes):
+            veri[f"takim_{k.pk}"] = "a" if i % 2 == 0 else "b"
+
+        self.client.post(reverse("matches:kadro_duzenle", args=[self.mac.pk]), veri)
+        cikarilan = Katilim.objects.get(mac=self.mac, kullanici=self.herkes[-1])
+        self.assertEqual(cikarilan.takim, "")
+        self.assertFalse(cikarilan.katildi)
+
+    def test_uye_kadro_duzenleyemiyor(self):
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.post(
+            reverse("matches:kadro_duzenle", args=[self.mac.pk]),
+            {"oynayan": [], "skor_a": "9", "skor_b": "0"},
+        )
+        self.assertEqual(yanit.status_code, 403)
+        self.mac.refresh_from_db()
+        self.assertIsNone(self.mac.skor_a)
+
+
+class MacinAdamiTesti(_TakimliMacKurulumu):
+    def test_kazanan_takimin_en_iyisi_secilir(self):
+        from apps.ratings.denetim import macin_adami
+
+        self.mac.skor_a, self.mac.skor_b = 5, 1
+        self.mac.save()
+
+        # B takımından biri daha yüksek puan alsa bile kazanan A'dan seçilmeli.
+        a_yildizi = self._a_takimi()[1]
+        b_yildizi = self._b_takimi()[0]
+        self._puanla(a_yildizi, [(v, 8) for v in self._b_takimi()[:3]])
+        self._puanla(b_yildizi, [(v, 10) for v in self._a_takimi()[:3]])
+
+        adamlar = macin_adami(self.mac)
+        self.assertEqual([a["kullanici"].pk for a in adamlar], [a_yildizi.pk])
+
+    def test_beraberlikte_iki_takimdan_en_iyisi(self):
+        from apps.ratings.denetim import macin_adami
+
+        self.mac.skor_a, self.mac.skor_b = 3, 3
+        self.mac.save()
+
+        b_yildizi = self._b_takimi()[0]
+        self._puanla(self._a_takimi()[1], [(v, 7) for v in self._b_takimi()[:3]])
+        self._puanla(b_yildizi, [(v, 9) for v in self._a_takimi()[:3]])
+
+        adamlar = macin_adami(self.mac)
+        self.assertEqual([a["kullanici"].pk for a in adamlar], [b_yildizi.pk])
+
+    def test_esitlikte_yildiz_paylasilir(self):
+        from apps.ratings.denetim import macin_adami
+
+        self.mac.skor_a, self.mac.skor_b = 4, 0
+        self.mac.save()
+
+        birinci, ikinci = self._a_takimi()[1], self._a_takimi()[2]
+        self._puanla(birinci, [(v, 9) for v in self._b_takimi()[:3]])
+        self._puanla(ikinci, [(v, 9) for v in self._b_takimi()[:3]])
+
+        adamlar = macin_adami(self.mac)
+        self.assertEqual(len(adamlar), 2)
+
+    def test_skor_girilmemisse_macin_adami_yok(self):
+        from apps.ratings.denetim import macin_adami
+
+        self._puanla(self._a_takimi()[1], [(v, 9) for v in self._b_takimi()[:3]])
+        self.assertEqual(macin_adami(self.mac), [])
+
+    def test_karantinadaki_puan_macin_adamini_belirlemez(self):
+        from apps.ratings.denetim import macin_adami
+
+        self.mac.skor_a, self.mac.skor_b = 4, 0
+        self.mac.save()
+
+        sahte_yildiz = self._a_takimi()[1]
+        gercek = self._a_takimi()[2]
+        self._puanla(sahte_yildiz, [(v, 10) for v in self._b_takimi()[:3]])
+        Puan.objects.filter(puanlanan=sahte_yildiz).update(karantinada=True)
+        self._puanla(gercek, [(v, 7) for v in self._b_takimi()[:3]])
+
+        adamlar = macin_adami(self.mac)
+        self.assertEqual([a["kullanici"].pk for a in adamlar], [gercek.pk])
+
+
+class OyDenetimiTesti(_TakimliMacKurulumu):
+    """Herkese aynı puanı vererek ortalamaları çarpıtmaya karşı koruma."""
+
+    def _oy_ver(self, veren, deger_uretici):
+        hedefler = [k for k in self.herkes if k.pk != veren.pk]
+        for hedef in hedefler:
+            Puan.objects.create(
+                mac=self.mac, puanlayan=veren,
+                puanlanan=hedef, deger=deger_uretici(hedef),
+            )
+        return len(hedefler)
+
+    def test_herkese_10_verilirse_puanlar_siliniyor(self):
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        adet = self._oy_ver(veren, lambda k: 10)
+        self.assertGreaterEqual(adet, 10)
+
+        sonuc = mac_oylarini_denetle(self.mac, veren)
+        self.assertEqual(sonuc.karar, "bariz")
+        self.assertEqual(Puan.objects.filter(puanlayan=veren).count(), 0)
+
+    def test_herkese_1_verilirse_puanlar_siliniyor(self):
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        self._oy_ver(veren, lambda k: 1)
+        self.assertEqual(mac_oylarini_denetle(self.mac, veren).karar, "bariz")
+        self.assertEqual(Puan.objects.filter(puanlayan=veren).count(), 0)
+
+    def test_herkese_7_verilirse_silinmiyor_karantinaya_aliniyor(self):
+        """Uç olmayan tek düze oy silinmez: masum olabilir, yönetici karar verir."""
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        adet = self._oy_ver(veren, lambda k: 7)
+
+        sonuc = mac_oylarini_denetle(self.mac, veren)
+        self.assertEqual(sonuc.karar, "supheli")
+        self.assertEqual(Puan.objects.filter(puanlayan=veren).count(), adet)
+        self.assertEqual(
+            Puan.objects.filter(puanlayan=veren, karantinada=True).count(), adet
+        )
+
+    def test_normal_dagilim_dokunulmadan_geciyor(self):
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        degerler = iter([6, 8, 5, 9, 7, 10, 4, 8, 6, 7])
+        adet = self._oy_ver(veren, lambda k: next(degerler))
+
+        sonuc = mac_oylarini_denetle(self.mac, veren)
+        self.assertEqual(sonuc.karar, "temiz")
+        self.assertEqual(
+            Puan.objects.filter(puanlayan=veren, karantinada=False).count(), adet
+        )
+
+    def test_az_sayida_oy_denetlenmiyor(self):
+        """Üç kişiye 10 vermek istatistiksel olarak bir şey ifade etmiyor."""
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        for hedef in self.oyuncular[1:4]:
+            Puan.objects.create(
+                mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=10
+            )
+        self.assertEqual(mac_oylarini_denetle(self.mac, veren).karar, "temiz")
+        self.assertEqual(Puan.objects.filter(puanlayan=veren).count(), 3)
+
+    def test_karantinadaki_puan_ortalamaya_girmiyor(self):
+        from apps.ratings.denetim import mac_oylarini_denetle
+        from apps.ratings.hesaplar import grup_ozeti
+
+        hedef = self.oyuncular[1]
+        # Önce dürüst oylar
+        self._puanla(hedef, [(v, 6) for v in self.oyuncular[2:6]])
+        oncesi = grup_ozeti(self.grup, hedef)["ortalama"]
+
+        # Sonra şişirmeye çalışan biri
+        veren = self.oyuncular[0]
+        self._oy_ver(veren, lambda k: 7)
+        mac_oylarini_denetle(self.mac, veren)
+
+        self.assertEqual(grup_ozeti(self.grup, hedef)["ortalama"], oncesi)
+
+    def test_yoneticiye_bildirim_gidiyor(self):
+        from apps.notifications.models import Bildirim
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        self._oy_ver(veren, lambda k: 10)
+        mac_oylarini_denetle(self.mac, veren)
+
+        self.assertTrue(
+            Bildirim.objects.filter(
+                alici=self.ozan, tur=Bildirim.Tur.SUPHELI_OYLAMA
+            ).exists()
+        )
+        # Oy veren de bilgilendirilmeli.
+        self.assertTrue(
+            Bildirim.objects.filter(
+                alici=veren, tur=Bildirim.Tur.PUANLARIN_SILINDI
+            ).exists()
+        )
+
+    def test_yonetici_karantinayi_serbest_birakabiliyor(self):
+        from apps.ratings.denetim import karantinayi_coz, mac_oylarini_denetle
+        from apps.ratings.hesaplar import grup_ozeti
+
+        veren = self.oyuncular[0]
+        adet = self._oy_ver(veren, lambda k: 7)
+        mac_oylarini_denetle(self.mac, veren)
+
+        cozulen = karantinayi_coz(self.mac, veren, sil=False)
+        self.assertEqual(cozulen, adet)
+        self.assertEqual(
+            Puan.objects.filter(puanlayan=veren, karantinada=True).count(), 0
+        )
+        # Artık ortalamalara katılıyor.
+        hedef = [k for k in self.herkes if k.pk != veren.pk][0]
+        self.assertIsNotNone(grup_ozeti(self.grup, hedef)["ortalama"])
+
+    def test_yonetici_karantinayi_silebiliyor(self):
+        from apps.ratings.denetim import karantinayi_coz, mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        self._oy_ver(veren, lambda k: 7)
+        mac_oylarini_denetle(self.mac, veren)
+
+        karantinayi_coz(self.mac, veren, sil=True)
+        self.assertEqual(Puan.objects.filter(puanlayan=veren).count(), 0)
+
+    def test_inceleme_sayfasi_uyeye_kapali(self):
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(
+            reverse("ratings:oy_incelemesi", args=[self.grup.genel_id])
+        )
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_inceleme_sayfasi_yoneticiye_acik(self):
+        from apps.ratings.denetim import mac_oylarini_denetle
+
+        veren = self.oyuncular[0]
+        self._oy_ver(veren, lambda k: 7)
+        mac_oylarini_denetle(self.mac, veren)
+
+        self.client.force_login(self.ozan)
+        yanit = self.client.get(
+            reverse("ratings:oy_incelemesi", args=[self.grup.genel_id])
+        )
+        self.assertEqual(yanit.status_code, 200)
+        self.assertContains(yanit, veren.gorunen_ad)
+
+
+class GelistiriciRozetiTesti(TestCase):
+    def test_nihai_yonetici_rozeti_gorunuyor(self):
+        gelistirici = kullanici("dev@example.com", "Ozan Kaya")
+        gelistirici.is_superuser = True
+        gelistirici.is_staff = True
+        gelistirici.save()
+
+        grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=gelistirici)
+        Uyelik.objects.create(
+            grup=grup, kullanici=gelistirici,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+
+        self.client.force_login(gelistirici)
+        govde = self.client.get(
+            reverse("groups:uyeler", args=[grup.genel_id])
+        ).content.decode("utf-8")
+        self.assertIn("Geliştirici", govde)
+
+    def test_sradan_uyede_rozet_yok(self):
+        ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=ozan)
+        Uyelik.objects.create(
+            grup=grup, kullanici=ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.client.force_login(ozan)
+        govde = self.client.get(
+            reverse("groups:uyeler", args=[grup.genel_id])
+        ).content.decode("utf-8")
+        self.assertNotIn("Geliştirici", govde)
+
+
 class AnaEkranUygulamasiTesti(TestCase):
     """Ana ekrana eklenebilir uygulama (PWA) gereksinimleri."""
 

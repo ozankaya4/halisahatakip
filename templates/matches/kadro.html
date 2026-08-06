@@ -24,7 +24,7 @@
       <div class="kutu-baslik">
         <h2>Oyuncular</h2>
       </div>
-      <ul class="cetvel-liste">
+      <ul class="cetvel-liste kadro-listesi">
         {% for satir in satirlar %}
           <li>
             <label class="onay-satiri">
@@ -32,14 +32,52 @@
                      {% if satir.isaretli %}checked{% endif %}>
               <span>{{ satir.kullanici.gorunen_ad }}</span>
             </label>
-            <span class="rozet rozet-sessiz sag">Yoklama: {{ satir.yanit }}</span>
+
+            <span class="kadro-sag">
+              <span class="rozet rozet-sessiz">{{ satir.yanit }}</span>
+              <select class="takim-secici" name="takim_{{ satir.kullanici.pk }}"
+                      aria-label="{{ satir.kullanici.gorunen_ad }} takımı">
+                <option value="">Takım yok</option>
+                {% for kod, ad in takimlar %}
+                  <option value="{{ kod }}" {% if satir.takim == kod %}selected{% endif %}>{{ ad }}</option>
+                {% endfor %}
+              </select>
+            </span>
           </li>
         {% endfor %}
       </ul>
     </section>
 
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Maç sonucu</h2>
+        <span class="kucuk solgun">Maçın adamı buna göre belirlenir</span>
+      </div>
+
+      <div class="skor-girisi">
+        <label class="alan">
+          <span>A Takımı</span>
+          <input type="number" name="skor_a" min="0" max="99" inputmode="numeric"
+                 value="{% if mac.skor_a is not None %}{{ mac.skor_a }}{% endif %}">
+        </label>
+        <span class="skor-ayrac" aria-hidden="true">-</span>
+        <label class="alan">
+          <span>B Takımı</span>
+          <input type="number" name="skor_b" min="0" max="99" inputmode="numeric"
+                 value="{% if mac.skor_b is not None %}{{ mac.skor_b }}{% endif %}">
+        </label>
+      </div>
+
+      <p class="alan-yardim">
+        Kazanan takımın en yüksek puanlı oyuncusu <strong>maçın adamı</strong> olur
+        ve adının yanında yıldız görünür. Berabere biterse iki takım arasından
+        en yüksek puanlı oyuncu seçilir. İkisini de boş bırakırsan sonuç
+        girilmemiş sayılır.
+      </p>
+    </section>
+
     <div class="satir">
-      <button class="dugme dugme-birincil" type="submit">Kadroyu kaydet</button>
+      <button class="dugme dugme-birincil" type="submit">Kadroyu ve sonucu kaydet</button>
       <a class="dugme dugme-sessiz" href="{% url 'matches:detay' mac.pk %}">Vazgeç</a>
     </div>
   </form>

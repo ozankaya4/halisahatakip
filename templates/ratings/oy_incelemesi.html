@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block baslik %}Oy incelemesi · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Oy incelemesi</h1>
+    </div>
+  </div>
+
+  <div class="kutu kutu-uyari">
+    <p class="kucuk">
+      Buradaki puanlar <strong>ortalamalara katılmıyor</strong>, yani karar
+      verilene kadar kimse etkilenmiyor. Bir oyuncunun bütün takım
+      arkadaşlarına neredeyse aynı puanı vermesi her zaman kötü niyet değildir;
+      herkesin benzer oynadığı bir maç olabilir. Silmeden önce oyuncuyla
+      konuşman iyi olur.
+    </p>
+    <p class="kucuk solgun">
+      Kimin kime kaç verdiği burada da gösterilmez. Yalnızca dağılımı
+      görüyorsun; puanların gizliliği inceleme sırasında da korunuyor.
+    </p>
+  </div>
+
+  {% if kayitlar %}
+    <div class="yigin">
+      {% for kayit in kayitlar %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>{{ kayit.puanlayan.gorunen_ad }}</h2>
+            <a class="kucuk" href="{% url 'matches:detay' kayit.mac.pk %}">
+              {{ kayit.mac.baslangic|date:"j F Y" }}
+            </a>
+          </div>
+
+          <div class="tablo-sarmal">
+            <table class="tablo">
+              <thead>
+                <tr>
+                  <th>Verdiği puan sayısı</th>
+                  <th class="sag-hiza">Ortalaması</th>
+                  <th class="sag-hiza">Dağılım</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="rakam">{{ kayit.adet }}</td>
+                  <td class="sag-hiza rakam">{{ kayit.ortalama }}</td>
+                  <td class="sag-hiza">
+                    {% for puan in kayit.puanlar %}<span class="rozet rozet-sessiz rozet-kucuk">{{ puan.deger }}</span> {% endfor %}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="satir">
+            <form method="post"
+                  data-onay="Bu oyuncunun bu maçtaki puanları kalıcı olarak silinsin mi? Kendisine bildirim gider.">
+              {% csrf_token %}
+              <input type="hidden" name="mac" value="{{ kayit.mac.pk }}">
+              <input type="hidden" name="puanlayan" value="{{ kayit.puanlayan.pk }}">
+              <input type="hidden" name="karar" value="sil">
+              <button class="dugme dugme-tehlike" type="submit">Puanları sil</button>
+            </form>
+
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="mac" value="{{ kayit.mac.pk }}">
+              <input type="hidden" name="puanlayan" value="{{ kayit.puanlayan.pk }}">
+              <input type="hidden" name="karar" value="serbest">
+              <button class="dugme" type="submit">Sorun yok, geçerli say</button>
+            </form>
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="kutu">
+      <p class="solgun">İncelenecek oy yok.</p>
+      <p class="kucuk solgun">
+        Bir oyuncu en az {{ 10 }} kişiye neredeyse aynı puanı verdiğinde kayıt
+        buraya düşer. Herkese aynı uç puanı (hepsine 10 ya da hepsine 1)
+        verenlerin puanları ise doğrudan silinir, buraya gelmez.
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -83,6 +83,19 @@ def detay(request, grup):
 
     en_iyiler = grup_siralamasi(grup, limit=5)
 
+    # Şüpheli oylama nedeniyle karantinaya alınmış, yönetici kararı bekleyen
+    # kayıt var mı? Sayfada uyarı olarak gösteriliyor.
+    bekleyen_oy_incelemesi = 0
+    if grup.yonetici_mi(request.user):
+        from apps.ratings.models import Puan
+
+        bekleyen_oy_incelemesi = (
+            Puan.objects.filter(karantinada=True, mac__grup=grup)
+            .values("mac_id", "puanlayan_id")
+            .distinct()
+            .count()
+        )
+
     return render(
         request,
         "groups/detay.html",
@@ -93,6 +106,7 @@ def detay(request, grup):
             "gecmis_maclar": gecmis,
             "en_iyiler": en_iyiler,
             "bekleyen_sayisi": grup.bekleyen_sayisi,
+            "bekleyen_oy_incelemesi": bekleyen_oy_incelemesi,
         },
     )
 

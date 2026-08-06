@@ -6,7 +6,16 @@
     <span class="avatar avatar-bos" aria-hidden="true">{{ kisi.bas_harfler }}</span>
   {% endif %}
   <span>
-    <span class="oyuncu-ad">{{ kisi.gorunen_ad }}</span>
+    <span class="oyuncu-ad">
+      {{ kisi.gorunen_ad }}
+      {% if kisi.is_superuser %}
+        {% comment %}
+        Nihai yönetici. Grup rozetlerinden farklı: bu yetki bir gruba değil,
+        uygulamanın tamamına ait. O yüzden her yerde görünüyor.
+        {% endcomment %}
+        <span class="rozet rozet-mor rozet-kucuk">Geliştirici</span>
+      {% endif %}
+    </span>
     {% if alt_yazi %}<span class="oyuncu-alt">{{ alt_yazi }}</span>{% endif %}
   </span>
 </a>

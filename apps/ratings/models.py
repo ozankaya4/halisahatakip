@@ -37,6 +37,12 @@ class Puan(models.Model):
     olusturulma = models.DateTimeField("oluşturulma", auto_now_add=True)
     guncellenme = models.DateTimeField("güncellenme", auto_now=True)
 
+    # Şüpheli oylama tespit edildiğinde işaretlenir. Karantinadaki puanlar
+    # HİÇBİR ortalamaya girmez ama silinmez: yönetici inceleyip ya onaylar
+    # (silinir) ya da serbest bırakır. Böylece dürüst bir oyuncunun puanları
+    # yanlışlıkla yok edilmiş olmuyor.
+    karantinada = models.BooleanField("karantinada", default=False, db_index=True)
+
     class Meta:
         verbose_name = "puan"
         verbose_name_plural = "puanlar"

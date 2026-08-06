@@ -15,6 +15,7 @@ from apps.core.ratelimit import sinir_asildi
 from apps.groups.models import Uyelik
 from apps.groups.yetki import uye_gerekli, yonetici_gerekli
 from apps.notifications.models import Bildirim, toplu_bildir
+from apps.ratings.denetim import macin_adami
 from apps.ratings.hesaplar import mac_puanlarini_sil
 
 from .forms import FotografFormu, MacFormu
@@ -115,6 +116,29 @@ def detay(request, mac_id: int):
     sayim = mac.sayim()
     toplam_uye = max(grup.uye_sayisi, 1)
 
+    # Takım kadroları ve maçın adamı yalnızca maç oynandıysa anlamlı.
+    adamlar = macin_adami(mac) if mac.gecmis_mi else []
+    adam_idleri = {a["kullanici"].pk for a in adamlar}
+
+    takimlar = []
+    if mac.takimlar_kurulmus_mu:
+        for kod, ad in Mac.Takim.choices:
+            takimlar.append(
+                {
+                    "kod": kod,
+                    "ad": ad,
+                    "oyuncular": [
+                        {
+                            "kullanici": k.kullanici,
+                            "macin_adami": k.kullanici_id in adam_idleri,
+                        }
+                        for k in mac.takim_katilimlari(kod)
+                    ],
+                    "skor": mac.skor_a if kod == Mac.Takim.A else mac.skor_b,
+                    "kazandi": mac.kazanan_takim == kod,
+                }
+            )
+
     return render(
         request,
         "matches/detay.html",
@@ -130,6 +154,8 @@ def detay(request, mac_id: int):
             "foto_siniri": MAC_BASINA_FOTO_SINIRI,
             "puanlayabilir": mac.kullanici_puanlayabilir(request.user),
             "foto_formu": FotografFormu(),
+            "takimlar": takimlar,
+            "macin_adamlari": adamlar,
         },
     )
 
@@ -315,21 +341,50 @@ def kadro_duzenle(request, mac_id: int):
         gecerli_idler = {str(u.kullanici_id) for u in uyelikler}
         secilen &= gecerli_idler  # gruba ait olmayan kimlikleri at
 
+        gecerli_takimlar = {t.value for t in Mac.Takim}
+
         with transaction.atomic():
             for uyelik in uyelikler:
                 oynadi = str(uyelik.kullanici_id) in secilen
+
+                # Takım yalnızca sahaya çıkanlara verilir; oynamayanın
+                # takımı temizlenir ki eski atama ortalıkta kalmasın.
+                takim = ""
+                if oynadi:
+                    secim = (request.POST.get(f"takim_{uyelik.kullanici_id}") or "").strip()
+                    if secim in gecerli_takimlar:
+                        takim = secim
+
                 Katilim.objects.update_or_create(
                     mac=mac,
                     kullanici=uyelik.kullanici,
-                    defaults={"katildi": oynadi},
+                    defaults={"katildi": oynadi, "takim": takim},
                     create_defaults={
                         "katildi": oynadi,
+                        "takim": takim,
                         "yanit": (
                             Katilim.Yanit.GELIYORUM if oynadi else Katilim.Yanit.YOKUM
                         ),
                     },
                 )
-        messages.success(request, "Kadro kaydedildi.")
+
+            # --- Skor ---------------------------------------------------
+            # İkisi de boşsa skor girilmemiş sayılır (0-0 geçerli sonuç
+            # olduğu için "boş" ile "sıfır" ayrı tutuluyor).
+            ham_a = (request.POST.get("skor_a") or "").strip()
+            ham_b = (request.POST.get("skor_b") or "").strip()
+            if ham_a == "" and ham_b == "":
+                mac.skor_a = mac.skor_b = None
+            else:
+                try:
+                    mac.skor_a = max(0, min(99, int(ham_a or 0)))
+                    mac.skor_b = max(0, min(99, int(ham_b or 0)))
+                except ValueError:
+                    messages.error(request, "Skor sayı olmalı; skor kaydedilmedi.")
+                    mac.skor_a = mac.skor_b = None
+            mac.save(update_fields=["skor_a", "skor_b", "guncellenme"])
+
+        messages.success(request, "Kadro ve sonuç kaydedildi.")
         return redirect("matches:detay", mac_id=mac.pk)
 
     mevcut = {k.kullanici_id: k for k in mac.katilimlar.all()}
@@ -339,6 +394,7 @@ def kadro_duzenle(request, mac_id: int):
             "isaretli": (
                 mevcut[u.kullanici_id].oynadi_mi if u.kullanici_id in mevcut else False
             ),
+            "takim": mevcut[u.kullanici_id].takim if u.kullanici_id in mevcut else "",
             "yanit": (
                 mevcut[u.kullanici_id].get_yanit_display()
                 if u.kullanici_id in mevcut
@@ -348,7 +404,14 @@ def kadro_duzenle(request, mac_id: int):
         for u in uyelikler
     ]
     return render(
-        request, "matches/kadro.html", {"mac": mac, "grup": mac.grup, "satirlar": satirlar}
+        request,
+        "matches/kadro.html",
+        {
+            "mac": mac,
+            "grup": mac.grup,
+            "satirlar": satirlar,
+            "takimlar": Mac.Takim.choices,
+        },
     )
 
 
