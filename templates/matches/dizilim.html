@@ -48,6 +48,14 @@
                  {% if duzenlenebilir %}tabindex="0" role="button"
                  aria-label="{{ oyuncu.kullanici.gorunen_ad }}, ok tuşlarıyla taşı"{% endif %}>
 
+              {% comment %}
+              İşaretlerin yerleri sabit ve futbol grafiklerindeki alışılmış
+              düzene uyuyor:
+                sol üst  : kart      sağ üst  : gol
+                sol alt  : yıldız    sağ alt  : asist
+              Puan rozeti fotoğrafın ALTINDA, adın üstünde; köşeleri
+              işaretlere bırakıyor.
+              {% endcomment %}
               <span class="oyuncu-kart-gorsel">
                 {% if oyuncu.kullanici.profil.avatar_url %}
                   <img class="avatar" src="{{ oyuncu.kullanici.profil.avatar_url }}"
@@ -56,22 +64,30 @@
                   <span class="avatar avatar-bos" aria-hidden="true">{{ oyuncu.kullanici.bas_harfler }}</span>
                 {% endif %}
 
-                {% if oyuncu.puan %}
-                  <span class="puan-rozeti {{ oyuncu.puan_sinifi }} rakam"
-                        title="Bu maçtaki ortalaması">{{ oyuncu.puan }}</span>
+                {% if oyuncu.kart %}
+                  <span class="isaret-kart kart-{{ oyuncu.kart }}"
+                        title="{{ oyuncu.kart_yazisi }}" aria-label="{{ oyuncu.kart_yazisi }}"></span>
+                {% endif %}
+
+                {% if oyuncu.gol %}
+                  <span class="isaret isaret-gol" title="{{ oyuncu.gol }} gol">
+                    <span class="isaret-top" aria-hidden="true"></span>{{ oyuncu.gol }}
+                  </span>
+                {% endif %}
+
+                {% if oyuncu.asist %}
+                  <span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist">A{{ oyuncu.asist }}</span>
                 {% endif %}
 
                 {% if oyuncu.macin_adami %}
                   <span class="kart-yildiz" title="Maçın adamı" aria-label="Maçın adamı">★</span>
                 {% endif %}
-
-                <span class="kart-isaretler">
-                  {% if oyuncu.gol %}<span class="isaret isaret-gol" title="{{ oyuncu.gol }} gol">⚽{{ oyuncu.gol }}</span>{% endif %}
-                  {% if oyuncu.asist %}<span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist">A{{ oyuncu.asist }}</span>{% endif %}
-                  {% if oyuncu.sari_kart %}<span class="isaret isaret-sari" title="Sarı kart"></span>{% endif %}
-                  {% if oyuncu.kirmizi_kart %}<span class="isaret isaret-kirmizi" title="Kırmızı kart"></span>{% endif %}
-                </span>
               </span>
+
+              {% if oyuncu.puan %}
+                <span class="puan-rozeti {{ oyuncu.puan_sinifi }} rakam"
+                      title="Bu maçtaki ortalaması">{{ oyuncu.puan }}</span>
+              {% endif %}
 
               <span class="oyuncu-kart-ad">{{ oyuncu.kullanici.gorunen_ad }}</span>
 
@@ -111,6 +127,20 @@
           <h2>Maç istatistikleri</h2>
           <a class="kucuk" href="{% url 'groups:duzenle' grup.genel_id %}">Neler görünsün?</a>
         </div>
+        {% if mac.skor_girildi_mi %}
+          <p class="alan-yardim">
+            <strong>Skor {{ mac.skor_yazisi }}.</strong>
+            Bir takımın gol toplamı kendi skorunu, asist toplamı da yine
+            kendi skorunu aşamaz; her golün en fazla bir asisti olabilir.
+          </p>
+        {% else %}
+          <p class="alan-yardim">
+            Skor girilmediği için gol/asist toplamı denetlenemiyor.
+            <a href="{% url 'matches:kadro_duzenle' mac.pk %}">Kadro sayfasından</a>
+            skoru girersen tutarsız kayıtlar engellenir.
+          </p>
+        {% endif %}
+
         <p class="alan-yardim">
           Buraya girilenler grubun ayarına göre sahada gösterilir. Şu anda
           görünenler:

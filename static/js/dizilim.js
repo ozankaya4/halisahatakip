@@ -18,6 +18,19 @@
 
 const SINIR = { enAz: 0, enCok: 100 };
 
+/**
+ * Takımların yerleşebileceği yatay aralıklar.
+ *
+ * Bir oyuncu rakip takımın yarısına sürüklenemiyor: iki takım karışınca
+ * dizilim okunamaz hâle geliyordu. Aynı aralıklar sunucu tarafında da var
+ * (apps/matches/dizilim.py::TAKIM_ARALIKLARI); istemciden gelen konum orada
+ * tekrar kırpılıyor.
+ */
+const TAKIM_ARALIKLARI = {
+  a: { enAz: 4, enCok: 47 },
+  b: { enAz: 53, enCok: 96 },
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   const saha = document.getElementById("saha");
   if (!saha) return;
@@ -49,6 +62,18 @@ function kirp(deger) {
   return Math.max(SINIR.enAz, Math.min(SINIR.enCok, deger));
 }
 
+/** Kartın takımını sınıf adından okur (takim-a / takim-b). */
+function kartinTakimi(kart) {
+  return kart.classList.contains("takim-a") ? "a" : kart.classList.contains("takim-b") ? "b" : null;
+}
+
+/** X konumunu oyuncunun kendi yarısına hapseder. */
+function xKirp(deger, kart) {
+  const aralik = TAKIM_ARALIKLARI[kartinTakimi(kart)];
+  if (!aralik) return kirp(deger);
+  return Math.max(aralik.enAz, Math.min(aralik.enCok, deger));
+}
+
 function suruklemeyiBagla(saha, kart) {
   let suruklyor = false;
 
@@ -69,7 +94,7 @@ function suruklemeyiBagla(saha, kart) {
     const kutu = saha.getBoundingClientRect();
     if (!kutu.width || !kutu.height) return;
 
-    const x = kirp(((olay.clientX - kutu.left) / kutu.width) * 100);
+    const x = xKirp(((olay.clientX - kutu.left) / kutu.width) * 100, kart);
     const y = kirp(((olay.clientY - kutu.top) / kutu.height) * 100);
 
     kart.dataset.x = Math.round(x);
@@ -103,7 +128,7 @@ function suruklemeyiBagla(saha, kart) {
     if (!adim) return;
 
     const carpan = olay.shiftKey ? 5 : 1;
-    kart.dataset.x = kirp(Number(kart.dataset.x) + adim[0] * carpan);
+    kart.dataset.x = xKirp(Number(kart.dataset.x) + adim[0] * carpan, kart);
     kart.dataset.y = kirp(Number(kart.dataset.y) + adim[1] * carpan);
     konumUygula(kart);
     gizlileriGuncelle(kart);

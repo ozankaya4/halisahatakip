@@ -1680,6 +1680,8 @@ p {
   position: relative;
   display: block;
   line-height: 0;
+  /* Köşe işaretleri fotoğrafın dışına taştığı için kırpılmamalı. */
+  overflow: visible;
 }
 
 .oyuncu-kart .avatar {
@@ -1707,13 +1709,13 @@ p {
   border-color: #1c1f2e;
 }
 
-/* --- Puan rozeti -------------------------------------------------------- */
+/* --- Puan rozeti --------------------------------------------------------
+   Akış içinde: fotoğrafın altında, adın üstünde. Köşeler gol/asist/kart
+   işaretlerine ayrıldığı için rozet oraya sıkıştırılmıyor. */
 .puan-rozeti {
-  position: absolute;
-  inset-block-start: -6px;
-  inset-inline-end: -8px;
-  min-width: 1.55rem;
-  padding: 0.08rem 0.2rem;
+  display: inline-block;
+  min-width: 1.6rem;
+  padding: 0.08rem 0.28rem;
   border-radius: 0.28rem;
   font-size: 0.72rem;
   font-weight: 700;
@@ -1734,51 +1736,86 @@ p {
 .puan-lacivert  { background: #1f3a93; }
 .puan-mor       { background: #6f3fa8; }
 
-/* --- Maçın adamı yıldızı ve işaretler ----------------------------------- */
-.kart-yildiz {
-  position: absolute;
-  inset-block-start: -8px;
-  inset-inline-start: -6px;
-  font-size: 0.95rem;
-  color: var(--hardal);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-  line-height: 1;
-}
-
-.kart-isaretler {
-  position: absolute;
-  inset-block-end: -6px;
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  display: flex;
-  gap: 2px;
-  line-height: 1;
-}
-
+/* --- Köşe işaretleri -----------------------------------------------------
+   Sabit yerleşim, futbol grafiklerindeki alışılmış düzen:
+     sol üst : kart        sağ üst : gol
+     sol alt : yıldız      sağ alt : asist                                */
 .isaret {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   font-size: 0.6rem;
   font-weight: 700;
-  padding: 0.05rem 0.22rem;
-  border-radius: 0.2rem;
-  background: rgba(10, 14, 12, 0.85);
+  padding: 0.06rem 0.24rem;
+  border-radius: 0.65rem;
+  background: rgba(10, 14, 12, 0.9);
   color: #f6f3ea;
   white-space: nowrap;
+  line-height: 1.3;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
-.isaret-sari,
-.isaret-kirmizi {
-  width: 0.5rem;
-  height: 0.7rem;
-  padding: 0;
-  border-radius: 0.08rem;
+.isaret-gol {
+  inset-block-start: -5px;
+  inset-inline-end: -9px;
 }
 
-.isaret-sari {
+.isaret-asist {
+  inset-block-end: -5px;
+  inset-inline-end: -9px;
+  background: rgba(30, 62, 92, 0.95);
+}
+
+/* Gol işaretindeki küçük top: emoji yerine çizilmiş, her yerde aynı. */
+.isaret-top {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #f6f3ea;
+  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.kart-yildiz {
+  position: absolute;
+  inset-block-end: -6px;
+  inset-inline-start: -7px;
+  font-size: 0.95rem;
+  color: var(--hardal);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+}
+
+/* --- Kartlar (sol üst) ---------------------------------------------------
+   Üç ayrı görünüm. İkinci sarıdan kırmızı, doğrudan kırmızıdan farklı
+   çiziliyor: futbolda ikisi ayrı şeyler ve karnede ayrı durur. */
+.isaret-kart {
+  position: absolute;
+  inset-block-start: -5px;
+  inset-inline-start: -7px;
+  width: 0.62rem;
+  height: 0.85rem;
+  border-radius: 0.1rem;
+  border: 1px solid rgba(10, 14, 12, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.kart-sari {
   background: #e2c044;
 }
 
-.isaret-kirmizi {
+.kart-kirmizi {
   background: #c0392b;
+}
+
+/* İkinci sarıdan kırmızı: köşeden bölünmüş sarı/kırmızı kart. */
+.kart-ikinci-sari {
+  background: linear-gradient(
+    135deg,
+    #e2c044 0 48%,
+    rgba(10, 14, 12, 0.55) 48% 52%,
+    #c0392b 52% 100%
+  );
 }
 
 /* --- Saha altı skor şeridi ---------------------------------------------- */
@@ -1804,12 +1841,8 @@ p {
   margin-block-end: 1.25rem;
 }
 
-/* Ölçek açıklamasındaki rozetler akış içinde dursun. */
-.olcek-aciklama .puan-rozeti {
-  position: static;
-  inset: auto;
-  translate: none;
-}
+/* Puan rozeti artık her yerde akış içinde; ölçek açıklaması için ayrı bir
+   kural gerekmiyor. */
 
 .sayi-girdi {
   width: 4rem;

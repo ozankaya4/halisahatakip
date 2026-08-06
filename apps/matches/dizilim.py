@@ -50,6 +50,47 @@ def puan_rengi(deger) -> str:
     return ""
 
 
+# Takımların saha üzerindeki yarıları. Kartlar tam kenara yapışmasın diye
+# uçlarda pay bırakılıyor; ayrıca bir takımın oyuncusu rakip yarıya
+# geçemiyor (yönetici sürüklerken de, kayıt sırasında da kısıtlanıyor).
+TAKIM_ARALIKLARI = {
+    "a": (4, 47),
+    "b": (53, 96),
+}
+
+
+def takim_araligi(takim: str) -> tuple[int, int]:
+    """Takımın yerleşebileceği yatay aralık. Takımsızsa tüm saha."""
+    return TAKIM_ARALIKLARI.get(takim, (0, 100))
+
+
+def x_kirp(deger: int, takim: str) -> int:
+    """X konumunu takımın yarısına hapseder."""
+    alt, ust = takim_araligi(takim)
+    return max(alt, min(ust, deger))
+
+
+def kart_turu(katilim) -> tuple[str, str]:
+    """
+    Gösterilecek kart ve açıklaması.
+
+    İki sarı gören oyuncunun kartı, doğrudan kırmızı görenden ayrı
+    gösteriliyor: futbolda ikisi farklı şeyler ve karneye farklı yazılır.
+
+    Öncelik sırası:
+      2+ sarı  -> ikinci sarıdan kırmızı (sarı/kırmızı bölünmüş kart)
+      kırmızı  -> doğrudan kırmızı
+      1 sarı   -> sarı
+    """
+    if katilim.sari_kart >= 2:
+        return "ikinci-sari", "İkinci sarıdan kırmızı"
+    if katilim.kirmizi_kart:
+        return "kirmizi", "Kırmızı kart"
+    if katilim.sari_kart == 1:
+        return "sari", "Sarı kart"
+    return "", ""
+
+
 def _varsayilan_konum(sira: int, toplam: int, takim: str) -> tuple[int, int]:
     """
     Yerleştirilmemiş oyuncular için makul bir başlangıç noktası.
@@ -113,9 +154,13 @@ def dizilim_verisi(mac, macin_adami_idleri: set[int] | None = None) -> list[dict
             if katilim.poz_x is None or katilim.poz_y is None:
                 x, y = _varsayilan_konum(sira, len(katilimlar), kod)
             else:
-                x, y = katilim.poz_x, katilim.poz_y
+                # Eski kayıtlar takım yarısı kuralından önce girilmiş
+                # olabilir; gösterirken de kırpıyoruz ki karışık görünmesin.
+                x, y = x_kirp(katilim.poz_x, kod), max(0, min(100, katilim.poz_y))
 
             puan = puanlar.get(katilim.kullanici_id)
+            kart, kart_yazisi = kart_turu(katilim) if grup.kart_gosterilsin else ("", "")
+
             oyuncular.append(
                 {
                     "katilim": katilim,
@@ -129,8 +174,8 @@ def dizilim_verisi(mac, macin_adami_idleri: set[int] | None = None) -> list[dict
                     # kararı burada veriyoruz.
                     "gol": katilim.gol if grup.gol_gosterilsin else 0,
                     "asist": katilim.asist if grup.asist_gosterilsin else 0,
-                    "sari_kart": katilim.sari_kart if grup.kart_gosterilsin else 0,
-                    "kirmizi_kart": katilim.kirmizi_kart if grup.kart_gosterilsin else False,
+                    "kart": kart,
+                    "kart_yazisi": kart_yazisi,
                 }
             )
 

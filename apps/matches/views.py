@@ -18,7 +18,7 @@ from apps.notifications.models import Bildirim, toplu_bildir
 from apps.ratings.denetim import macin_adami
 from apps.ratings.hesaplar import mac_puanlarini_sil
 
-from .dizilim import dizilim_verisi
+from .dizilim import dizilim_verisi, takim_araligi, x_kirp
 from .forms import FotografFormu, MacFormu
 from .models import Katilim, Mac, MacFotografi
 
@@ -539,9 +539,10 @@ def dizilim_duzenle(request, mac_id: int):
             if ham_x is None or ham_y is None:
                 continue
             try:
-                # Saha dışına taşan değerleri kırp: bozuk/kötü niyetli
-                # gönderim dizilimi bozmasın.
-                katilim.poz_x = max(0, min(100, int(float(ham_x))))
+                # Oyuncu kendi takımının yarısının dışına çıkamaz. Tarayıcı
+                # tarafında da engelleniyor ama sunucuda tekrar kırpıyoruz:
+                # istemciden gelen hiçbir değere güvenilmez.
+                katilim.poz_x = x_kirp(int(float(ham_x)), katilim.takim)
                 katilim.poz_y = max(0, min(100, int(float(ham_y))))
             except (TypeError, ValueError):
                 continue
@@ -551,6 +552,11 @@ def dizilim_duzenle(request, mac_id: int):
             katilim.sari_kart = _sayi(request.POST.get(f"sari_{kullanici_id}"), 0, 2)
             katilim.kirmizi_kart = request.POST.get(f"kirmizi_{kullanici_id}") == "1"
             guncellenecek.append(katilim)
+
+        hata = _istatistik_tutarli_mi(mac, guncellenecek)
+        if hata:
+            messages.error(request, hata)
+            return redirect("matches:dizilim_duzenle", mac_id=mac.pk)
 
         if guncellenecek:
             Katilim.objects.bulk_update(
@@ -580,3 +586,42 @@ def _sayi(ham, en_az: int, en_cok: int) -> int:
         return max(en_az, min(en_cok, int(ham)))
     except (TypeError, ValueError):
         return en_az
+
+
+def _istatistik_tutarli_mi(mac: Mac, katilimlar: list) -> str:
+    """
+    Girilen gol ve asistlerin skorla tutarlılığını denetler.
+
+    Bir takımın oyuncularının attığı gollerin toplamı, o takımın skorunu
+    aşamaz; asist için de aynısı geçerli (her golün en fazla bir asisti
+    olabilir). Aksi hâlde "3-1 biten maçta 5 gol atmış" gibi kayıtlar
+    oluşuyor ve istatistik sayfası saçmalıyor.
+
+    Skor girilmemişse denetlenecek bir üst sınır yok; boş dizge döner.
+    Hata varsa kullanıcıya gösterilecek mesajı döner.
+    """
+    if not mac.skor_girildi_mi:
+        return ""
+
+    skorlar = {Mac.Takim.A: mac.skor_a, Mac.Takim.B: mac.skor_b}
+
+    for takim, skor in skorlar.items():
+        takimdakiler = [k for k in katilimlar if k.takim == takim]
+        if not takimdakiler:
+            continue
+
+        gol = sum(k.gol for k in takimdakiler)
+        asist = sum(k.asist for k in takimdakiler)
+        ad = dict(Mac.Takim.choices)[takim]
+
+        if gol > skor:
+            return (
+                f"{ad} için girilen gol toplamı ({gol}) takımın skorundan "
+                f"({skor}) fazla. Skoru düzelt ya da golleri azalt."
+            )
+        if asist > skor:
+            return (
+                f"{ad} için girilen asist toplamı ({asist}) takımın skorundan "
+                f"({skor}) fazla. Her golün en fazla bir asisti olabilir."
+            )
+    return ""

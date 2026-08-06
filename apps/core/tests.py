@@ -1514,7 +1514,7 @@ class DizilimTesti(_TakimliMacKurulumu):
 
     def test_konumlar_kaydediliyor(self):
         self.client.force_login(self.ozan)
-        hedef = self.oyuncular[0]
+        hedef = self._a_takimi()[1]  # A takımı: sol yarı
         self.client.post(
             reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
             {f"x_{hedef.pk}": "30", f"y_{hedef.pk}": "70"},
@@ -1522,16 +1522,52 @@ class DizilimTesti(_TakimliMacKurulumu):
         katilim = Katilim.objects.get(mac=self.mac, kullanici=hedef)
         self.assertEqual((katilim.poz_x, katilim.poz_y), (30, 70))
 
+    def test_oyuncu_rakip_yariya_gecemiyor(self):
+        """
+        A takımı solda, B takımı sağda kalmalı.
+
+        Karışırlarsa dizilim okunamaz hâle geliyordu. Tarayıcı tarafında da
+        engelleniyor ama sunucu istemciye güvenmiyor.
+        """
+        from apps.matches.dizilim import takim_araligi
+
+        self.client.force_login(self.ozan)
+        a_oyuncusu = self._a_takimi()[1]
+        b_oyuncusu = self._b_takimi()[0]
+
+        self.client.post(
+            reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
+            {
+                # A oyuncusu sağ yarıya, B oyuncusu sol yarıya itilmeye çalışılıyor
+                f"x_{a_oyuncusu.pk}": "90", f"y_{a_oyuncusu.pk}": "50",
+                f"x_{b_oyuncusu.pk}": "10", f"y_{b_oyuncusu.pk}": "50",
+            },
+        )
+
+        a_alt, a_ust = takim_araligi("a")
+        b_alt, b_ust = takim_araligi("b")
+
+        a_katilim = Katilim.objects.get(mac=self.mac, kullanici=a_oyuncusu)
+        b_katilim = Katilim.objects.get(mac=self.mac, kullanici=b_oyuncusu)
+
+        self.assertLessEqual(a_katilim.poz_x, a_ust, "A takımı sağ yarıya geçti")
+        self.assertGreaterEqual(b_katilim.poz_x, b_alt, "B takımı sol yarıya geçti")
+        # Yarılar çakışmamalı.
+        self.assertLess(a_ust, b_alt)
+
     def test_saha_disi_konumlar_kirpiliyor(self):
         """Bozuk ya da kötü niyetli gönderim dizilimi bozmasın."""
+        from apps.matches.dizilim import takim_araligi
+
         self.client.force_login(self.ozan)
-        hedef = self.oyuncular[0]
+        hedef = self._b_takimi()[0]
         self.client.post(
             reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
             {f"x_{hedef.pk}": "9999", f"y_{hedef.pk}": "-50"},
         )
         katilim = Katilim.objects.get(mac=self.mac, kullanici=hedef)
-        self.assertEqual((katilim.poz_x, katilim.poz_y), (100, 0))
+        _, ust = takim_araligi("b")
+        self.assertEqual((katilim.poz_x, katilim.poz_y), (ust, 0))
 
     def test_istatistikler_kaydediliyor(self):
         self.client.force_login(self.ozan)
@@ -1561,7 +1597,7 @@ class DizilimTesti(_TakimliMacKurulumu):
         takimlar = dizilim_verisi(self.mac)
         hepsi = [o for t in takimlar for o in t["oyuncular"]]
         self.assertTrue(all(o["gol"] == 0 for o in hepsi))
-        self.assertTrue(all(o["sari_kart"] == 0 for o in hepsi))
+        self.assertTrue(all(o["kart"] == "" for o in hepsi))
 
     def test_grup_ayari_aciksa_istatistik_gosteriliyor(self):
         from apps.matches.dizilim import dizilim_verisi
@@ -1576,7 +1612,101 @@ class DizilimTesti(_TakimliMacKurulumu):
         takimlar = dizilim_verisi(self.mac)
         hepsi = [o for t in takimlar for o in t["oyuncular"]]
         self.assertTrue(any(o["gol"] == 3 for o in hepsi))
-        self.assertTrue(any(o["sari_kart"] == 1 for o in hepsi))
+        self.assertTrue(any(o["kart"] == "sari" for o in hepsi))
+
+    def test_kart_turleri_ayirt_ediliyor(self):
+        """İkinci sarıdan kırmızı, doğrudan kırmızıdan farklı gösterilmeli."""
+        from apps.matches.dizilim import kart_turu
+
+        self.grup.kart_gosterilsin = True
+        self.grup.save()
+
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=self.oyuncular[0])
+
+        katilim.sari_kart, katilim.kirmizi_kart = 0, False
+        self.assertEqual(kart_turu(katilim)[0], "")
+
+        katilim.sari_kart = 1
+        self.assertEqual(kart_turu(katilim)[0], "sari")
+
+        katilim.sari_kart, katilim.kirmizi_kart = 0, True
+        self.assertEqual(kart_turu(katilim)[0], "kirmizi")
+
+        # İki sarı: doğrudan kırmızıdan ayrı bir görünüm.
+        katilim.sari_kart, katilim.kirmizi_kart = 2, False
+        self.assertEqual(kart_turu(katilim)[0], "ikinci-sari")
+
+        # İki sarı + kırmızı işaretliyse yine ikinci sarı kazanır.
+        katilim.kirmizi_kart = True
+        self.assertEqual(kart_turu(katilim)[0], "ikinci-sari")
+
+    def test_gol_toplami_skoru_asamaz(self):
+        """3-1 biten maçta A takımı 5 gol atmış olamaz."""
+        self.mac.skor_a, self.mac.skor_b = 3, 1
+        self.mac.save()
+        self.client.force_login(self.ozan)
+
+        a_takimi = self._a_takimi()
+        veri = {}
+        for k in self.herkes:
+            veri[f"x_{k.pk}"] = "20"
+            veri[f"y_{k.pk}"] = "50"
+        # A takımına toplam 5 gol yazdırmaya çalış
+        veri[f"gol_{a_takimi[0].pk}"] = "3"
+        veri[f"gol_{a_takimi[1].pk}"] = "2"
+
+        self.client.post(reverse("matches:dizilim_duzenle", args=[self.mac.pk]), veri)
+
+        # Hiçbiri kaydedilmemeli.
+        self.assertEqual(
+            Katilim.objects.get(mac=self.mac, kullanici=a_takimi[0]).gol, 0
+        )
+
+    def test_asist_toplami_skoru_asamaz(self):
+        """Her golün en fazla bir asisti olabilir."""
+        self.mac.skor_a, self.mac.skor_b = 2, 0
+        self.mac.save()
+        self.client.force_login(self.ozan)
+
+        a_takimi = self._a_takimi()
+        veri = {}
+        for k in self.herkes:
+            veri[f"x_{k.pk}"] = "20"
+            veri[f"y_{k.pk}"] = "50"
+        veri[f"asist_{a_takimi[0].pk}"] = "3"
+
+        self.client.post(reverse("matches:dizilim_duzenle", args=[self.mac.pk]), veri)
+        self.assertEqual(
+            Katilim.objects.get(mac=self.mac, kullanici=a_takimi[0]).asist, 0
+        )
+
+    def test_skorla_tutarli_gol_kaydediliyor(self):
+        self.mac.skor_a, self.mac.skor_b = 3, 1
+        self.mac.save()
+        self.client.force_login(self.ozan)
+
+        a_takimi = self._a_takimi()
+        veri = {}
+        for k in self.herkes:
+            veri[f"x_{k.pk}"] = "20"
+            veri[f"y_{k.pk}"] = "50"
+        veri[f"gol_{a_takimi[0].pk}"] = "2"
+        veri[f"gol_{a_takimi[1].pk}"] = "1"
+        veri[f"asist_{a_takimi[2].pk}"] = "2"
+
+        self.client.post(reverse("matches:dizilim_duzenle", args=[self.mac.pk]), veri)
+        self.assertEqual(
+            Katilim.objects.get(mac=self.mac, kullanici=a_takimi[0]).gol, 2
+        )
+
+    def test_skor_yokken_gol_denetlenmiyor(self):
+        """Üst sınır bilinmiyorsa kısıtlanacak bir şey de yok."""
+        self.client.force_login(self.ozan)
+        hedef = self._a_takimi()[0]
+        veri = {f"x_{hedef.pk}": "20", f"y_{hedef.pk}": "50", f"gol_{hedef.pk}": "4"}
+
+        self.client.post(reverse("matches:dizilim_duzenle", args=[self.mac.pk]), veri)
+        self.assertEqual(Katilim.objects.get(mac=self.mac, kullanici=hedef).gol, 4)
 
     def test_mac_puani_rozette_gosteriliyor(self):
         from apps.matches.dizilim import dizilim_verisi
