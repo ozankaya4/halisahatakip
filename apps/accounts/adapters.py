@@ -14,6 +14,7 @@ import logging
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from django.conf import settings
 from django.core.exceptions import ValidationError
 
 guvenlik_log = logging.getLogger("halisaha.guvenlik")
@@ -22,6 +23,36 @@ guvenlik_log = logging.getLogger("halisaha.guvenlik")
 class AccountAdapter(DefaultAccountAdapter):
     def get_login_redirect_url(self, request):
         return "/panel/"
+
+    def get_client_ip(self, request):
+        """
+        İstemcinin IP adresi. allauth bunu hız sınırlaması için istiyor ve
+        bulamazsa PermissionDenied fırlatıyor (giriş sayfası 403 veriyor).
+
+        Üretimde gunicorn ile nginx arasında TCP değil **Unix soketi** var.
+        Soketin karşı ucunda bir IP olmadığı için REMOTE_ADDR boş geliyor ve
+        allauth'un varsayılan uygulaması çuvallıyor. Gerçek adres nginx'in
+        koyduğu X-Forwarded-For başlığında.
+
+        nginx yapılandırmamız bu başlığı EKLEMİYOR, ÜZERİNE YAZIYOR
+        (proxy_set_header X-Forwarded-For $remote_addr), bu yüzden içinde tek
+        ve gerçek adres bulunuyor; istemci kendi başlığını uydurup buraya
+        istediğini yazdıramaz. Aynı sebeple settings.py'de
+        AXES_IPWARE_PROXY_COUNT = None.
+        """
+        if getattr(settings, "BEHIND_PROXY", False):
+            iletilen = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
+            if iletilen:
+                # Üzerine yazıldığı için tek değer bekliyoruz; yine de ilkini
+                # alıyoruz ki başlık bir gün eklemeli hâle gelirse en soldaki
+                # (gerçek istemci) kullanılsın.
+                ilk = iletilen.split(",")[0].strip()
+                if ilk:
+                    return ilk
+            gercek = (request.META.get("HTTP_X_REAL_IP") or "").strip()
+            if gercek:
+                return gercek
+        return super().get_client_ip(request)
 
     def save_user(self, request, user, form, commit=True):
         user = super().save_user(request, user, form, commit=False)

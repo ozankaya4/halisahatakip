@@ -46,6 +46,12 @@ CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
 # Varsayılan: hayır (yalnızca giriş yapmış kullanıcılar görebilir).
 PUBLIC_PROFILES = env("PUBLIC_PROFILES")
 
+# Uygulama bir ters vekil sunucunun (nginx) arkasında mı çalışıyor?
+# Modül düzeyinde tanımlı olması şart: yalnızca burada env() ile okunup
+# atılırsa, uygulama kodu (örn. accounts/adapters.py içindeki
+# get_client_ip) vekil arkasında olup olmadığını öğrenemez.
+BEHIND_PROXY = env("BEHIND_PROXY")
+
 # Google girişi yalnızca kimlik bilgileri girildiğinde etkinleşir. Aksi hâlde
 # giriş sayfasında tıklandığında hata veren ölü bir düğme görünürdü.
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID")
@@ -230,7 +236,7 @@ AXES_VERBOSE = True
 AXES_IPWARE_PROXY_COUNT = None
 AXES_IPWARE_META_PRECEDENCE_ORDER = (
     ("HTTP_X_FORWARDED_FOR", "REMOTE_ADDR")
-    if env("BEHIND_PROXY")
+    if BEHIND_PROXY
     else ("REMOTE_ADDR",)
 )
 
@@ -311,7 +317,7 @@ if SECURE_SSL_REDIRECT:
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-if env("BEHIND_PROXY"):
+if BEHIND_PROXY:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 

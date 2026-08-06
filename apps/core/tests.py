@@ -18,7 +18,7 @@ import tempfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
@@ -697,6 +697,71 @@ class TumSayfalarRenderTesti(TestCase):
         yanit = self.client.get(reverse("core:dashboard"))
         self.assertEqual(yanit.status_code, 200)
         self.assertContains(yanit, 'data-tema="koyu"')
+
+
+class VekilArkasindaIstemciIPTesti(TestCase):
+    """
+    Ters vekil arkasında istemci IP'sinin bulunabildiğini doğrular.
+
+    Üretimde gunicorn ile nginx arasında Unix soketi var; soketin karşı
+    ucunda IP olmadığı için REMOTE_ADDR boş geliyor. allauth hız sınırlaması
+    için IP'yi bulamayınca PermissionDenied fırlatıyor ve **giriş sayfası
+    403 veriyor**. Yerelde runserver TCP kullandığı için bu hiç görünmüyordu;
+    yalnızca yayında ortaya çıktı. O yüzden testi yazıyoruz.
+    """
+
+    def setUp(self):
+        from apps.accounts.adapters import AccountAdapter
+
+        self.adaptor = AccountAdapter()
+        self.fabrika = RequestFactory()
+
+    def _istek(self, **meta):
+        istek = self.fabrika.post("/hesap/login/")
+        istek.META.pop("REMOTE_ADDR", None)  # Unix soketi: boş
+        istek.META.update(meta)
+        return istek
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_unix_soketinde_xff_kullanilir(self):
+        ip = self.adaptor.get_client_ip(self._istek(HTTP_X_FORWARDED_FOR="203.0.113.9"))
+        self.assertEqual(ip, "203.0.113.9")
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_xff_yoksa_x_real_ip_kullanilir(self):
+        ip = self.adaptor.get_client_ip(self._istek(HTTP_X_REAL_IP="203.0.113.10"))
+        self.assertEqual(ip, "203.0.113.10")
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_eklemeli_baslikta_en_soldaki_alinir(self):
+        """Başlık bir gün eklemeli hâle gelirse gerçek istemci en solda olur."""
+        ip = self.adaptor.get_client_ip(
+            self._istek(HTTP_X_FORWARDED_FOR="203.0.113.11, 10.0.0.1")
+        )
+        self.assertEqual(ip, "203.0.113.11")
+
+    @override_settings(BEHIND_PROXY=False)
+    def test_vekil_yokken_iletilen_baslik_kullanilmaz(self):
+        """
+        Vekil arkasında değilken X-Forwarded-For'a GÜVENİLMEZ; istemci onu
+        kendisi uydurabilir. Bu durumda REMOTE_ADDR esas alınmalı.
+        """
+        istek = self.fabrika.post("/hesap/login/")
+        istek.META["REMOTE_ADDR"] = "198.51.100.5"
+        istek.META["HTTP_X_FORWARDED_FOR"] = "1.2.3.4"
+        self.assertEqual(self.adaptor.get_client_ip(istek), "198.51.100.5")
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_giris_sayfasina_post_403_vermez(self):
+        """Asıl belirti: Unix soketi arkasında giriş POST'u 403 dönüyordu."""
+        kullanici("ozan@example.com", "Ozan Kaya")
+        yanit = self.client.post(
+            reverse("account_login"),
+            {"login": "ozan@example.com", "password": "CokGuvenliParola123"},
+            REMOTE_ADDR="",
+            HTTP_X_FORWARDED_FOR="203.0.113.12",
+        )
+        self.assertNotEqual(yanit.status_code, 403, "Giriş POST'u 403 döndü")
 
 
 class ArayuzMetniTesti(TestCase):
