@@ -1,52 +1,81 @@
 /**
  * Dizilim tahtası — oyuncuları sahada sürükleyerek yerleştirme.
  *
- * Konumlar sahanın YÜZDESİ olarak tutuluyor (0-100), piksel olarak değil:
- * saha telefonda dar, masaüstünde geniş çiziliyor ve yüzde her ikisinde de
- * aynı noktaya denk geliyor.
+ * KONUM MODELİ
+ * Konumlar her zaman YATAY sahanın yüzdesi olarak saklanır (0-100):
+ *   x = sahanın uzun ekseni; takımları ayıran eksen (A: 4-47, B: 53-96)
+ *   y = sahanın kısa ekseni
+ * Aynı aralıklar sunucuda da var: apps/matches/dizilim.py::TAKIM_ARALIKLARI
  *
- * Konumlar CSS özel değişkenleriyle (--x/--y) uygulanıyor. Şablonda
- * style="left:%40" yazılamıyor çünkü CSP satır içi stili engelliyor; ama
- * JS'ten setProperty çağırmak CSP kapsamında değil. Bu yüzden ilk yerleşim
- * de burada yapılıyor: kartlar data-x/data-y ile geliyor, JS bunları
- * göreve çeviriyor.
+ * DİKEY MOD (telefon)
+ * Dar ekranda saha dikey çiziliyor ve eksenler yer değiştirerek gösteriliyor:
+ * ekranda sol/sağ ← y, üst/alt ← x. Yani A Takımı üstte, B Takımı altta.
  *
- * Sürükleme için Pointer Events kullanılıyor. HTML5'in kendi drag-and-drop'u
- * dokunmatik ekranlarda çalışmıyor; pointer olayları fare, parmak ve kalem
- * için aynı kodu çalıştırıyor.
+ * Önemli olan şu: SAKLANAN VERİ DEĞİŞMİYOR. Telefonda kurulan dizilim
+ * masaüstünde de doğru görünür, tersi de geçerli. Sahayı CSS ile döndürmek
+ * (rotate) yerine yalnızca eşleme değiştiriliyor; döndürseydik oyuncu
+ * adları da yan yatardı.
+ *
+ * Dikey mi değil mi kararı BURADA veriliyor ve saha öğesine "saha-dikey"
+ * sınıfı olarak yazılıyor; CSS de o sınıfa bakıyor. CSS'te ayrı bir medya
+ * sorgusu olsaydı sınır değerlerde JS ile CSS farklı düşünebilirdi.
+ *
+ * Sürükleme Pointer Events ile: HTML5'in kendi drag-and-drop'u dokunmatik
+ * ekranlarda çalışmıyor, pointer olayları fare/parmak/kalem için aynı kod.
  */
 
 const SINIR = { enAz: 0, enCok: 100 };
 
-/**
- * Takımların yerleşebileceği yatay aralıklar.
- *
- * Bir oyuncu rakip takımın yarısına sürüklenemiyor: iki takım karışınca
- * dizilim okunamaz hâle geliyordu. Aynı aralıklar sunucu tarafında da var
- * (apps/matches/dizilim.py::TAKIM_ARALIKLARI); istemciden gelen konum orada
- * tekrar kırpılıyor.
- */
 const TAKIM_ARALIKLARI = {
   a: { enAz: 4, enCok: 47 },
   b: { enAz: 53, enCok: 96 },
 };
+
+// Sahanın dikey çizileceği ekran genişliği. defter.css'teki mobil kırılma
+// noktasıyla aynı olmalı.
+const DIKEY_SORGU = "(max-width: 640px)";
 
 document.addEventListener("DOMContentLoaded", () => {
   const saha = document.getElementById("saha");
   if (!saha) return;
 
   const kartlar = Array.from(saha.querySelectorAll(".oyuncu-kart"));
-  kartlar.forEach(konumUygula);
+  const sorgu = window.matchMedia(DIKEY_SORGU);
+
+  const moduUygula = () => {
+    saha.classList.toggle("saha-dikey", sorgu.matches);
+    // Eksen eşlemesi değiştiği için konumlar yeniden yazılmalı.
+    kartlar.forEach((kart) => konumUygula(kart, saha));
+  };
+
+  moduUygula();
+  // Ekran döndürüldüğünde ya da pencere yeniden boyutlandığında.
+  sorgu.addEventListener("change", moduUygula);
 
   if (saha.hasAttribute("data-duzenlenebilir")) {
     kartlar.forEach((kart) => suruklemeyiBagla(saha, kart));
   }
 });
 
-/** data-x/data-y değerlerini CSS değişkenlerine yazar. */
-function konumUygula(kart) {
-  kart.style.setProperty("--x", `${kart.dataset.x}%`);
-  kart.style.setProperty("--y", `${kart.dataset.y}%`);
+/** Saha şu anda dikey mi çiziliyor? */
+function dikeyMi(saha) {
+  return saha.classList.contains("saha-dikey");
+}
+
+/**
+ * data-x/data-y değerlerini CSS değişkenlerine yazar.
+ * Dikey modda eksenler yer değiştirir.
+ */
+function konumUygula(kart, saha) {
+  const x = kart.dataset.x;
+  const y = kart.dataset.y;
+  if (dikeyMi(saha)) {
+    kart.style.setProperty("--x", `${y}%`);
+    kart.style.setProperty("--y", `${x}%`);
+  } else {
+    kart.style.setProperty("--x", `${x}%`);
+    kart.style.setProperty("--y", `${y}%`);
+  }
 }
 
 /** Formdaki gizli alanları güncel konumla eşitler. */
@@ -64,14 +93,36 @@ function kirp(deger) {
 
 /** Kartın takımını sınıf adından okur (takim-a / takim-b). */
 function kartinTakimi(kart) {
-  return kart.classList.contains("takim-a") ? "a" : kart.classList.contains("takim-b") ? "b" : null;
+  return kart.classList.contains("takim-a")
+    ? "a"
+    : kart.classList.contains("takim-b")
+      ? "b"
+      : null;
 }
 
-/** X konumunu oyuncunun kendi yarısına hapseder. */
+/**
+ * Saklanan x'i oyuncunun kendi yarısına hapseder.
+ * Hangi modda olursak olalım kısıt aynı alan üzerinde: x takımları ayıran
+ * eksen. Dikeyde bu ekranda yukarı/aşağı sınırı olarak görünür.
+ */
 function xKirp(deger, kart) {
   const aralik = TAKIM_ARALIKLARI[kartinTakimi(kart)];
   if (!aralik) return kirp(deger);
   return Math.max(aralik.enAz, Math.min(aralik.enCok, deger));
+}
+
+/** İmleç konumundan saklanacak {x, y} değerlerini üretir. */
+function imlecdenKonum(olay, saha, kart) {
+  const kutu = saha.getBoundingClientRect();
+  if (!kutu.width || !kutu.height) return null;
+
+  const yatayOran = ((olay.clientX - kutu.left) / kutu.width) * 100;
+  const dikeyOran = ((olay.clientY - kutu.top) / kutu.height) * 100;
+
+  // Dikey modda ekranın dikey ekseni saklanan x'e, yatay ekseni y'ye denk.
+  return dikeyMi(saha)
+    ? { x: xKirp(dikeyOran, kart), y: kirp(yatayOran) }
+    : { x: xKirp(yatayOran, kart), y: kirp(dikeyOran) };
 }
 
 function suruklemeyiBagla(saha, kart) {
@@ -91,15 +142,12 @@ function suruklemeyiBagla(saha, kart) {
   kart.addEventListener("pointermove", (olay) => {
     if (!suruklyor) return;
 
-    const kutu = saha.getBoundingClientRect();
-    if (!kutu.width || !kutu.height) return;
+    const konum = imlecdenKonum(olay, saha, kart);
+    if (!konum) return;
 
-    const x = xKirp(((olay.clientX - kutu.left) / kutu.width) * 100, kart);
-    const y = kirp(((olay.clientY - kutu.top) / kutu.height) * 100);
-
-    kart.dataset.x = Math.round(x);
-    kart.dataset.y = Math.round(y);
-    konumUygula(kart);
+    kart.dataset.x = Math.round(konum.x);
+    kart.dataset.y = Math.round(konum.y);
+    konumUygula(kart, saha);
     gizlileriGuncelle(kart);
   });
 
@@ -118,19 +166,27 @@ function suruklemeyiBagla(saha, kart) {
   // Klavyeyle de taşınabilsin: fare kullanamayan biri dizilimi
   // düzenleyemez hâle gelmesin. Shift ile büyük adım.
   kart.addEventListener("keydown", (olay) => {
-    const adimlar = {
+    // Ok tuşu kartı EKRANDA göründüğü yöne taşımalı; bu yüzden dikey modda
+    // hangi alanı değiştirdikleri de yer değiştiriyor.
+    const ekranAdimlari = {
       ArrowLeft: [-1, 0],
       ArrowRight: [1, 0],
       ArrowUp: [0, -1],
       ArrowDown: [0, 1],
     };
-    const adim = adimlar[olay.key];
+    const adim = ekranAdimlari[olay.key];
     if (!adim) return;
 
     const carpan = olay.shiftKey ? 5 : 1;
-    kart.dataset.x = xKirp(Number(kart.dataset.x) + adim[0] * carpan, kart);
-    kart.dataset.y = kirp(Number(kart.dataset.y) + adim[1] * carpan);
-    konumUygula(kart);
+    const [ekranYatay, ekranDikey] = adim;
+
+    // Ekran yönünü saklanan alanlara çevir.
+    const dx = dikeyMi(saha) ? ekranDikey : ekranYatay;
+    const dy = dikeyMi(saha) ? ekranYatay : ekranDikey;
+
+    kart.dataset.x = xKirp(Number(kart.dataset.x) + dx * carpan, kart);
+    kart.dataset.y = kirp(Number(kart.dataset.y) + dy * carpan);
+    konumUygula(kart, saha);
     gizlileriGuncelle(kart);
     olay.preventDefault();
   });

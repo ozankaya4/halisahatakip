@@ -1633,6 +1633,13 @@ p {
   color: var(--yesil);
 }
 
+/* Bölüm başlığındaki birleşik skor ("5 - 6"). Takım başına düşen
+   skorlardan ayrı: onlarda kazananın yeşili anlam taşıyor, bu ise maçın
+   sonucunu tek bakışta veren nötr bir vurgu. */
+.mac-skoru {
+  color: var(--hardal);
+}
+
 /* =========================================================================
    15d. Dizilim tahtası (saha)
    ====================================================================== */
@@ -1695,6 +1702,54 @@ p {
 .saha-ceza-sag {
   inset-inline-end: 0;
   border-inline-end: 0;
+}
+
+/* --- Dikey saha (telefon) ------------------------------------------------
+   Sınıfı JS ekliyor (bkz. static/js/dizilim.js). Eksenler orada yer
+   değiştiriyor: ekranda üst/alt = saklanan x, yani A Takımı üstte,
+   B Takımı altta. Burada yalnızca çizim dönüyor; saha döndürülmüyor
+   (rotate) çünkü o zaman oyuncu adları da yan yatardı. */
+.saha-dikey {
+  aspect-ratio: 10 / 16;
+  min-width: 0;
+  min-height: 460px;
+  /* Çim şeritleri de dikeyde yatay olmalı. */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.045) 0 6.25%,
+    transparent 6.25% 12.5%
+  );
+}
+
+/* Orta çizgi yatay */
+.saha-dikey .saha-orta-cizgi {
+  inset-block: auto;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  border-width: 2px 0 0 0;
+}
+
+/* Ceza alanları üstte ve altta */
+.saha-dikey .saha-ceza-sol,
+.saha-dikey .saha-ceza-sag {
+  inset-block-start: auto;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  width: 46%;
+  height: 13%;
+}
+
+.saha-dikey .saha-ceza-sol {
+  inset-block-start: 0;
+  border-block-start: 0;
+  border-inline-start: 2px solid rgba(246, 243, 234, 0.4);
+}
+
+.saha-dikey .saha-ceza-sag {
+  inset-inline-end: auto;
+  inset-block-end: 0;
+  border-block-end: 0;
+  border-inline-end: 2px solid rgba(246, 243, 234, 0.4);
 }
 
 /* --- Oyuncu kartı ------------------------------------------------------- */
@@ -1949,29 +2004,32 @@ p {
 }
 
 @media (max-width: 640px) {
-  /* Dar ekranda sahayı dikey çevirmiyoruz: takımlar sol/sağ yerleşimli ve
-     koordinatlar sahanın yüzdesi. Dikey çevirmek dizilimi bozardı.
-     Bunun yerine saha en boy oranını koruyup yatay kaydırılabiliyor;
-     yönetici telefonda da gerçek dizilimi görüyor. */
-  .saha-sarmal {
-    overflow-x: auto;
-  }
-
-  .saha {
-    min-width: 560px;
-  }
-
+  /* Saha dikey çiziliyor (bkz. .saha-dikey), yatay kaydırmaya gerek yok:
+     sahanın tamamı ekrana sığıyor. Önceden yatay saha 560px genişliğe
+     zorlanıp kaydırılıyordu; telefonda hem sayfayı kaydırıp hem kart
+     sürüklemek gerektiği için özellik pratikte kullanılamıyordu. */
   .oyuncu-kart {
-    width: 3.6rem;
+    width: 3.4rem;
+    gap: 0.15rem;
   }
 
   .oyuncu-kart .avatar {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
   }
 
   .oyuncu-kart-ad {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
+  }
+
+  /* Dar sahada 20+ kart yan yana gelebiliyor; rozetler biraz küçülüyor. */
+  .puan-rozeti {
+    font-size: 0.66rem;
+    min-width: 1.4rem;
+  }
+
+  .isaret {
+    font-size: 0.55rem;
   }
 }
 
