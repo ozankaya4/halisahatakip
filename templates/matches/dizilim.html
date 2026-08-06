@@ -69,20 +69,39 @@
                         title="{{ oyuncu.kart_yazisi }}" aria-label="{{ oyuncu.kart_yazisi }}"></span>
                 {% endif %}
 
+                {% comment %}
+                Tek gol/asistte sayı yazılmıyor: işaretin kendisi zaten
+                "bir tane" demek. Sayı yalnızca birden fazlasında görünüyor.
+                Ekran okuyucu her hâlükârda adedi duyuyor (aria-label).
+                {% endcomment %}
                 {% if oyuncu.gol %}
-                  <span class="isaret isaret-gol" title="{{ oyuncu.gol }} gol">
-                    <span class="isaret-top" aria-hidden="true"></span>{{ oyuncu.gol }}
+                  <span class="isaret isaret-gol {% if oyuncu.gol == 1 %}isaret-tek{% endif %}"
+                        title="{{ oyuncu.gol }} gol" aria-label="{{ oyuncu.gol }} gol">
+                    <span class="isaret-top" aria-hidden="true"></span>{% if oyuncu.gol > 1 %}{{ oyuncu.gol }}{% endif %}
                   </span>
                 {% endif %}
 
                 {% if oyuncu.asist %}
                   {% comment %}
-                  Asist işareti: pas okunu CSS çiziyor (::before). Eskiden
-                  başında düz bir "A" harfi vardı, rozetin içinde kaba
-                  duruyordu.
+                  Asist işareti: pas atan krampon. SVG olarak gömülü çünkü
+                  bu siluet CSS kutularıyla çizilemiyor; emoji de kullanmıyoruz
+                  (her işletim sisteminde farklı görünüyor). Arkadaki iki
+                  çizgi hareketi, yani pası anlatıyor.
                   {% endcomment %}
-                  <span class="isaret isaret-asist" title="{{ oyuncu.asist }} asist"
-                        aria-label="{{ oyuncu.asist }} asist">{{ oyuncu.asist }}</span>
+                  <span class="isaret isaret-asist {% if oyuncu.asist == 1 %}isaret-tek{% endif %}"
+                        title="{{ oyuncu.asist }} asist"
+                        aria-label="{{ oyuncu.asist }} asist">
+                    <svg class="isaret-krampon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <rect x="0" y="8.4" width="3.2" height="1.5" rx=".75"/>
+                      <rect x=".4" y="11.8" width="2.2" height="1.5" rx=".75"/>
+                      <path d="M4.4 10.4 6.6 9.4 8.6 9.8 10.2 12.2 12.2 13.4 17.6 14.6 20.6 15.9 21.2 17 4.4 17Z"/>
+                      <rect x="3.6" y="17" width="18" height="1.8" rx=".9"/>
+                      <rect x="5.6" y="18.7" width="1.6" height="1" rx=".3"/>
+                      <rect x="9.8" y="18.7" width="1.6" height="1" rx=".3"/>
+                      <rect x="14" y="18.7" width="1.6" height="1" rx=".3"/>
+                      <rect x="18.2" y="18.7" width="1.6" height="1" rx=".3"/>
+                    </svg>{{ oyuncu.asist }}
+                  </span>
                 {% endif %}
 
                 {% if oyuncu.macin_adami %}

@@ -767,12 +767,40 @@ class MacSilmeTesti(TestCase):
         self.assertEqual(yanit.status_code, 302)
         self.assertFalse(Mac.objects.filter(pk=mac.pk).exists())
 
-    def test_oynanmis_mac_silinemez(self):
-        """Geçmiş maç grubun kaydı; silinmesi yerine iptal edilmesi gerekir."""
+    def test_oynanmis_mac_da_silinebilir(self):
+        """
+        Yanlış girilmiş eski maçlar temizlenebilmeli.
+
+        Bir dönem yalnızca gelecek maçlar silinebiliyordu; hatalı bir kayıt
+        sonsuza kadar grubun geçmişinde kalıyordu.
+        """
         mac = self._mac(gun_farki=-3)
         self.client.force_login(self.ozan)
         yanit = self.client.post(reverse("matches:sil", args=[mac.pk]))
         self.assertEqual(yanit.status_code, 302)
+        self.assertFalse(Mac.objects.filter(pk=mac.pk).exists())
+
+    def test_oynanmis_mac_silinince_puanlar_da_gidiyor(self):
+        """Silinen maçın puanları ortalamalarda takılı kalmamalı."""
+        mac = self._mac(gun_farki=-3)
+        for kisi in (self.ozan, self.mert):
+            Katilim.objects.create(
+                mac=mac, kullanici=kisi, yanit=Katilim.Yanit.GELIYORUM, katildi=True
+            )
+        Puan.objects.create(mac=mac, puanlayan=self.ozan, puanlanan=self.mert, deger=8)
+
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:sil", args=[mac.pk]))
+
+        self.assertFalse(Puan.objects.filter(mac_id=mac.pk).exists())
+        self.mert.profil.refresh_from_db()
+        self.assertEqual(self.mert.profil.puan_sayisi, 0)
+
+    def test_uye_oynanmis_maci_silemez(self):
+        """Geçmiş maçlar silinebilir oldu diye yetki gevşemedi."""
+        mac = self._mac(gun_farki=-3)
+        self.client.force_login(self.mert)
+        self.client.post(reverse("matches:sil", args=[mac.pk]))
         self.assertTrue(Mac.objects.filter(pk=mac.pk).exists())
 
     def test_uye_maci_silemez(self):
@@ -908,14 +936,31 @@ class GrupBazliPuanTesti(TestCase):
         self.assertEqual(float(ozan_satiri["ortalama"]), 6.0)
         self.assertEqual(ozan_satiri["adet"], 4)
 
-    def test_profil_sayfasinda_genel_ortalama_gosterilmez(self):
+    def test_profilde_hicbir_puan_ortalamasi_gosterilmiyor(self):
+        """
+        Profil gruplar üstü bir sayfa; puan oraya ait değil.
+
+        Ne küresel ortalama ne de grup kırılımı burada gösteriliyor. Bir
+        oyuncunun bir gruptaki ortalaması yalnızca o grubun istatistik
+        sayfasında görünüyor.
+        """
         self._grup_kur("Perşembe Ekibi", puan_degeri=6)
         self.client.force_login(self.ozan)
         govde = self.client.get(
             reverse("accounts:profil", args=[self.ozan.pk])
         ).content.decode("utf-8")
         self.assertNotIn("Genel ortalama", govde)
-        self.assertIn("Grup bazlı ortalamalar", govde)
+        self.assertNotIn("Grup bazlı ortalamalar", govde)
+
+    def test_grup_ortalamasi_istatistik_sayfasinda_duruyor(self):
+        """Profilden kaldırıldı ama grup içinde hâlâ erişilebilir olmalı."""
+        grup = self._grup_kur("Perşembe Ekibi", puan_degeri=6)
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("groups:uye_istatistik", args=[grup.genel_id, self.ozan.pk])
+        ).content.decode("utf-8")
+        self.assertIn("Grup içi ortalaması", govde)
+        self.assertIn("6", govde)
 
 
 class GorselBicimleriTesti(TestCase):

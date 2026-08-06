@@ -1761,6 +1761,14 @@ p {
   inset-inline-end: -9px;
 }
 
+/* Tek gol/asistte sayı yazılmıyor; rozet daireye dönüşüyor ki
+   yanında boşluk kalmasın. */
+.isaret-tek {
+  padding: 0.16rem;
+  border-radius: 50%;
+  gap: 0;
+}
+
 .isaret-asist {
   inset-block-end: -5px;
   inset-inline-end: -9px;
@@ -1768,19 +1776,18 @@ p {
   padding-inline-start: 0.18rem;
 }
 
-/* Asist işareti: pas oku.
-   Önceden rozetin başında düz bir "A" harfi vardı; rakamın yanında kaba
-   duruyordu. Yerine küçük bir ok çiziliyor — uygulamadaki diğer oklarla
-   (.ayar-ok) aynı yapım tekniği, dolayısıyla aynı dile ait. */
-.isaret-asist::before {
-  content: "";
-  width: 0.28rem;
-  height: 0.28rem;
-  border-inline-end: 1.5px solid currentColor;
-  border-block-start: 1.5px solid currentColor;
-  rotate: 45deg;
-  translate: 0 -0.5px;
-  opacity: 0.95;
+/* Asist işareti: pas atan krampon (şablonda gömülü SVG).
+   Önce düz bir "A" harfi, sonra basit bir ok denendi; ikisi de anlamı
+   taşımıyordu. Krampon + arkasındaki hareket çizgileri futbol
+   grafiklerindeki alışılmış "asist" işareti. */
+.isaret-krampon {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: none;
+  fill: currentColor;
+  /* Siluetin ağırlığı altta (taban + dişler); rakamla optik olarak
+     hizalanması için birkaç piksel yukarı alınıyor. */
+  translate: 0 0.5px;
 }
 
 /* Gol işaretindeki futbol topu.

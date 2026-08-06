@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Avg, Count
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -27,10 +26,16 @@ def profil_duzenle(request):
 
 def profil(request, kullanici_id: int):
     """
-    Oyuncu profili.
+    Oyuncu profili: kimlik bilgileri ve oynadığı maç sayısı.
 
     PUBLIC_PROFILES kapalıyken (varsayılan) yalnızca giriş yapmış kullanıcılar
-    görebilir. Tek tek puanlar hiçbir koşulda gösterilmez; yalnızca ortalama.
+    görebilir.
+
+    Puan ortalamaları burada GÖSTERİLMEZ. Puanlar yalnızca verildikleri grubun
+    içinde anlamlı olduğu için, bir oyuncunun bir gruptaki ortalaması ve
+    istatistikleri o grubun üye listesinden açılıyor
+    (groups:uye_istatistik). Böylece profil, gruplar üstü nötr bir sayfa
+    olarak kalıyor ve hiçbir puan ait olmadığı bağlamda görünmüyor.
     """
     if not request.user.is_authenticated and not settings.PUBLIC_PROFILES:
         raise Http404("Bulunamadı.")
@@ -40,65 +45,13 @@ def profil(request, kullanici_id: int):
     )
     profil_kaydi, _ = Profil.objects.get_or_create(kullanici=kullanici)
 
-    # Grup bazlı ortalamalar yalnızca istekte bulunanın da üyesi olduğu
-    # gruplar için gösterilir; başka grupların oyuncu listesi sızmasın.
-    grup_ozetleri = []
-    if request.user.is_authenticated:
-        from apps.groups.models import Uyelik
-        from apps.ratings.models import Puan
-
-        if request.user.is_superuser:
-            gorulebilir_grup_idleri = list(
-                Uyelik.objects.filter(
-                    kullanici=kullanici, durum=Uyelik.Durum.ONAYLI
-                ).values_list("grup_id", flat=True)
-            )
-        else:
-            benim = set(
-                Uyelik.objects.filter(
-                    kullanici=request.user, durum=Uyelik.Durum.ONAYLI
-                ).values_list("grup_id", flat=True)
-            )
-            onun = set(
-                Uyelik.objects.filter(
-                    kullanici=kullanici, durum=Uyelik.Durum.ONAYLI
-                ).values_list("grup_id", flat=True)
-            )
-            gorulebilir_grup_idleri = list(benim & onun)
-
-        if gorulebilir_grup_idleri:
-            # mac__iptal=False: iptal edilen maçların puanları hiçbir
-            # ortalamaya girmez. Aksi hâlde maçı kur, puanı topla, sonra
-            # iptal et diye bir yol açık kalırdı.
-            grup_ozetleri = list(
-                Puan.objects.filter(
-                    puanlanan=kullanici,
-                    mac__grup_id__in=gorulebilir_grup_idleri,
-                    mac__iptal=False,
-                    karantinada=False,
-                )
-                .values("mac__grup__ad", "mac__grup__id")
-                .annotate(ortalama=Avg("deger"), adet=Count("id"))
-                .order_by("-ortalama")
-            )
-            # Az oyla oluşan ortalama yanıltıcı; eşiğin altındakilerde sayı
-            # gösterilir ama ortalama gizlenir.
-            for satir in grup_ozetleri:
-                satir["gosterilsin"] = (
-                    satir["adet"] >= settings.RATING_MIN_VOTES_TO_DISPLAY
-                )
-                if satir["ortalama"] is not None:
-                    satir["ortalama"] = round(satir["ortalama"], 2)
-
     return render(
         request,
         "accounts/profil.html",
         {
             "gosterilen": kullanici,
             "profil": profil_kaydi,
-            "grup_ozetleri": grup_ozetleri,
             "kendi_profili": request.user.is_authenticated
             and request.user.pk == kullanici.pk,
-            "esik": settings.RATING_MIN_VOTES_TO_DISPLAY,
         },
     )

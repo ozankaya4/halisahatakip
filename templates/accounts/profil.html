@@ -39,42 +39,26 @@
         <p>{{ profil.hakkinda }}</p>
       {% endif %}
 
+      {% comment %}
+      Puan ortalamaları bilinçli olarak burada DEĞİL.
+
+      Puanlar yalnızca verildikleri grup içinde anlamlı; profil ise gruplar
+      üstü bir sayfa. Bir oyuncunun bir gruptaki ortalaması, o grubun
+      üyeler listesindeki "İstatistikler" sayfasında duruyor
+      (groups/uye_istatistik.html). Böylece hiçbir puan, ait olmadığı bir
+      bağlamda görünmüyor.
+      {% endcomment %}
       <section class="kutu">
         <div class="kutu-baslik">
-          <h2>Grup bazlı ortalamalar</h2>
+          <h2>Puanlar nerede?</h2>
         </div>
-        {% if grup_ozetleri %}
-          <div class="tablo-sarmal">
-            <table class="tablo">
-              <thead>
-                <tr>
-                  <th>Grup</th>
-                  <th class="sag-hiza">Ortalama</th>
-                  <th class="sag-hiza">Puan sayısı</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for satir in grup_ozetleri %}
-                  <tr>
-                    <td>{{ satir.mac__grup__ad }}</td>
-                    <td class="sag-hiza rakam">
-                      {% if satir.gosterilsin %}
-                        {{ satir.ortalama|floatformat:2 }}
-                      {% else %}
-                        <span class="solgun" title="En az {{ esik }} puan gerekiyor">henüz yok</span>
-                      {% endif %}
-                    </td>
-                    <td class="sag-hiza rakam solgun">{{ satir.adet }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="solgun">
-            Ortak bir grupta henüz puan kaydı yok.
-          </p>
-        {% endif %}
+        <p class="kucuk solgun">
+          Puan ortalamaları profilde gösterilmiyor. Her puan yalnızca
+          verildiği grubun içinde geçerli; bir oyuncunun bir gruptaki
+          ortalamasını, istatistiklerini ve maç geçmişini o grubun
+          <strong>Üyeler</strong> sayfasındaki
+          <strong>İstatistikler</strong> düğmesinden görebilirsin.
+        </p>
       </section>
     </div>
 

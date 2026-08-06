@@ -236,23 +236,15 @@ def iptal_durumu(request, mac_id: int):
 @require_POST
 def sil(request, mac_id: int):
     """
-    Maçı tamamen siler.
+    Maçı tamamen siler. Yalnızca grup yöneticisi.
 
-    Yalnızca grup yöneticisi ve yalnızca **henüz oynanmamış** maçlar için.
-    Oynanmış bir maçın silinmesine izin verilmiyor: o maçın puanları,
-    kadrosu ve fotoğrafları grubun geçmiş kaydı; yanlışlıkla ya da işine
-    gelmediği için silinebilmemeli. Oynanmış maçlar yerine "İptal et"
-    kullanılır, o da puanları temizler ama kaydı bırakır.
+    Oynanmış maçlar da silinebilir. (Bir dönem yalnızca gelecek maçlara izin
+    veriliyordu; yanlış girilen eski maçları temizlemek imkânsız hâle
+    geldiği için kaldırıldı.) Silme geri alınamaz ve maçla birlikte
+    kadro, puanlar ve fotoğraflar da gider; kaydı korumak isteyen için
+    "İptal et" seçeneği duruyor.
     """
     mac = _mac_getir(request, mac_id, yonetici_sart=True)
-
-    if mac.gecmis_mi:
-        messages.error(
-            request,
-            "Oynanmış bir maç silinemez. Geçmiş kayıt olarak kalır; "
-            "istersen “İptal et” diyebilirsin, bu maça verilen puanlar silinir.",
-        )
-        return redirect("matches:detay", mac_id=mac.pk)
 
     grup_id = mac.grup.genel_id
 

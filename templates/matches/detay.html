@@ -271,21 +271,19 @@
               </p>
             {% endif %}
 
-            {% if not mac.gecmis_mi %}
-              <form method="post" action="{% url 'matches:sil' mac.pk %}"
-                    data-onay="Maç, yoklama yanıtları ve tüm fotoğrafları kalıcı olarak silinsin mi? Bu işlem geri alınamaz.">
-                {% csrf_token %}
-                <button class="dugme dugme-genis dugme-tehlike" type="submit">Maçı sil</button>
-              </form>
-              <p class="kucuk solgun">
-                Maç henüz oynanmadı, tamamen silinebilir.
-              </p>
-            {% else %}
-              <p class="kucuk solgun">
-                Oynanmış maçlar silinemez; grubun geçmiş kaydıdır.
-                Sayılmasını istemiyorsan “Maçı iptal et” diyebilirsin.
-              </p>
-            {% endif %}
+            <form method="post" action="{% url 'matches:sil' mac.pk %}"
+                  data-onay="{% if mac.gecmis_mi %}Oynanmış bu maç kalıcı olarak silinsin mi? Kadro, verilen puanlar ve tüm fotoğraflar da silinecek. Bu işlem geri alınamaz.{% else %}Maç, yoklama yanıtları ve tüm fotoğrafları kalıcı olarak silinsin mi? Bu işlem geri alınamaz.{% endif %}">
+              {% csrf_token %}
+              <button class="dugme dugme-genis dugme-tehlike" type="submit">Maçı sil</button>
+            </form>
+            <p class="kucuk solgun">
+              {% if mac.gecmis_mi %}
+                Silmek kalıcıdır: kadro, puanlar ve fotoğraflar da gider.
+                Kaydı bırakıp sayılmasını istemiyorsan “Maçı iptal et” daha uygun.
+              {% else %}
+                Silmek kalıcıdır; yoklama yanıtları ve fotoğraflar da gider.
+              {% endif %}
+            </p>
           </div>
         </section>
       {% endif %}
