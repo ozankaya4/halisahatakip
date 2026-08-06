@@ -46,7 +46,7 @@
                  data-oyuncu="{{ oyuncu.kullanici.pk }}"
                  data-x="{{ oyuncu.x }}" data-y="{{ oyuncu.y }}"
                  {% if duzenlenebilir %}tabindex="0" role="button"
-                 aria-label="{{ oyuncu.kullanici.gorunen_ad }} — ok tuşlarıyla taşı"{% endif %}>
+                 aria-label="{{ oyuncu.kullanici.gorunen_ad }}, ok tuşlarıyla taşı"{% endif %}>
 
               <span class="oyuncu-kart-gorsel">
                 {% if oyuncu.kullanici.profil.avatar_url %}

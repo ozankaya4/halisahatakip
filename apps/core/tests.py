@@ -1374,6 +1374,176 @@ class OyDenetimiTesti(_TakimliMacKurulumu):
         self.assertContains(yanit, veren.gorunen_ad)
 
 
+class PuanRengiTesti(TestCase):
+    """Maç puanı rozetinin renk ölçeği."""
+
+    def test_olcek_dogru_esleniyor(self):
+        from apps.matches.dizilim import puan_rengi
+
+        beklenen = [
+            (5.9, "puan-kirmizi"),
+            (6.0, "puan-turuncu"),
+            (6.4, "puan-turuncu"),
+            (6.5, "puan-sari"),
+            (6.9, "puan-sari"),
+            (7.0, "puan-yesil"),
+            (7.9, "puan-yesil"),
+            (8.0, "puan-mavi"),
+            (8.8, "puan-mavi"),
+            (9.0, "puan-lacivert"),
+            (9.9, "puan-lacivert"),
+            (10.0, "puan-mor"),
+        ]
+        for deger, sinif in beklenen:
+            with self.subTest(puan=deger):
+                self.assertEqual(puan_rengi(deger), sinif)
+
+    def test_puansiz_oyuncuda_renk_yok(self):
+        from apps.matches.dizilim import puan_rengi
+
+        self.assertEqual(puan_rengi(None), "")
+
+
+class DizilimTesti(_TakimliMacKurulumu):
+    def test_dizilim_mac_oynanmadan_acilmiyor(self):
+        gelecek = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() + timezone.timedelta(days=2),
+            olusturan=self.ozan,
+        )
+        self.client.force_login(self.ozan)
+        yanit = self.client.get(reverse("matches:dizilim", args=[gelecek.pk]))
+        self.assertEqual(yanit.status_code, 302)
+
+    def test_uye_dizilimi_gorebiliyor(self):
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(reverse("matches:dizilim", args=[self.mac.pk]))
+        self.assertEqual(yanit.status_code, 200)
+        self.assertContains(yanit, 'id="saha"')
+
+    def test_uye_dizilimi_duzenleyemiyor(self):
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(reverse("matches:dizilim_duzenle", args=[self.mac.pk]))
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_yerlestirilmemis_oyuncuya_varsayilan_konum_veriliyor(self):
+        """Yönetici boş sahayla değil, düzeltilecek bir dizilimle başlamalı."""
+        from apps.matches.dizilim import dizilim_verisi
+
+        takimlar = dizilim_verisi(self.mac)
+        for takim in takimlar:
+            for oyuncu in takim["oyuncular"]:
+                self.assertIsNotNone(oyuncu["x"])
+                self.assertIsNotNone(oyuncu["y"])
+                self.assertTrue(0 <= oyuncu["x"] <= 100)
+                self.assertTrue(0 <= oyuncu["y"] <= 100)
+
+    def test_takimlar_sahanin_iki_yarisina_dagitiliyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        takimlar = {t["kod"]: t for t in dizilim_verisi(self.mac)}
+        a_ortalama = sum(o["x"] for o in takimlar["a"]["oyuncular"]) / len(
+            takimlar["a"]["oyuncular"]
+        )
+        b_ortalama = sum(o["x"] for o in takimlar["b"]["oyuncular"]) / len(
+            takimlar["b"]["oyuncular"]
+        )
+        self.assertLess(a_ortalama, 50)
+        self.assertGreater(b_ortalama, 50)
+
+    def test_konumlar_kaydediliyor(self):
+        self.client.force_login(self.ozan)
+        hedef = self.oyuncular[0]
+        self.client.post(
+            reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
+            {f"x_{hedef.pk}": "30", f"y_{hedef.pk}": "70"},
+        )
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=hedef)
+        self.assertEqual((katilim.poz_x, katilim.poz_y), (30, 70))
+
+    def test_saha_disi_konumlar_kirpiliyor(self):
+        """Bozuk ya da kötü niyetli gönderim dizilimi bozmasın."""
+        self.client.force_login(self.ozan)
+        hedef = self.oyuncular[0]
+        self.client.post(
+            reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
+            {f"x_{hedef.pk}": "9999", f"y_{hedef.pk}": "-50"},
+        )
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=hedef)
+        self.assertEqual((katilim.poz_x, katilim.poz_y), (100, 0))
+
+    def test_istatistikler_kaydediliyor(self):
+        self.client.force_login(self.ozan)
+        hedef = self.oyuncular[0]
+        self.client.post(
+            reverse("matches:dizilim_duzenle", args=[self.mac.pk]),
+            {
+                f"x_{hedef.pk}": "40", f"y_{hedef.pk}": "40",
+                f"gol_{hedef.pk}": "2", f"asist_{hedef.pk}": "1",
+                f"sari_{hedef.pk}": "1", f"kirmizi_{hedef.pk}": "1",
+            },
+        )
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=hedef)
+        self.assertEqual((katilim.gol, katilim.asist), (2, 1))
+        self.assertEqual(katilim.sari_kart, 1)
+        self.assertTrue(katilim.kirmizi_kart)
+
+    def test_grup_ayari_kapaliyken_istatistik_gosterilmiyor(self):
+        """Veri tutulur ama sahada görünmez."""
+        from apps.matches.dizilim import dizilim_verisi
+
+        Katilim.objects.filter(mac=self.mac, kullanici=self.oyuncular[0]).update(
+            gol=3, asist=2, sari_kart=1, kirmizi_kart=True
+        )
+        self.assertFalse(self.grup.gol_gosterilsin)
+
+        takimlar = dizilim_verisi(self.mac)
+        hepsi = [o for t in takimlar for o in t["oyuncular"]]
+        self.assertTrue(all(o["gol"] == 0 for o in hepsi))
+        self.assertTrue(all(o["sari_kart"] == 0 for o in hepsi))
+
+    def test_grup_ayari_aciksa_istatistik_gosteriliyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        Katilim.objects.filter(mac=self.mac, kullanici=self.oyuncular[0]).update(
+            gol=3, sari_kart=1
+        )
+        self.grup.gol_gosterilsin = True
+        self.grup.kart_gosterilsin = True
+        self.grup.save()
+
+        takimlar = dizilim_verisi(self.mac)
+        hepsi = [o for t in takimlar for o in t["oyuncular"]]
+        self.assertTrue(any(o["gol"] == 3 for o in hepsi))
+        self.assertTrue(any(o["sari_kart"] == 1 for o in hepsi))
+
+    def test_mac_puani_rozette_gosteriliyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        hedef = self._a_takimi()[1]
+        self._puanla(hedef, [(v, 9) for v in self._b_takimi()[:3]])
+
+        takimlar = dizilim_verisi(self.mac)
+        satir = next(
+            o for t in takimlar for o in t["oyuncular"] if o["kullanici"].pk == hedef.pk
+        )
+        self.assertEqual(satir["puan"], 9.0)
+        self.assertEqual(satir["puan_sinifi"], "puan-lacivert")
+
+    def test_karantinadaki_puan_rozete_yansimiyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        hedef = self._a_takimi()[1]
+        self._puanla(hedef, [(v, 10) for v in self._b_takimi()[:3]])
+        Puan.objects.filter(puanlanan=hedef).update(karantinada=True)
+
+        takimlar = dizilim_verisi(self.mac)
+        satir = next(
+            o for t in takimlar for o in t["oyuncular"] if o["kullanici"].pk == hedef.pk
+        )
+        self.assertIsNone(satir["puan"])
+
+
 class GelistiriciRozetiTesti(TestCase):
     def test_nihai_yonetici_rozeti_gorunuyor(self):
         gelistirici = kullanici("dev@example.com", "Ozan Kaya")
