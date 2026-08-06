@@ -28,6 +28,40 @@ fi
 source "${UYGULAMA_DIZINI}/deploy/sunucu.env"
 [[ -n "${ALAN_ADI:-}" ]] || hata "sunucu.env içinde ALAN_ADI boş."
 
+# Parola DATABASE_URL'nin içine gömülüyor. URL'de özel anlamı olan bir
+# karakter içerirse (özellikle "/"), Python adresi yanlış ayrıştırıyor ve
+# parolanın bir kısmını port numarası sanıp şu hatayı veriyor:
+#     ValueError: Port could not be cast to integer value as '...'
+# Bu yüzden "openssl rand -base64" kullanmayın: çıktısında / ve + olabiliyor.
+# Tehlikeli karakterleri saymak yerine güvenli olanları beyaz listeye
+# alıyoruz: URL'de "unreserved" sayılan harf, rakam, nokta, alt tire,
+# tire ve tilde. Başka her şey reddedilir. (Yasaklı karakterleri tek tek
+# saymak, köşeli parantez ifadesinde kaçış kuralları yüzünden sessizce
+# yanlış çalışıyordu.)
+GUVENLI_PAROLA_DESENI='^[A-Za-z0-9._~-]+$'
+if [[ -n "${DB_PAROLA:-}" ]] && ! [[ "${DB_PAROLA}" =~ $GUVENLI_PAROLA_DESENI ]]; then
+    hata "DB_PAROLA URL'de sorun çıkaracak bir karakter içeriyor.
+İzin verilenler: harf, rakam, nokta, alt tire, tire, tilde.
+
+Güvenli bir parola üretip ikisini birden güncelleyin:
+
+    PAROLA=\$(openssl rand -hex 24)
+    sudo -u postgres psql -c \"ALTER ROLE halisaha PASSWORD '\${PAROLA}';\"
+    sudo sed -i \"s|^DATABASE_URL=.*|DATABASE_URL=postgres://halisaha:\${PAROLA}@localhost:5432/halisaha|\" ${UYGULAMA_DIZINI}/.env
+    sudo sed -i \"s|^DB_PAROLA=.*|DB_PAROLA=\${PAROLA}|\" ${UYGULAMA_DIZINI}/deploy/sunucu.env"
+fi
+
+# .env içindeki DATABASE_URL'de yer tutucu köşeli parantez kalmış mı?
+if [[ -f "${UYGULAMA_DIZINI}/.env" ]] \
+   && grep -q '^DATABASE_URL=.*[<>]' "${UYGULAMA_DIZINI}/.env"; then
+    hata ".env içindeki DATABASE_URL satırında < veya > karakteri var.
+
+Kılavuzdaki <...> işaretleri 'buraya kendi değerinizi yazın' demek;
+köşeli parantezler silinmeli. Satır tam olarak şuna benzemeli:
+
+    DATABASE_URL=postgres://halisaha:PAROLANIZ@localhost:5432/halisaha"
+fi
+
 bilgi "Alan adı: ${ALAN_ADI}"
 
 # --- Paketler -------------------------------------------------------------

@@ -587,8 +587,13 @@ cd /srv/halisaha
 
 ```bash
 cp deploy/sunucu.env.ornek deploy/sunucu.env
-openssl rand -base64 32
+openssl rand -hex 24
 ```
+
+⚠️ `-hex` yazdığınızdan emin olun, `-base64` değil. Base64 çıktısında
+`/` ve `+` olabiliyor; bu parola veritabanı adresinin içine gömüldüğü için
+`/` adresi ortadan bölüyor ve kurulum şu hatayla duruyor:
+`ValueError: Port could not be cast to integer value as '...'`
 
 Çıkan rastgele metni kopyalayın, sonra:
 
@@ -642,7 +647,7 @@ DEBUG=False
 ALLOWED_HOSTS=halisahadefteri.site,www.halisahadefteri.site
 CSRF_TRUSTED_ORIGINS=https://halisahadefteri.site,https://www.halisahadefteri.site
 
-DATABASE_URL=postgres://halisaha:<F2'deki DB_PAROLA>@localhost:5432/halisaha
+DATABASE_URL=postgres://halisaha:BURAYA_F2_PAROLASI@localhost:5432/halisaha
 
 USE_X_ACCEL_REDIRECT=True
 BEHIND_PROXY=True
@@ -659,6 +664,18 @@ DEFAULT_FROM_EMAIL=Halısaha Defteri <hikmetozankaya@gmail.com>
 SUPERADMIN_EMAIL=hikmetozankaya@gmail.com
 SUPERADMIN_PASSWORD=<YENİ ve güçlü bir parola>
 SUPERADMIN_NAME=Ozan Kaya
+```
+
+⚠️ **Köşeli parantez bırakmayın.** Bu kılavuzda `<...>` ya da
+`BURAYA_...` yazan yerler "kendi değerinizi yazın" demek; yer tutucunun
+kendisi silinmeli. `DATABASE_URL` satırında `<` veya `>` kalırsa kurulum
+şu hatayla durur:
+`ValueError: Port could not be cast to integer value as '<...'`
+
+Doğru görünüm (parola sizin ürettiğiniz olacak):
+
+```ini
+DATABASE_URL=postgres://halisaha:a3f9c81e0b7d4a62f5e8c091@localhost:5432/halisaha
 ```
 
 ⚠️ `SECURE_SSL_REDIRECT` şimdilik **False** kalsın. Sertifikanız henüz yok;
