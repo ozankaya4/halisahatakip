@@ -176,6 +176,22 @@
                 puan biriktirilemez.
               </p>
             {% endif %}
+
+            {% if not mac.gecmis_mi %}
+              <form method="post" action="{% url 'matches:sil' mac.pk %}"
+                    data-onay="Maç, yoklama yanıtları ve tüm fotoğrafları kalıcı olarak silinsin mi? Bu işlem geri alınamaz.">
+                {% csrf_token %}
+                <button class="dugme dugme-genis dugme-tehlike" type="submit">Maçı sil</button>
+              </form>
+              <p class="kucuk solgun">
+                Maç henüz oynanmadı, tamamen silinebilir.
+              </p>
+            {% else %}
+              <p class="kucuk solgun">
+                Oynanmış maçlar silinemez; grubun geçmiş kaydıdır.
+                Sayılmasını istemiyorsan “Maçı iptal et” diyebilirsin.
+              </p>
+            {% endif %}
           </div>
         </section>
       {% endif %}
