@@ -40,7 +40,133 @@ klasörünün göründüğünü doğrulayın.
 
 ---
 
+# BÖLÜM B0 — KOLAY YOL: Cloud Shell (önerilen)
+
+Aşağıdaki B ve C bölümleri konsolda tıklayarak ilerliyor. Oracle arayüzü
+sık değiştiği için bu yol yorucu olabiliyor.
+
+**Cloud Shell**, Oracle konsolunun içine gömülü bir komut satırı. Zaten
+sizin hesabınızla açılmış geliyor; komut yazıyorsunuz, iş oluyor. Komutlar
+arayüz gibi değişmediği için çok daha güvenilir.
+
+Bu yolu seçerseniz **B2-B9 ve tüm C bölümünü atlayabilirsiniz.**
+
+## B0.1. Cloud Shell'i açın
+
+1. Oracle konsolunda, sayfanın **sağ üst köşesindeki** simge sırasına bakın
+2. **`>_`** şeklinde bir terminal simgesi var, ona tıklayın
+   (bulamazsanız: `{;}` "Developer tools" simgesine tıklayın, açılan
+   listeden **Cloud Shell** seçin)
+3. Sayfanın altında siyah bir pencere açılır. İlk açılışta 30 saniye
+   kadar "starting" yazabilir, bekleyin.
+4. Sonunda şuna benzer bir satır görürsünüz:
+
+```
+hikmetozankaya@cloudshell:~ (eu-frankfurt-1)$
+```
+
+Bu satıra **komut istemi** deniyor. Buraya komut yazıp Enter'a basacaksınız.
+
+## B0.2. Komutları nasıl yapıştıracaksınız
+
+Uzun komutları elle yazmayın; kopyala-yapıştır yapın.
+
+- **Kopyalama** (bu belgeden / sohbetten): metni fareyle seçip **Ctrl+C**
+- **Cloud Shell'e yapıştırma**: pencereye tıklayın, sonra **sağ tık** →
+  **Paste**
+
+💡 Cloud Shell'de **Ctrl+V çalışmaz**. Terminal pencerelerinde Ctrl+V'nin
+başka bir anlamı var. Sağ tık kullanın, ya da **Ctrl+Shift+V** deneyin.
+
+⚠️ Her komuttan sonra **Enter** tuşuna basmayı unutmayın. Enter'a basmadan
+komut çalışmaz.
+
+## B0.3. Kodu Cloud Shell'e indirin
+
+Aşağıdaki üç satırı **tek tek** yapıştırıp her birinden sonra Enter'a basın:
+
+```bash
+git clone https://github.com/ozankaya4/halisahatakip.git
+```
+
+```bash
+cd halisahatakip/deploy
+```
+
+```bash
+ls
+```
+
+Son komut dosyaları listeler. `cloudshell_sunucu_olustur.sh` adını
+görüyorsanız her şey yolunda.
+
+## B0.4. Sunucuyu oluşturun
+
+```bash
+bash cloudshell_sunucu_olustur.sh
+```
+
+Betik sırayla şunları yapar ve her adımı ekrana yazar:
+
+1. **SSH anahtarı sorar.** Anahtarınız yoksa "Anahtar şimdi oluşturulsun
+   mu?" diye sorar → `evet` yazıp Enter. Kendi bilgisayarınızda hiçbir şey
+   yapmanız gerekmez.
+2. Ağınızı, Ubuntu görüntüsünü ve bölgeleri bulur
+3. Ne oluşturacağını özetler → `evet` yazıp Enter
+4. Kapasite bulana kadar tüm bölgeleri dener
+5. Sonunda **sunucunun genel IP adresini** yazar
+
+⚠️ Bu IP adresini bir yere not edin.
+
+> **"Genel alt ağ bulunamadı" hatası alırsanız:** ağınız henüz yok
+> demektir. B6a bölümündeki VCN Wizard adımını yapın (6 tıklama), sonra
+> bu komutu tekrar çalıştırın.
+
+## B0.5. Güvenlik kurallarını açın
+
+```bash
+bash cloudshell_guvenlik_kurallari.sh
+```
+
+Mevcut kuralları gösterir, ne değişeceğini yazar, `evet` ister.
+
+Sonunda listede **22, 80 ve 443** görüyorsanız tamam.
+
+## B0.6. Sunucuya bağlanın
+
+```bash
+ssh -i ~/halisaha_anahtar ubuntu@<SUNUCU_IP>
+```
+
+`<SUNUCU_IP>` yerine B0.4'te not ettiğiniz adresi yazın (köşeli
+parantezler olmadan).
+
+İlk bağlantıda şu soru çıkar:
+
+```
+Are you sure you want to continue connecting (yes/no)?
+```
+
+`yes` yazıp Enter'a basın. (`y` değil, tam olarak `yes`.)
+
+Komut istemi şuna dönerse bağlandınız:
+
+```
+ubuntu@halisaha:~$
+```
+
+✅ Artık **BÖLÜM F**'ye geçebilirsiniz. B'nin geri kalanını ve C'yi
+atlayın.
+
+💡 Bundan sonra sunucuya hep Cloud Shell'den bağlanabilirsiniz; kendi
+bilgisayarınıza bir şey kurmanız gerekmiyor.
+
+---
+
 # BÖLÜM B — Oracle'da sunucu oluşturma (20 dk)
+
+> Bu bölüm **tıklayarak** ilerleyen yol. B0'daki Cloud Shell yolunu
+> kullandıysanız buradan **F bölümüne atlayın**.
 
 ## B1. Konsola girin
 

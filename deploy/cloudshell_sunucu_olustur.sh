@@ -29,16 +29,25 @@ TENANCY="${OCI_TENANCY:-}"
 bilgi "Kiracı bulundu"
 
 # --- 2. SSH açık anahtarı -------------------------------------------------
+# Anahtar, sunucuya parolasız ve güvenli girmenizi sağlayan dosya çifti.
+# Yoksa burada oluşturuyoruz; kendi bilgisayarınızda bir şey yapmanıza
+# gerek yok.
 if [[ ! -f "${SSH_ACIK_ANAHTAR}" ]]; then
-    hata "Açık anahtar yok: ${SSH_ACIK_ANAHTAR}
-
-Kendi bilgisayarınızda şunu çalıştırıp çıktısını kopyalayın:
-    Get-Content \"\$env:USERPROFILE\\.ssh\\oracle_halisaha.pub\"
-
-Sonra Cloud Shell'de:
-    nano ~/halisaha_anahtar.pub
-ve yapıştırıp Ctrl+O, Enter, Ctrl+X ile kaydedin."
+    uyari "Sunucuya bağlanmak için bir SSH anahtarı gerekiyor, henüz yok."
+    echo
+    echo "  Anahtar nedir: sunucuya parola yerine kullanılan, iki dosyadan"
+    echo "  oluşan bir kimlik. Biri gizli (sizde kalır), biri açık"
+    echo "  (sunucuya konur). Şimdi burada oluşturabilirim."
+    echo
+    read -rp "Anahtar şimdi oluşturulsun mu? (evet/hayir): " ANAHTAR_ONAY
+    if [[ "${ANAHTAR_ONAY}" == "evet" ]]; then
+        ssh-keygen -t ed25519 -f "${SSH_ACIK_ANAHTAR%.pub}" -N "" -C "halisaha" >/dev/null
+        bilgi "Anahtar oluşturuldu: ${SSH_ACIK_ANAHTAR%.pub} (gizli) ve ${SSH_ACIK_ANAHTAR} (açık)"
+    else
+        hata "Anahtar olmadan devam edilemez."
+    fi
 fi
+
 grep -q '^ssh-' "${SSH_ACIK_ANAHTAR}" \
     || hata "${SSH_ACIK_ANAHTAR} geçerli bir açık anahtar gibi görünmüyor (ssh- ile başlamalı)."
 bilgi "SSH açık anahtarı hazır"
@@ -166,9 +175,12 @@ cat <<SON
  2) Namecheap'te iki A kaydı: @ ve www -> ${IP}
     (ADIM_ADIM.md, Bölüm D)
 
- 3) Sunucuya bağlanın (kendi bilgisayarınızdan):
+ 3) Sunucuya bağlanın. En kolayı buradan, Cloud Shell'den:
 
-    ssh -i "\$env:USERPROFILE\\.ssh\\oracle_halisaha" ubuntu@${IP}
+    ssh -i ~/halisaha_anahtar ubuntu@${IP}
+
+    İlk seferde "Are you sure you want to continue connecting?"
+    diye sorar; "yes" yazıp Enter'a basın.
 ──────────────────────────────────────────────────────────────
 
 SON
