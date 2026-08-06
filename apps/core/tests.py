@@ -1046,6 +1046,123 @@ class GorselBicimleriTesti(TestCase):
             gorseli_isle(zararli, AVATAR)
 
 
+class AnaEkranUygulamasiTesti(TestCase):
+    """Ana ekrana eklenebilir uygulama (PWA) gereksinimleri."""
+
+    def test_manifest_dogru_icerik_turuyle_sunuluyor(self):
+        yanit = self.client.get(reverse("core:manifest"))
+        self.assertEqual(yanit.status_code, 200)
+        # Statik dosya olarak sunulsaydı nginx bunu octet-stream yapardı ve
+        # tarayıcı manifesti yok sayardı.
+        self.assertEqual(yanit["Content-Type"], "application/manifest+json")
+
+    def test_manifest_icerigi(self):
+        import json
+
+        veri = json.loads(self.client.get(reverse("core:manifest")).content)
+        self.assertEqual(veri["name"], "Halısaha Defteri")
+        self.assertEqual(veri["short_name"], "Halısaha Defteri")
+        # Uygulama panele açılmalı, tanıtım sayfasına değil.
+        self.assertEqual(veri["start_url"], "/panel/")
+        self.assertEqual(veri["display"], "standalone")
+
+        boyutlar = {i["sizes"] for i in veri["icons"]}
+        self.assertIn("192x192", boyutlar)
+        self.assertIn("512x512", boyutlar)
+        # Android ikonu kırpıyor; maskable sürüm olmazsa saha çizgileri kesilir.
+        self.assertIn("maskable", {i["purpose"] for i in veri["icons"]})
+
+    def test_servis_calisani_kokten_sunuluyor(self):
+        """Yetki alanı bulunduğu klasörle sınırlı; kökte olmak zorunda."""
+        self.assertEqual(reverse("core:servis_calisani"), "/sw.js")
+
+        yanit = self.client.get("/sw.js")
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("javascript", yanit["Content-Type"])
+        self.assertEqual(yanit["Service-Worker-Allowed"], "/")
+        # Önbelleğe alınırsa yayınlanan düzeltmeler cihazlara ulaşmıyor.
+        self.assertIn("no-cache", yanit["Cache-Control"])
+
+    def test_servis_calisani_ozel_veriyi_onbellege_almiyor(self):
+        """
+        Telefon paylaşılabilir: kullanıcıya ait hiçbir şey cihazda kalmamalı.
+
+        Yalnızca /static/ altı saklanıyor; fotoğraflar ve sayfalar değil.
+        """
+        govde = self.client.get("/sw.js").content.decode("utf-8")
+        self.assertIn("statikMi", govde)
+        self.assertNotIn('"/dosya/', govde)
+        self.assertNotIn('"/sohbet/', govde)
+
+    def test_cevrimdisi_sayfasi_kisisel_veri_icermiyor(self):
+        yanit = self.client.get(reverse("core:cevrimdisi"))
+        self.assertEqual(yanit.status_code, 200)
+        # Giriş yapılmamışken bile açılmalı: servis çalışanı bunu saklıyor.
+        self.assertContains(yanit, "İnternet bağlantısı yok")
+
+    def test_sayfalarda_manifest_ve_ikon_bagli(self):
+        govde = self.client.get(reverse("core:home")).content.decode("utf-8")
+        self.assertIn('rel="manifest"', govde)
+        self.assertIn("apple-touch-icon", govde)
+        self.assertIn('name="theme-color"', govde)
+        self.assertIn('content="Halısaha Defteri"', govde)
+
+    def test_ikon_dosyalari_diskte_var(self):
+        kok = settings.BASE_DIR / "static" / "img"
+        for ad in [
+            "ikon-192.png", "ikon-512.png",
+            "ikon-maskable-192.png", "ikon-maskable-512.png",
+            "apple-touch-icon.png",
+        ]:
+            with self.subTest(ikon=ad):
+                self.assertTrue((kok / ad).is_file(), f"{ad} yok")
+
+
+class FotografBuyutecTesti(TestCase):
+    """Profil fotoğrafına tıklayınca büyüyen katman."""
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.client.force_login(self.ozan)
+
+    def test_katman_her_sayfada_hazir(self):
+        govde = self.client.get(reverse("core:dashboard")).content.decode("utf-8")
+        self.assertIn('id="buyutec"', govde)
+        self.assertIn("data-buyutec-gorsel", govde)
+
+    def test_fotografsiz_profilde_buyutec_dugmesi_yok(self):
+        govde = self.client.get(
+            reverse("accounts:profil", args=[self.ozan.pk])
+        ).content.decode("utf-8")
+        self.assertNotIn("data-buyutec=", govde)
+
+    def test_fotografli_profilde_buyutec_dugmesi_var(self):
+        from PIL import Image
+
+        from apps.accounts.models import Profil
+
+        ham = io.BytesIO()
+        Image.new("RGB", (70, 70), (10, 120, 60)).save(ham, format="JPEG")
+
+        with tempfile.TemporaryDirectory() as gecici:
+            with override_settings(MEDIA_ROOT=gecici):
+                self.client.post(
+                    reverse("accounts:profil_duzenle"),
+                    {
+                        "ad_soyad": "Ozan Kaya",
+                        "avatar": SimpleUploadedFile(
+                            "foto.jpg", ham.getvalue(), content_type="image/jpeg"
+                        ),
+                    },
+                )
+                govde = self.client.get(
+                    reverse("accounts:profil", args=[self.ozan.pk])
+                ).content.decode("utf-8")
+
+                profil = Profil.objects.get(kullanici=self.ozan)
+                self.assertIn(f'data-buyutec="{profil.avatar_url}"', govde)
+
+
 class AvatarDegistirmeTesti(TestCase):
     """
     Yeni profil fotoğrafı yüklenince adresin de değişmesi gerekiyor.

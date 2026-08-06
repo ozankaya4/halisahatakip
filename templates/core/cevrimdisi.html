@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% comment %}
+Çevrimdışı sayfası. Servis çalışanı bunu önbelleğe alıyor ve ağ tamamen
+yokken gösteriyor. Bu yüzden içinde KULLANICIYA AİT HİÇBİR ŞEY olamaz:
+sayfa cihazda saklanıyor ve telefonu eline alan herkes görebilir.
+{% endcomment %}
+
+{% block baslik %}Bağlantı yok · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Çevrimdışı</p>
+        <h1>İnternet bağlantısı yok</h1>
+      </div>
+    </div>
+
+    <p>
+      Halısaha Defteri'ne şu anda ulaşılamıyor. Bağlantın geri geldiğinde
+      kaldığın yerden devam edebilirsin.
+    </p>
+
+    <p class="kucuk solgun">
+      Maçlar, kadrolar ve sohbet yalnızca çevrimiçiyken görüntülenir.
+      Bunlar cihazında saklanmaz; telefonu başkası eline alsa bile grubunun
+      bilgilerine erişemez.
+    </p>
+
+    <p>
+      <button class="dugme dugme-birincil" type="button" data-yenile>
+        Yeniden dene
+      </button>
+    </p>
+  </div>
+{% endblock %}

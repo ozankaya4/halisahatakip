@@ -6,7 +6,13 @@
   <div class="defter-basligi">
     <div class="oyuncu">
       {% if profil.avatar_url %}
-        <img class="avatar avatar-buyuk" src="{{ profil.avatar_url }}" alt="" width="88" height="88">
+        <button class="buyutec-dugme" type="button"
+                data-buyutec="{{ profil.avatar_url }}"
+                data-buyutec-alt="{{ gosterilen.gorunen_ad }} profil fotoğrafı"
+                data-buyutec-baslik="{{ gosterilen.gorunen_ad }}"
+                aria-label="{{ gosterilen.gorunen_ad }} fotoğrafını büyüt">
+          <img class="avatar avatar-buyuk" src="{{ profil.avatar_url }}" alt="" width="88" height="88">
+        </button>
       {% else %}
         <span class="avatar avatar-buyuk avatar-bos" aria-hidden="true">{{ gosterilen.bas_harfler }}</span>
       {% endif %}

@@ -20,12 +20,23 @@
     {% if yonetici_mi %}
       <div class="satir">
         <a class="dugme dugme-sessiz" href="{% url 'matches:duzenle' mac.pk %}">Düzenle</a>
-        {% if mac.gecmis_mi %}
-          <a class="dugme" href="{% url 'matches:kadro_duzenle' mac.pk %}">Kadroyu işaretle</a>
+        {% if mac.gecmis_mi and not mac.iptal %}
+          <a class="dugme dugme-birincil" href="{% url 'matches:kadro_duzenle' mac.pk %}">
+            Kim oynadı?
+          </a>
         {% endif %}
       </div>
     {% endif %}
   </div>
+
+  {% if yonetici_mi and mac.gecmis_mi and not mac.iptal %}
+    <div class="serit serit-bilgi">
+      <strong>Maç oynandı.</strong>
+      Yoklamaya yanıt vermeyi unutan ya da son anda gelemeyen olduysa
+      <a href="{% url 'matches:kadro_duzenle' mac.pk %}">kadroyu düzelt</a>.
+      Yalnızca kadroda işaretli oyuncular puan verebilir ve puan alabilir.
+    </div>
+  {% endif %}
 
   {% if mac.iptal %}
     <div class="serit serit-hata"><strong>Bu maç iptal edildi.</strong></div>
@@ -98,7 +109,13 @@
           <ul class="foto-izgara">
             {% for foto in fotograflar %}
               <li>
-                <img src="{{ foto.url }}" alt="{{ foto.aciklama|default:'Maç fotoğrafı' }}" loading="lazy">
+                <button class="buyutec-dugme foto-buyutec" type="button"
+                        data-buyutec="{{ foto.url }}"
+                        data-buyutec-alt="{{ foto.aciklama|default:'Maç fotoğrafı' }}"
+                        data-buyutec-baslik="{{ foto.aciklama }}"
+                        aria-label="Fotoğrafı büyüt">
+                  <img src="{{ foto.url }}" alt="{{ foto.aciklama|default:'Maç fotoğrafı' }}" loading="lazy">
+                </button>
                 {% if yonetici_mi or foto.yukleyen_id == user.pk %}
                   <form class="foto-sil" method="post"
                         action="{% url 'matches:fotograf_sil' foto.pk %}"

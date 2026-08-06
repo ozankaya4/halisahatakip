@@ -9,6 +9,18 @@
     <meta name="description" content="{% block aciklama %}Halı saha maçlarını, kadroları ve oyuncu puanlarını takip eden özel grup defteri.{% endblock %}">
     <link rel="stylesheet" href="{% static 'css/defter.css' %}">
     <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+
+    {# Ana ekrana eklenebilir uygulama #}
+    <link rel="manifest" href="{% url 'core:manifest' %}">
+    <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+    <meta name="theme-color" content="#1f4d38" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Halısaha Defteri">
+    <meta name="application-name" content="Halısaha Defteri">
+
     {% block ekstra_head %}{% endblock %}
   </head>
   <body>
@@ -84,6 +96,21 @@
         </span>
       </div>
     </footer>
+
+    {% comment %}
+    Fotoğraf büyüteci. <dialog> seçildi çünkü odak tuzağı, Esc ile kapanma
+    ve arka planın ekran okuyuculardan gizlenmesi tarayıcı tarafından
+    sağlanıyor; bunları elle yazmak hem uzun hem hataya açık olurdu.
+    {% endcomment %}
+    <dialog id="buyutec" class="buyutec" aria-label="Fotoğraf">
+      <form method="dialog" class="buyutec-kapat-sarmal">
+        <button class="buyutec-kapat" data-buyutec-kapat type="submit" aria-label="Kapat">
+          <span aria-hidden="true">×</span>
+        </button>
+      </form>
+      <img class="buyutec-gorsel" data-buyutec-gorsel alt="">
+      <p class="buyutec-baslik" data-buyutec-baslik></p>
+    </dialog>
 
     <script type="module" src="{% static 'js/app.js' %}"></script>
     {% block ekstra_js %}{% endblock %}

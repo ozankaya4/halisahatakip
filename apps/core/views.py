@@ -11,7 +11,7 @@ from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirec
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from .context_processors import GECERLI_TEMALAR, TEMA_COOKIE
 
@@ -103,6 +103,48 @@ def tema_degistir(request):
         secure=request.is_secure(),
         httponly=False,
     )
+    return yanit
+
+
+# ---------------------------------------------------------------------------
+# Ana ekrana eklenebilir uygulama (PWA)
+# ---------------------------------------------------------------------------
+def cevrimdisi(request):
+    """Ağ yokken servis çalışanının gösterdiği sayfa. İçinde kişisel veri yok."""
+    return render(request, "core/cevrimdisi.html")
+
+
+def manifest(request):
+    """
+    Uygulama tanımı.
+
+    Statik dosya yerine görünüm: nginx'in mime.types tablosunda .webmanifest
+    yok, statik sunulduğunda yanlış içerik türüyle inip yok sayılıyor.
+    """
+    return render(
+        request,
+        "pwa/manifest.webmanifest",
+        content_type="application/manifest+json",
+    )
+
+
+@require_http_methods(["GET"])
+def servis_calisani(request):
+    """
+    Servis çalışanı dosyası.
+
+    Kökten sunulmak ZORUNDA: bir servis çalışanının yetki alanı bulunduğu
+    klasörle sınırlıdır. /static/js/sw.js olsaydı yalnızca /static/js/
+    altındaki isteklere karışabilirdi.
+
+    Cache-Control "no-cache": tarayıcı dosyayı her açılışta sunucuya sorar.
+    Aksi hâlde servis çalışanının eski sürümü aylarca cihazda kalabiliyor ve
+    yayınlanan düzeltmeler kullanıcıya ulaşmıyor.
+    """
+    yanit = render(request, "pwa/sw.js", content_type="text/javascript")
+    yanit["Cache-Control"] = "no-cache, max-age=0"
+    # Kökten sunulduğunu tarayıcıya açıkça bildiriyoruz.
+    yanit["Service-Worker-Allowed"] = "/"
     return yanit
 
 
