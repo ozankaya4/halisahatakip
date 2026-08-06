@@ -54,6 +54,15 @@ IZINLI_BICIMLER = {
     "BMP", "TIFF",
     "HEIF", "HEIC",  # iPhone
     "AVIF",
+    # MPO: "Multi Picture Object". Dosya .jpg/.jpeg uzantılı sıradan bir
+    # fotoğraf gibi görünür ama içinde birden fazla JPEG karesi taşır
+    # (çift kameralı telefonlar, derinlik/portre modu, 3B çekimler bunu
+    # üretiyor). Pillow bu dosyaların format'ını "JPEG" değil "MPO" olarak
+    # bildiriyor ve beyaz listede olmadığı için telefondan çekilmiş normal
+    # bir fotoğraf reddedilebiliyordu.
+    # Güvenlik açısından JPEG'den farkı yok: aynı çözücü, tek fark birden
+    # fazla kare. Aşağıda zaten yalnızca ilk kareyi alıyoruz.
+    "MPO",
 }
 IZINLI_UZANTILAR = {
     ".jpg", ".jpeg", ".jpe", ".png", ".webp", ".gif",
@@ -195,7 +204,14 @@ def gorseli_isle(yuklenen, profil: GorselProfili) -> tuple[ContentFile, str]:
         with Image.open(io.BytesIO(ham)) as gorsel:
             bicim = (gorsel.format or "").upper()
             if bicim not in IZINLI_BICIMLER:
-                raise ValidationError("Bu görsel biçimi desteklenmiyor.")
+                # Biçim adını mesaja koyuyoruz: aksi hâlde "desteklenmiyor"
+                # deyip hangi biçim olduğunu söylemeyince, sorunu ancak
+                # sunucuya girip tek tek deneyerek bulmak gerekiyor.
+                raise ValidationError(
+                    f"Bu görsel biçimi desteklenmiyor: "
+                    f"{bicim or 'tanınmadı'}. "
+                    f"Desteklenenler: {', '.join(sorted(IZINLI_BICIMLER))}."
+                )
 
             en, boy = gorsel.size
             if en <= 0 or boy <= 0:

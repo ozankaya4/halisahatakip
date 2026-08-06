@@ -987,6 +987,45 @@ class GorselBicimleriTesti(TestCase):
                 _, ad = gorseli_isle(dosya, AVATAR)
                 self.assertTrue(ad.endswith(".webp"))
 
+    def test_mpo_fotografi_kabul_edilir(self):
+        """
+        Çift kameralı telefonların ürettiği MPO dosyaları .jpeg uzantılı gelir.
+
+        Pillow bunların format'ını "MPO" bildiriyor; beyaz listede olmadığı
+        için telefondan çekilmiş sıradan bir fotoğraf reddediliyordu.
+        """
+        from PIL import Image
+
+        from apps.core.images import AVATAR, gorseli_isle
+
+        kare1 = Image.new("RGB", (90, 70), (20, 120, 70))
+        kare2 = Image.new("RGB", (90, 70), (120, 20, 70))
+        ham = io.BytesIO()
+        kare1.save(ham, format="MPO", append_images=[kare2])
+        ham.seek(0)
+
+        # Gerçekten MPO ürettiğimizi doğrula, yoksa test bir şey kanıtlamaz.
+        with Image.open(io.BytesIO(ham.getvalue())) as kontrol:
+            self.assertEqual(kontrol.format, "MPO")
+
+        dosya = SimpleUploadedFile("IMG_1234.jpeg", ham.getvalue(), content_type="image/jpeg")
+        _, ad = gorseli_isle(dosya, AVATAR)
+        self.assertTrue(ad.endswith(".webp"))
+
+    def test_desteklenmeyen_bicim_mesaji_bicimi_soyluyor(self):
+        """Hata mesajı hangi biçim olduğunu yazmalı; teşhis kolaylaşsın."""
+        from django.core.exceptions import ValidationError
+
+        from apps.core.images import AVATAR, gorseli_isle
+
+        ham = io.BytesIO()
+        Image.new("RGB", (40, 40), (10, 10, 10)).save(ham, format="PPM")
+        dosya = SimpleUploadedFile("garip.png", ham.getvalue(), content_type="image/png")
+
+        with self.assertRaises(ValidationError) as kutu:
+            gorseli_isle(dosya, AVATAR)
+        self.assertIn("PPM", str(kutu.exception))
+
     def test_gorsel_olmayan_dosya_hala_reddediliyor(self):
         """
         content_type kontrolü kalktı diye kapı açılmadı: asıl bekçi Pillow.
