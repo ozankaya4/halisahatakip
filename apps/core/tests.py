@@ -1046,6 +1046,89 @@ class GorselBicimleriTesti(TestCase):
             gorseli_isle(zararli, AVATAR)
 
 
+class AvatarDegistirmeTesti(TestCase):
+    """
+    Yeni profil fotoğrafı yüklenince adresin de değişmesi gerekiyor.
+
+    Adres /dosya/avatar/<avatar_id>/ ve yanıt bir saat önbelleğe alınıyor.
+    avatar_id sabit kalırsa dosya diskte değişse bile tarayıcı eski
+    fotoğrafı göstermeye devam ediyor: kullanıcıya "güncellendi" yazıyor,
+    ekranda hiçbir şey değişmiyor.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.client.force_login(self.ozan)
+
+    def _yukle(self, renk):
+        from PIL import Image
+
+        ham = io.BytesIO()
+        Image.new("RGB", (70, 70), renk).save(ham, format="JPEG")
+        return SimpleUploadedFile("foto.jpg", ham.getvalue(), content_type="image/jpeg")
+
+    def test_yeni_fotograf_adresi_degistiriyor(self):
+        from apps.accounts.models import Profil
+
+        with tempfile.TemporaryDirectory() as gecici:
+            with override_settings(MEDIA_ROOT=gecici):
+                self.client.post(
+                    reverse("accounts:profil_duzenle"),
+                    {"ad_soyad": "Ozan Kaya", "avatar": self._yukle((10, 120, 60))},
+                )
+                profil = Profil.objects.get(kullanici=self.ozan)
+                ilk_id = profil.avatar_id
+                ilk_url = profil.avatar_url
+
+                self.client.post(
+                    reverse("accounts:profil_duzenle"),
+                    {"ad_soyad": "Ozan Kaya", "avatar": self._yukle((200, 30, 30))},
+                )
+                profil.refresh_from_db()
+
+                self.assertNotEqual(
+                    profil.avatar_id, ilk_id,
+                    "avatar_id aynı kaldı; tarayıcı eski fotoğrafı gösterir",
+                )
+                self.assertNotEqual(profil.avatar_url, ilk_url)
+
+    def _durum(self, url) -> int:
+        """
+        İsteği yapar ve yanıtı KAPATIR.
+
+        FileResponse dosyayı açık tutuyor; Windows açık bir dosyanın
+        silinmesine izin vermediği için, kapatmadan yeni fotoğraf
+        yüklenemiyor. Gerçek sunucuda bunu WSGI katmanı hallediyor.
+        """
+        yanit = self.client.get(url)
+        if hasattr(yanit, "streaming_content"):
+            b"".join(yanit.streaming_content)
+        yanit.close()
+        return yanit.status_code
+
+    def test_eski_adres_artik_bulunamiyor(self):
+        """Eski adres 404 dönmeli; önbellekteki kopya böylece geçersizleşir."""
+        from apps.accounts.models import Profil
+
+        with tempfile.TemporaryDirectory() as gecici:
+            with override_settings(MEDIA_ROOT=gecici):
+                self.client.post(
+                    reverse("accounts:profil_duzenle"),
+                    {"ad_soyad": "Ozan Kaya", "avatar": self._yukle((10, 120, 60))},
+                )
+                eski_url = Profil.objects.get(kullanici=self.ozan).avatar_url
+                self.assertEqual(self._durum(eski_url), 200)
+
+                self.client.post(
+                    reverse("accounts:profil_duzenle"),
+                    {"ad_soyad": "Ozan Kaya", "avatar": self._yukle((200, 30, 30))},
+                )
+                self.assertEqual(self._durum(eski_url), 404)
+
+                yeni_url = Profil.objects.get(kullanici=self.ozan).avatar_url
+                self.assertEqual(self._durum(yeni_url), 200)
+
+
 class VekilArkasindaIstemciIPTesti(TestCase):
     """
     Ters vekil arkasında istemci IP'sinin bulunabildiğini doğrular.

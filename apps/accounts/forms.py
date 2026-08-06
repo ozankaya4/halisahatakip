@@ -1,3 +1,5 @@
+import uuid
+
 from django import forms
 
 from apps.core.images import AVATAR, DOSYA_SECICI_ACCEPT, gorseli_isle
@@ -89,6 +91,21 @@ class ProfilFormu(forms.ModelForm):
         if yeni_avatar:
             profil.avatar.delete(save=False)
             profil.avatar.save(yeni_avatar.name, yeni_avatar, save=False)
+            # Adresteki kimliği de yeniliyoruz.
+            #
+            # Fotoğrafın adresi /dosya/avatar/<avatar_id>/ ve avatar_id profil
+            # ilk oluşturulduğunda bir kez üretiliyordu. Yeni fotoğraf
+            # yüklenince dosya değişiyor ama ADRES aynı kalıyordu; yanıtta
+            # "Cache-Control: private, max-age=3600" olduğu için tarayıcı bir
+            # saat boyunca eski fotoğrafı önbellekten gösteriyordu.
+            # Kullanıcıya "profilin güncellendi" yazıyor ama ekranda hiçbir
+            # şey değişmiyordu.
+            #
+            # Kimliği yenileyince adres de değişiyor, tarayıcı yeni dosyayı
+            # istemek zorunda kalıyor. Eski adres artık hiçbir kayda denk
+            # gelmediği için 404 döner; önbellekteki kopya kendiliğinden
+            # geçersizleşir.
+            profil.avatar_id = uuid.uuid4()
 
         if commit:
             profil.save()
