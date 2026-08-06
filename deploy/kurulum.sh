@@ -33,18 +33,40 @@ bilgi "Alan adı: ${ALAN_ADI}"
 # --- Paketler -------------------------------------------------------------
 bilgi "Sistem paketleri kuruluyor"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq \
-    python3 python3-venv python3-dev build-essential \
-    postgresql postgresql-contrib libpq-dev \
-    nginx certbot python3-certbot-nginx \
-    git curl ufw iptables-persistent unattended-upgrades
+
+# Paket listesi güncellenemezse devam etmenin anlamı yok.
+apt-get update || hata "apt-get update başarısız. Yukarıdaki çıktıyı Claude'a yapıştırın."
+
+# Paketleri gruplar hâlinde kuruyoruz. Tek uzun komut çalıştırıp "-qq" ile
+# susturmak, hata çıktığında hangi paketin sorun olduğunu gizliyordu;
+# geriye yalnızca "you have held broken packages" gibi sebebi anlaşılmayan
+# bir satır kalıyordu. Grup grup kurunca sorunlu grup hemen belli oluyor.
+paket_kur() {
+    local etiket="$1"; shift
+    printf '    - %s\n' "${etiket}"
+    if ! apt-get install -y "$@"; then
+        hata "Paket kurulumu başarısız: ${etiket}
+Paketler: $*
+
+Yukarıdaki apt çıktısının TAMAMINI Claude'a yapıştırın; hangi paketin
+çakıştığı orada yazıyor.
+
+Sık işe yarayan iki komut:
+    sudo apt-get -f install
+    sudo apt-get update --fix-missing"
+    fi
+}
+
+paket_kur "Python"     python3 python3-venv python3-dev build-essential
+paket_kur "PostgreSQL" postgresql postgresql-contrib libpq-dev
+paket_kur "Web"        nginx certbot python3-certbot-nginx
+paket_kur "Yardımcı"   git curl iptables-persistent unattended-upgrades
 
 # --- Güvenlik duncarı -----------------------------------------------------
 # Oracle'ın Ubuntu görüntüsü iptables ile 22 dışındaki her şeyi kapatır.
 # Bu, kurulumda herkesin takıldığı yer: Security List'te portu açsanız bile
 # makinenin kendi iptables kuralı isteği düşürür. İkisi de gerekli.
-bilgi "Güvenlik duvarı kuralları (iptables + ufw)"
+bilgi "Güvenlik duvarı kuralları (iptables)"
 if ! iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
     iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
 fi
