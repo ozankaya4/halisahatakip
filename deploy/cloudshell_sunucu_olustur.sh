@@ -83,6 +83,37 @@ grep -q '^ssh-' "${SSH_ACIK_ANAHTAR}" \
     || hata "${SSH_ACIK_ANAHTAR} geçerli bir açık anahtar gibi görünmüyor (ssh- ile başlamalı)."
 bilgi "SSH açık anahtarı hazır"
 
+# --- 2b. Aynı isimde sunucu zaten var mı? --------------------------------
+# Betik önce bunu kontrol etmiyordu. Sonuç: her çalıştırmada YENİ bir
+# sunucu oluşuyordu. İki sunucu şu iki soruna yol açıyor:
+#   1) DNS birine bakarken kurulum diğerine yapılıyor ve hata "port kapalı"
+#      gibi görünüyor; saatler buna gidebiliyor.
+#   2) Always Free ARM kotası TOPLAM 2 OCPU / 12 GB. İkinci sunuç bu
+#      sınırı aşıyor ve PAYG hesabında gerçekten ücretlendiriliyor.
+MEVCUT_ID=$(oci compute instance list \
+    --compartment-id "${TENANCY}" --all --lifecycle-state RUNNING \
+    --query "data[?\"display-name\"=='${INSTANCE_ADI}'].id | [0]" \
+    --raw-output 2>/dev/null || true)
+
+if [[ -n "${MEVCUT_ID}" && "${MEVCUT_ID}" != "null" ]]; then
+    MEVCUT_IP=$(oci compute instance list-vnics --instance-id "${MEVCUT_ID}" \
+        --query 'data[0]."public-ip"' --raw-output 2>/dev/null || echo "?")
+    uyari "'${INSTANCE_ADI}' adında çalışan bir sunucu ZATEN VAR."
+    echo
+    echo "    Genel IP : ${MEVCUT_IP}"
+    echo
+    echo "  Muhtemelen aradığınız sunucu bu. Bağlanmak için:"
+    echo "      ssh -i ~/halisaha_anahtar ubuntu@${MEVCUT_IP}"
+    echo
+    echo "  DNS kayıtlarınızın da bu adrese baktığından emin olun:"
+    echo "      getent hosts halisahadefteri.site"
+    echo
+    echo "  Yeni bir sunucu oluşturmak İSTİYORSANIZ farklı bir ad verin:"
+    echo "      INSTANCE_ADI=halisaha2 bash cloudshell_sunucu_olustur.sh"
+    echo
+    hata "İkinci bir sunucu oluşturulmadı. Kota aşımı ve DNS karışıklığı önlendi."
+fi
+
 # --- 3. Genel (public) alt ağ --------------------------------------------
 bilgi "Genel alt ağ aranıyor"
 SUBNET=$(oci network subnet list \

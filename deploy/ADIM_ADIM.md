@@ -804,6 +804,26 @@ Hepsi tamamsa yayındasınız.
 
 # Günlük kullanım
 
+> ### `git pull` "Permission denied" diyorsa
+>
+> `kurulum.sh` çalıştıktan sonra `/srv/halisaha` klasörünün sahibi
+> `halisaha` sistem kullanıcısı olur; uygulama yetkisiz bir kullanıcı
+> olarak çalışsın diye böyle yapılıyor. Siz `ubuntu` kullanıcısı
+> olduğunuz için düz `git pull` şu hatayı verir:
+>
+> ```
+> error: cannot open '.git/FETCH_HEAD': Permission denied
+> ```
+>
+> Komutu o kullanıcı adına çalıştırın:
+>
+> ```bash
+> sudo -u halisaha git -C /srv/halisaha pull
+> ```
+>
+> 💡 `guncelle.sh` bunu zaten kendisi yapıyor; normalde elle `git pull`
+> yapmanız gerekmez.
+
 ```bash
 # Yeni sürüm yayına al
 sudo bash /srv/halisaha/deploy/guncelle.sh
