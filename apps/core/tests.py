@@ -967,6 +967,45 @@ class GorselBicimleriTesti(TestCase):
         with self.assertRaises(ValidationError):
             gorseli_isle(self._yukleme("PNG", "svg"), AVATAR)
 
+    def test_tarayicinin_bildirdigi_tur_engel_olmuyor(self):
+        """
+        content_type ne gelirse gelsin, geçerli bir görsel kabul edilmeli.
+
+        Gerçek olay: Windows'ta ".jpeg" uzantısı "image/jpg" olarak
+        bildiriliyordu ve sıradan bir fotoğraf "Bu dosya türü desteklenmiyor"
+        diye reddediliyordu; aynı fotoğrafın ".jpg" hâli çalışıyordu.
+        content_type istemciden geldiği için güvenlik değeri yok, yalnızca
+        yanlış negatif üretiyordu.
+        """
+        from apps.core.images import AVATAR, gorseli_isle
+
+        ham = gorsel_uret(bicim="JPEG").getvalue()
+        for bildirilen in ["image/jpg", "image/pjpeg", "application/octet-stream",
+                           "", "text/plain", "uydurma/tur"]:
+            with self.subTest(content_type=bildirilen or "(bos)"):
+                dosya = SimpleUploadedFile("foto.jpeg", ham, content_type=bildirilen)
+                _, ad = gorseli_isle(dosya, AVATAR)
+                self.assertTrue(ad.endswith(".webp"))
+
+    def test_gorsel_olmayan_dosya_hala_reddediliyor(self):
+        """
+        content_type kontrolü kalktı diye kapı açılmadı: asıl bekçi Pillow.
+
+        Uzantısı ve bildirilen türü "doğru" olsa bile içerik görsel değilse
+        reddedilmeli.
+        """
+        from django.core.exceptions import ValidationError
+
+        from apps.core.images import AVATAR, gorseli_isle
+
+        zararli = SimpleUploadedFile(
+            "zararli.jpeg",
+            b"<?php system($_GET['c']); ?>" + b"x" * 512,
+            content_type="image/jpeg",
+        )
+        with self.assertRaises(ValidationError):
+            gorseli_isle(zararli, AVATAR)
+
 
 class VekilArkasindaIstemciIPTesti(TestCase):
     """

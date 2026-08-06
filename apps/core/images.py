@@ -62,12 +62,14 @@ IZINLI_UZANTILAR = {
     ".avif",
 }
 
-# Erken (ucuz) eleme için; güvenlik kararı buna dayanmaz, asıl kontrol Pillow'dur.
-# Telefonlar ve tarayıcılar aynı dosya için farklı content-type gönderebiliyor,
-# hatta boş bırakabiliyor; bu yüzden liste geniş tutuluyor.
+# YALNIZCA <input accept="..."> üretmek için. Doğrulamada KULLANILMIYOR:
+# content_type'ı tarayıcı gönderir, güvenilmez ve gerçek kullanıcıları
+# gereksiz yere engeller (bkz. gorseli_dogrula içindeki açıklama).
+# Burada geniş olması dosya seçicinin daha fazla dosyayı göstermesi demek.
 IZINLI_ICERIK_TIPLERI = {
     "image/jpeg",
     "image/pjpeg",
+    "image/jpg",  # standart değil ama Windows/bazı tarayıcılar gönderiyor
     "image/png",
     "image/webp",
     "image/gif",
@@ -145,9 +147,25 @@ def gorseli_dogrula(yuklenen) -> None:
             "HEIC ve AVIF destekleniyor."
         )
 
-    icerik_tipi = (getattr(yuklenen, "content_type", "") or "").lower().split(";")[0]
-    if icerik_tipi and icerik_tipi not in IZINLI_ICERIK_TIPLERI:
-        raise ValidationError("Bu dosya türü desteklenmiyor.")
+    # content_type BİLİNÇLİ OLARAK kontrol edilmiyor.
+    #
+    # Bu başlığı tarayıcı gönderiyor ve isteyen istediğini yazabilir; yani
+    # hiçbir saldırganı durdurmuyordu. Buna karşılık gerçek kullanıcıları
+    # durduruyordu: Windows'ta ".jpeg" uzantısının kayıt defteri girdisi bazı
+    # programlar tarafından "image/jpg" gibi standart dışı bir değere
+    # çevrilebiliyor ve sıradan bir fotoğraf "Bu dosya türü desteklenmiyor"
+    # diye reddediliyordu. ".jpg" çalışırken ".jpeg" çalışmıyordu, çünkü
+    # ikisi ayrı kayıt girdileri.
+    #
+    # Dosyanın gerçekten görsel olup olmadığına karar veren iki şey var,
+    # ikisi de istemcinin denetiminde değil:
+    #   1. Uzantı beyaz listesi (yukarıda)
+    #   2. Pillow'un dosyayı gerçekten çözmesi ve biçimi doğrulaması
+    #      (gorseli_isle içinde verify() + format kontrolü)
+    #
+    # IZINLI_ICERIK_TIPLERI kümesi duruyor ama artık yalnızca dosya
+    # seçicinin accept özniteliğini üretmek için kullanılıyor: orada geniş
+    # olması zarar vermez, dar olması dosyayı seçtirmez.
 
 
 def gorseli_isle(yuklenen, profil: GorselProfili) -> tuple[ContentFile, str]:
