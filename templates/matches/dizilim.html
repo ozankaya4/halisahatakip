@@ -140,16 +140,23 @@
       </div>
     </div>
 
+    {% comment %}
+    Ölçek açıklaması. Önceden "2 altı", "4 altı" gibi yazıyordu; rozetin
+    üstündeki sayı ile yanındaki kelime birbirini tutmuyor, hangi aralığın
+    hangi renk olduğu anlaşılmıyordu. Artık doğrudan aralıklar yazıyor.
+    {% endcomment %}
     <p class="kucuk solgun olcek-aciklama">
-      Rozetteki sayı oyuncunun <strong>bu maçtaki</strong> ortalamasıdır.
-      Ölçeğin ortası 5:
-      <span class="puan-rozeti puan-siyah rakam">2</span> altı
-      <span class="puan-rozeti puan-kirmizi rakam">4</span> altı
-      <span class="puan-rozeti puan-gri rakam">5</span> ortalama
-      <span class="puan-rozeti puan-yesil rakam">6+</span> iyi
-      <span class="puan-rozeti puan-mavi rakam">7+</span> çok iyi
-      <span class="puan-rozeti puan-lacivert rakam">8+</span> üstün
-      <span class="puan-rozeti puan-mor rakam">9+</span> kusursuz
+      <span class="olcek-giris">
+        Rozetteki sayı oyuncunun <strong>bu maçtaki</strong> ortalamasıdır.
+        Ölçeğin ortası 5.
+      </span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-siyah rakam">0-2</span> çok kötü</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-kirmizi rakam">2-4</span> kötü</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-gri rakam">4-6</span> ortalama</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-yesil rakam">6-7</span> iyi</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-mavi rakam">7-8</span> çok iyi</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-lacivert rakam">8-9</span> üstün</span>
+      <span class="olcek-parca"><span class="puan-rozeti puan-mor rakam">9-10</span> kusursuz</span>
     </p>
 
     {% if duzenlenebilir %}
