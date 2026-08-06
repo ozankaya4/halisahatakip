@@ -12,6 +12,11 @@ urlpatterns = [
     path("<uuid:genel_id>/", views.detay, name="detay"),
     path("<uuid:genel_id>/duzenle/", views.duzenle, name="duzenle"),
     path("<uuid:genel_id>/uyeler/", views.uyeler, name="uyeler"),
+    path(
+        "<uuid:genel_id>/uye/<int:kullanici_id>/istatistik/",
+        views.uye_istatistik,
+        name="uye_istatistik",
+    ),
     path("<uuid:genel_id>/davetler/", views.davetler, name="davetler"),
     path("<uuid:genel_id>/davet/<int:davet_id>/iptal/", views.davet_iptal, name="davet_iptal"),
     path("<uuid:genel_id>/istek/<int:uyelik_id>/karar/", views.istek_karari, name="istek_karari"),

@@ -27,7 +27,7 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass
 
-from django.db.models import Q
+from django.db.models import Avg, Q
 
 from .models import Puan
 
@@ -219,6 +219,87 @@ def karantinayi_coz(mac, puanlayan, sil: bool) -> int:
 # ---------------------------------------------------------------------------
 # Maçın adamı
 # ---------------------------------------------------------------------------
+def _en_iyileri_sec(adaylar: dict[int, float]) -> list[int]:
+    """
+    {kullanici_id: ortalama} içinden en yüksek olan(lar)ı döner.
+
+    Eşitlikte hepsi döner: maçın adamı yıldızı paylaşılır.
+    """
+    if not adaylar:
+        return []
+    en_yuksek = max(adaylar.values())
+    return [kid for kid, deger in adaylar.items() if deger == en_yuksek]
+
+
+def _mac_adaylari(kazanan_takim, katilimlar, puanlar: dict) -> dict[int, float]:
+    """
+    Bir maçta maçın adamı olabilecek oyuncular ve maç ortalamaları.
+
+    Kazanan varsa yalnızca o takım; beraberlikte iki takım da.
+    `macin_adami` ile `grup_macin_adami_sayilari` bu kuralı ortak kullanıyor
+    ki iki yerde iki farklı sonuç çıkmasın.
+    """
+    adaylar = {}
+    for katilim in katilimlar:
+        if kazanan_takim and katilim.takim != kazanan_takim:
+            continue
+        ortalama = puanlar.get(katilim.kullanici_id)
+        if ortalama is not None:
+            adaylar[katilim.kullanici_id] = ortalama
+    return adaylar
+
+
+def grup_macin_adami_sayilari(grup) -> dict[int, int]:
+    """
+    Gruptaki her oyuncunun kaç kez maçın adamı olduğu.
+
+    Her maç için `macin_adami()` çağırmak maç sayısı kadar sorgu demek.
+    Burada üç sorguyla tüm veriyi çekip hesabı Python'da yapıyoruz; kurallar
+    `_mac_adaylari` / `_en_iyileri_sec` üzerinden paylaşıldığı için tek maçlık
+    hesapla aynı sonucu veriyor.
+    """
+    from apps.matches.models import Katilim, Mac
+
+    maclar = list(
+        Mac.objects.filter(grup=grup, iptal=False)
+        .exclude(skor_a=None)
+        .exclude(skor_b=None)
+    )
+    if not maclar:
+        return {}
+
+    mac_idleri = [m.pk for m in maclar]
+
+    # Tüm maçların puan ortalamaları tek sorguda.
+    puan_haritasi: dict[int, dict[int, float]] = {}
+    for satir in (
+        Puan.objects.filter(mac_id__in=mac_idleri, karantinada=False)
+        .values("mac_id", "puanlanan_id")
+        .annotate(ortalama=Avg("deger"))
+    ):
+        puan_haritasi.setdefault(satir["mac_id"], {})[satir["puanlanan_id"]] = satir[
+            "ortalama"
+        ]
+
+    # Sahaya çıkanlar tek sorguda.
+    katilim_haritasi: dict[int, list] = {}
+    for katilim in Katilim.objects.filter(mac_id__in=mac_idleri).exclude(takim=""):
+        if katilim.oynadi_mi:
+            katilim_haritasi.setdefault(katilim.mac_id, []).append(katilim)
+
+    sayilar: dict[int, int] = {}
+    for mac in maclar:
+        adaylar = _mac_adaylari(
+            mac.kazanan_takim,
+            katilim_haritasi.get(mac.pk, []),
+            puan_haritasi.get(mac.pk, {}),
+        )
+        for kullanici_id in _en_iyileri_sec(adaylar):
+            sayilar[kullanici_id] = sayilar.get(kullanici_id, 0) + 1
+
+    return sayilar
+
+
 def macin_adami(mac) -> list:
     """
     Maçın adamı (adamları).

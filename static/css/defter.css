@@ -1724,9 +1724,11 @@ p {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
+/* Ölçeğin ortası 5 (gri). Aşağısı kötü, yukarısı iyi.
+   Açık zeminlerde (gri, açık mavi) metin koyu; aksi hâlde okunmuyor. */
+.puan-siyah     { background: #17191a; }
 .puan-kirmizi   { background: #c0392b; }
-.puan-turuncu   { background: #d35400; }
-.puan-sari      { background: #c9a227; color: #1a1a12; }
+.puan-gri       { background: #b9bdc0; color: #1a1c1d; }
 .puan-yesil     { background: #2f8f4e; }
 .puan-mavi      { background: #4aa3df; color: #10222e; }
 .puan-lacivert  { background: #1f3a93; }
@@ -1845,6 +1847,47 @@ p {
   .oyuncu-kart-ad {
     font-size: 0.62rem;
   }
+}
+
+/* =========================================================================
+   15e. Oyuncu istatistikleri (form şeridi)
+   ====================================================================== */
+.form-seridi {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-block-end: 0.6rem;
+}
+
+.sonuc-rozeti {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--kose);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  color: #f6f3ea;
+  transition: scale var(--gecis);
+}
+
+.sonuc-rozeti:hover {
+  scale: 1.08;
+  color: #f6f3ea;
+}
+
+.sonuc-g { background: #2f8f4e; }
+.sonuc-b { background: #8a8f92; }
+.sonuc-m { background: #c0392b; }
+
+/* İstatistik tablolarında satır başlıkları sola, sayılar sağa. */
+.tablo th[scope="row"],
+.tablo tbody th {
+  text-align: start;
+  font-weight: 600;
+  color: var(--murekkep-yumusak);
 }
 
 /* =========================================================================

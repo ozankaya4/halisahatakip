@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ gosterilen.gorunen_ad }} istatistikleri · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div class="oyuncu">
+      {% if gosterilen.profil.avatar_url %}
+        <button class="buyutec-dugme" type="button"
+                data-buyutec="{{ gosterilen.profil.avatar_url }}"
+                data-buyutec-alt="{{ gosterilen.gorunen_ad }} profil fotoğrafı"
+                data-buyutec-baslik="{{ gosterilen.gorunen_ad }}"
+                aria-label="{{ gosterilen.gorunen_ad }} fotoğrafını büyüt">
+          <img class="avatar avatar-buyuk" src="{{ gosterilen.profil.avatar_url }}"
+               alt="" width="88" height="88">
+        </button>
+      {% else %}
+        <span class="avatar avatar-buyuk avatar-bos" aria-hidden="true">{{ gosterilen.bas_harfler }}</span>
+      {% endif %}
+      <span>
+        <p class="uststart"><a href="{% url 'groups:uyeler' grup.genel_id %}">{{ grup.ad }}</a></p>
+        <h1>{{ gosterilen.gorunen_ad }}</h1>
+        <p class="kucuk solgun">Bu sayfadaki her sayı yalnızca bu gruba aittir.</p>
+      </span>
+    </div>
+    <a class="dugme dugme-sessiz" href="{% url 'accounts:profil' gosterilen.pk %}">Profili gör</a>
+  </div>
+
+  <div class="iki-sutun">
+    <div class="yigin">
+
+      {% comment %} --- Son maçlar --- {% endcomment %}
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Son maçlar</h2>
+          {% if istatistik.guncel_seri %}
+            <span class="rozet rozet-yesil">{{ istatistik.guncel_seri }} maçtır kazanıyor</span>
+          {% endif %}
+        </div>
+
+        {% if istatistik.son_maclar %}
+          <div class="form-seridi">
+            {% for mac in istatistik.son_maclar %}
+              <a class="sonuc-rozeti {{ mac.sinif }}"
+                 href="{% url 'matches:detay' mac.mac_id %}"
+                 title="{{ mac.tarih|date:'j F Y' }} · {{ mac.etiket }}{% if mac.puan %} · {{ mac.puan }}{% endif %}">
+                {{ mac.sonuc }}
+              </a>
+            {% endfor %}
+          </div>
+          <p class="kucuk solgun">En yeniden eskiye. Ayrıntı için maça tıkla.</p>
+        {% else %}
+          <p class="solgun">Sonucu girilmiş maç yok.</p>
+          <p class="kucuk solgun">
+            Sonuçlar, yönetici takımları kurup skoru girdiği maçlardan çıkar.
+          </p>
+        {% endif %}
+      </section>
+
+      {% comment %} --- Genel görünüm --- {% endcomment %}
+      <section class="kutu">
+        <div class="kutu-baslik">
+          <h2>Genel</h2>
+        </div>
+        <div class="tablo-sarmal">
+          <table class="tablo">
+            <tbody>
+              <tr>
+                <th>Grubun oynadığı maç</th>
+                <td class="sag-hiza rakam">{{ istatistik.toplam_mac }}</td>
+              </tr>
+              <tr>
+                <th>Katıldığı maç</th>
+                <td class="sag-hiza rakam">
+                  {{ istatistik.oynanan_mac }}
+                  <span class="kucuk solgun">%{{ istatistik.katilim_orani }}</span>
+                </td>
+              </tr>
+              <tr>
+                <th>Galibiyet / Beraberlik / Mağlubiyet</th>
+                <td class="sag-hiza rakam">
+                  {{ istatistik.galibiyet }} / {{ istatistik.beraberlik }} / {{ istatistik.maglubiyet }}
+                </td>
+              </tr>
+              {% if istatistik.sonuclu_mac %}
+                <tr>
+                  <th>Galibiyet oranı</th>
+                  <td class="sag-hiza rakam">%{{ istatistik.galibiyet_orani }}</td>
+                </tr>
+              {% endif %}
+              <tr>
+                <th>En uzun galibiyet serisi</th>
+                <td class="sag-hiza rakam">{{ istatistik.en_uzun_seri }}</td>
+              </tr>
+              <tr>
+                <th>Maçın adamı</th>
+                <td class="sag-hiza rakam">
+                  {% if istatistik.macin_adami %}
+                    <span class="yildiz" aria-hidden="true">★</span>
+                  {% endif %}
+                  {{ istatistik.macin_adami }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {% comment %} --- Gol / asist / kart --- {% endcomment %}
+      {% if istatistik.gol is not None or istatistik.asist is not None or istatistik.sari_kart is not None %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>Maç istatistikleri</h2>
+          </div>
+          <div class="tablo-sarmal">
+            <table class="tablo">
+              <tbody>
+                {% if istatistik.gol is not None %}
+                  <tr>
+                    <th>Gol</th>
+                    <td class="sag-hiza rakam">
+                      {{ istatistik.gol }}
+                      {% if istatistik.gol_basina_mac %}
+                        <span class="kucuk solgun">maç başına {{ istatistik.gol_basina_mac }}</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endif %}
+                {% if istatistik.asist is not None %}
+                  <tr>
+                    <th>Asist</th>
+                    <td class="sag-hiza rakam">{{ istatistik.asist }}</td>
+                  </tr>
+                {% endif %}
+                {% if istatistik.sari_kart is not None %}
+                  <tr>
+                    <th>Sarı kart</th>
+                    <td class="sag-hiza rakam">{{ istatistik.sari_kart }}</td>
+                  </tr>
+                  <tr>
+                    <th>Kırmızı kart</th>
+                    <td class="sag-hiza rakam">{{ istatistik.kirmizi_kart }}</td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% else %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>Maç istatistikleri</h2>
+          </div>
+          <p class="solgun kucuk">
+            Bu grup gol, asist ve kart tutmuyor.
+            {% if yonetici_mi %}
+              <a href="{% url 'groups:duzenle' grup.genel_id %}">Grup ayarlarından</a>
+              açabilirsin.
+            {% endif %}
+          </p>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="yigin">
+      <section class="kutu kutu-vurgu">
+        <div class="kutu-baslik">
+          <h2>Grup içi ortalaması</h2>
+        </div>
+        {% if istatistik.ortalama_gosterilsin %}
+          <p class="puan-degeri puan-buyuk rakam">{{ istatistik.ortalama }}</p>
+          <p class="olcek-yazisi">10 üzerinden · {{ istatistik.oy_sayisi }} puandan</p>
+        {% else %}
+          <p class="solgun">
+            Ortalama, yeterli puan toplandıktan sonra gösterilir.
+            Şu an {{ istatistik.oy_sayisi }} puan var.
+          </p>
+        {% endif %}
+      </section>
+
+      {% if istatistik.form_ortalamasi %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>Form</h2>
+          </div>
+          <p class="puan-degeri rakam">{{ istatistik.form_ortalamasi }}</p>
+          <p class="kucuk solgun">Son maçlarındaki puan ortalaması.</p>
+        </section>
+      {% endif %}
+
+      {% if istatistik.en_yuksek_puan %}
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>En yüksek maç puanı</h2>
+          </div>
+          <p class="puan-degeri rakam">{{ istatistik.en_yuksek_puan }}</p>
+        </section>
+      {% endif %}
+
+      <p class="kucuk solgun">
+        Puanlar yalnızca bu grupta verilenlerden hesaplanır. İptal edilen
+        maçlar ve incelemede olan oylar hiçbir sayıya katılmaz.
+      </p>
+    </aside>
+  </div>
+{% endblock %}

@@ -15,18 +15,26 @@ from django.db.models import Avg, Count, Q
 
 # Puan aralıkları ve renk sınıfları.
 #
-# 7'nin altı kullanıcının istediği listede yoktu ama ekranda bir yere denk
-# gelmesi gerekiyor; futbol sitelerindeki alışılmış ölçeği izleyip kırmızıdan
-# başlatıyoruz. Üst sınır dışta (alt <= puan < ust), 10 tam puan ayrı.
+# Ölçeğin ortası 5: oyuncuya "vasat bir maç çıkardı" demek 5 vermek anlamına
+# geliyor ve bu, puanlama ekranında açıkça yazıyor. Renkler de buna göre
+# dağıtıldı; 5 nötr (gri) bölgenin içinde kalıyor, iyi performanslar yukarı
+# doğru yeşilden mora çıkıyor.
+#
+# Aralıklar üst sınır dışta (alt <= puan < ust) ve BOŞLUKSUZ; her puan
+# tam olarak bir renge denk geliyor. En üst aralık 10 dâhil.
 PUAN_RENKLERI = [
-    (0.0, 6.0, "puan-kirmizi"),
-    (6.0, 6.5, "puan-turuncu"),
-    (6.5, 7.0, "puan-sari"),
-    (7.0, 8.0, "puan-yesil"),
-    (8.0, 9.0, "puan-mavi"),
-    (9.0, 10.0, "puan-lacivert"),
+    (0.0, 2.0, "puan-siyah"),
+    (2.0, 4.0, "puan-kirmizi"),
+    (4.0, 6.0, "puan-gri"),
+    (6.0, 7.0, "puan-yesil"),
+    (7.0, 8.0, "puan-mavi"),
+    (8.0, 9.0, "puan-lacivert"),
 ]
-TAM_PUAN_SINIFI = "puan-mor"  # tam 10
+# 9 ve üstü mor. Ayrı tutuluyor çünkü üst sınırı kapalı (10 dâhil).
+UST_ARALIK_SINIFI = "puan-mor"
+
+# Ölçeğin ortası. Arayüzde "5 ortalamadır" açıklaması buradan besleniyor.
+ORTALAMA_PUAN = 5
 
 
 def puan_rengi(deger) -> str:
@@ -34,8 +42,8 @@ def puan_rengi(deger) -> str:
     if deger is None:
         return ""
     deger = float(deger)
-    if deger >= 10:
-        return TAM_PUAN_SINIFI
+    if deger >= 9.0:
+        return UST_ARALIK_SINIFI
     for alt, ust, sinif in PUAN_RENKLERI:
         if alt <= deger < ust:
             return sinif

@@ -237,12 +237,49 @@ class MacVePuanTesti(TestCase):
         )
         self.assertEqual(yanit.status_code, 403)
 
-    def test_gecmis_tarihe_mac_eklenemez(self):
+    def test_gecmis_tarihe_mac_eklenebilir(self):
+        """
+        Unutulan maçlar sonradan girilebilmeli, eski maçlar arşivlenebilmeli.
+
+        Eskiden form geçmiş tarihi reddediyordu. Yetki kontrolü zaten var:
+        maç oluşturma görünümü yalnızca grup yöneticilerine açık.
+        """
         self.client.force_login(self.ozan)
         geri = timezone.localtime(timezone.now() - timezone.timedelta(days=2))
         yanit = self.client.post(
             reverse("matches:olustur", args=[self.grup.genel_id]),
             {"baslangic": geri.strftime("%Y-%m-%dT%H:%M"), "sure_dakika": 60},
+        )
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(Mac.objects.count(), 1)
+        self.assertTrue(Mac.objects.first().gecmis_mi)
+
+    def test_uye_gecmise_de_mac_ekleyemez(self):
+        """Geçmiş tarih serbestleşti diye yetki gevşemedi."""
+        uye = kullanici("uye@example.com", "Sıradan Üye")
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=uye, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+        )
+        self.client.force_login(uye)
+        geri = timezone.localtime(timezone.now() - timezone.timedelta(days=2))
+        self.client.post(
+            reverse("matches:olustur", args=[self.grup.genel_id]),
+            {"baslangic": geri.strftime("%Y-%m-%dT%H:%M"), "sure_dakika": 60},
+        )
+        self.assertEqual(Mac.objects.count(), 0)
+
+    def test_yoklama_son_tarihi_kontrolu_duruyor(self):
+        """Geçmiş tarih serbestleşirken bu kural kaybolmamalı."""
+        self.client.force_login(self.ozan)
+        baslangic = timezone.localtime(timezone.now() + timezone.timedelta(days=3))
+        sonra = baslangic + timezone.timedelta(days=1)
+        yanit = self.client.post(
+            reverse("matches:olustur", args=[self.grup.genel_id]),
+            {
+                "baslangic": baslangic.strftime("%Y-%m-%dT%H:%M"),
+                "yoklama_son": sonra.strftime("%Y-%m-%dT%H:%M"),
+                "sure_dakika": 60,
+            },
         )
         self.assertEqual(yanit.status_code, 200)
         self.assertEqual(Mac.objects.count(), 0)
@@ -1380,23 +1417,47 @@ class PuanRengiTesti(TestCase):
     def test_olcek_dogru_esleniyor(self):
         from apps.matches.dizilim import puan_rengi
 
+        # Ölçeğin ortası 5 (gri). Sınır değerleri de kontrol ediliyor:
+        # aralıklar üst sınır dışta olduğu için 4.0 gri, 3.9 kırmızı olmalı.
         beklenen = [
-            (5.9, "puan-kirmizi"),
-            (6.0, "puan-turuncu"),
-            (6.4, "puan-turuncu"),
-            (6.5, "puan-sari"),
-            (6.9, "puan-sari"),
-            (7.0, "puan-yesil"),
-            (7.9, "puan-yesil"),
-            (8.0, "puan-mavi"),
-            (8.8, "puan-mavi"),
-            (9.0, "puan-lacivert"),
-            (9.9, "puan-lacivert"),
+            (0.0, "puan-siyah"),
+            (1.9, "puan-siyah"),
+            (2.0, "puan-kirmizi"),
+            (3.9, "puan-kirmizi"),
+            (4.0, "puan-gri"),
+            (5.0, "puan-gri"),
+            (5.9, "puan-gri"),
+            (6.0, "puan-yesil"),
+            (6.9, "puan-yesil"),
+            (7.0, "puan-mavi"),
+            (7.9, "puan-mavi"),
+            (8.0, "puan-lacivert"),
+            (8.9, "puan-lacivert"),
+            (9.0, "puan-mor"),
+            (9.4, "puan-mor"),
             (10.0, "puan-mor"),
         ]
         for deger, sinif in beklenen:
             with self.subTest(puan=deger):
                 self.assertEqual(puan_rengi(deger), sinif)
+
+    def test_olcekte_bosluk_yok(self):
+        """Her puan tam olarak bir renge denk gelmeli."""
+        from apps.matches.dizilim import puan_rengi
+
+        deger = 0.0
+        while deger <= 10.0:
+            with self.subTest(puan=round(deger, 1)):
+                self.assertNotEqual(
+                    puan_rengi(round(deger, 1)), "", f"{deger} bir renge denk gelmiyor"
+                )
+            deger += 0.1
+
+    def test_bes_ortalama_olarak_tanimli(self):
+        """Arayüzdeki '5 ortalamadır' açıklaması bu sabitten besleniyor."""
+        from apps.matches.dizilim import ORTALAMA_PUAN
+
+        self.assertEqual(ORTALAMA_PUAN, 5)
 
     def test_puansiz_oyuncuda_renk_yok(self):
         from apps.matches.dizilim import puan_rengi
@@ -1528,7 +1589,7 @@ class DizilimTesti(_TakimliMacKurulumu):
             o for t in takimlar for o in t["oyuncular"] if o["kullanici"].pk == hedef.pk
         )
         self.assertEqual(satir["puan"], 9.0)
-        self.assertEqual(satir["puan_sinifi"], "puan-lacivert")
+        self.assertEqual(satir["puan_sinifi"], "puan-mor")
 
     def test_karantinadaki_puan_rozete_yansimiyor(self):
         from apps.matches.dizilim import dizilim_verisi
@@ -1542,6 +1603,211 @@ class DizilimTesti(_TakimliMacKurulumu):
             o for t in takimlar for o in t["oyuncular"] if o["kullanici"].pk == hedef.pk
         )
         self.assertIsNone(satir["puan"])
+
+
+class UyeIstatistikTesti(TestCase):
+    """Grup içi oyuncu istatistik sayfası."""
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.digerleri = [kullanici(f"o{i}@example.com", f"Oyuncu {i}") for i in range(5)]
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        for k in self.digerleri:
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+            )
+
+    def _mac(self, gun_once: int, skor_a: int | None, skor_b: int | None,
+             ozan_takimi="a", ozan_oynadi=True) -> Mac:
+        mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=gun_once),
+            olusturan=self.ozan,
+            skor_a=skor_a,
+            skor_b=skor_b,
+        )
+        if ozan_oynadi:
+            Katilim.objects.create(
+                mac=mac, kullanici=self.ozan, yanit=Katilim.Yanit.GELIYORUM,
+                katildi=True, takim=ozan_takimi,
+            )
+        for i, k in enumerate(self.digerleri):
+            Katilim.objects.create(
+                mac=mac, kullanici=k, yanit=Katilim.Yanit.GELIYORUM,
+                katildi=True, takim="b" if i % 2 == 0 else "a",
+            )
+        return mac
+
+    def _ist(self):
+        from apps.groups.istatistik import uye_istatistikleri
+
+        return uye_istatistikleri(self.grup, self.ozan)
+
+    def test_sonuc_dizisi_en_yeniden_eskiye(self):
+        self._mac(gun_once=20, skor_a=1, skor_b=3)  # M
+        self._mac(gun_once=15, skor_a=2, skor_b=2)  # B
+        self._mac(gun_once=10, skor_a=4, skor_b=0)  # G
+        self._mac(gun_once=5, skor_a=3, skor_b=1)   # G
+
+        dizi = [s.sonuc for s in self._ist()["son_maclar"]]
+        self.assertEqual(dizi, ["G", "G", "B", "M"])
+
+    def test_galibiyet_serisi(self):
+        self._mac(gun_once=20, skor_a=0, skor_b=1)  # M
+        self._mac(gun_once=15, skor_a=2, skor_b=0)  # G
+        self._mac(gun_once=10, skor_a=1, skor_b=0)  # G
+        self._mac(gun_once=5, skor_a=3, skor_b=0)   # G
+
+        ist = self._ist()
+        self.assertEqual(ist["guncel_seri"], 3)
+        self.assertEqual(ist["en_uzun_seri"], 3)
+
+    def test_seri_maglubiyetle_kesiliyor(self):
+        self._mac(gun_once=20, skor_a=2, skor_b=0)  # G
+        self._mac(gun_once=15, skor_a=1, skor_b=0)  # G
+        self._mac(gun_once=5, skor_a=0, skor_b=2)   # M (en yeni)
+
+        ist = self._ist()
+        self.assertEqual(ist["guncel_seri"], 0)
+        self.assertEqual(ist["en_uzun_seri"], 2)
+
+    def test_gbm_dokumu_ve_galibiyet_orani(self):
+        self._mac(gun_once=20, skor_a=2, skor_b=0)
+        self._mac(gun_once=15, skor_a=0, skor_b=2)
+        self._mac(gun_once=10, skor_a=1, skor_b=1)
+        self._mac(gun_once=5, skor_a=3, skor_b=1)
+
+        ist = self._ist()
+        self.assertEqual((ist["galibiyet"], ist["beraberlik"], ist["maglubiyet"]), (2, 1, 1))
+        self.assertEqual(ist["galibiyet_orani"], 50)
+
+    def test_katilim_orani(self):
+        self._mac(gun_once=20, skor_a=1, skor_b=0)
+        self._mac(gun_once=15, skor_a=1, skor_b=0)
+        self._mac(gun_once=10, skor_a=1, skor_b=0, ozan_oynadi=False)
+        self._mac(gun_once=5, skor_a=1, skor_b=0, ozan_oynadi=False)
+
+        ist = self._ist()
+        self.assertEqual(ist["toplam_mac"], 4)
+        self.assertEqual(ist["oynanan_mac"], 2)
+        self.assertEqual(ist["katilim_orani"], 50)
+
+    def test_iptal_edilen_mac_hicbir_sayiya_girmiyor(self):
+        self._mac(gun_once=10, skor_a=3, skor_b=0)
+        iptal = self._mac(gun_once=5, skor_a=9, skor_b=0)
+        iptal.iptal = True
+        iptal.save()
+
+        ist = self._ist()
+        self.assertEqual(ist["toplam_mac"], 1)
+        self.assertEqual(ist["galibiyet"], 1)
+
+    def test_skoru_girilmemis_mac_seriye_girmiyor(self):
+        self._mac(gun_once=10, skor_a=2, skor_b=0)
+        self._mac(gun_once=5, skor_a=None, skor_b=None)
+
+        ist = self._ist()
+        self.assertEqual(ist["sonuclu_mac"], 1)
+        # Ama oynanan maç sayısına dâhil.
+        self.assertEqual(ist["oynanan_mac"], 2)
+
+    def test_gol_asist_grup_ayarina_bagli(self):
+        mac = self._mac(gun_once=5, skor_a=2, skor_b=0)
+        Katilim.objects.filter(mac=mac, kullanici=self.ozan).update(
+            gol=2, asist=1, sari_kart=1
+        )
+
+        kapali = self._ist()
+        self.assertIsNone(kapali["gol"])
+        self.assertIsNone(kapali["asist"])
+        self.assertIsNone(kapali["sari_kart"])
+
+        self.grup.gol_gosterilsin = True
+        self.grup.asist_gosterilsin = True
+        self.grup.kart_gosterilsin = True
+        self.grup.save()
+
+        acik = self._ist()
+        self.assertEqual(acik["gol"], 2)
+        self.assertEqual(acik["asist"], 1)
+        self.assertEqual(acik["sari_kart"], 1)
+
+    def test_macin_adami_sayisi(self):
+        mac = self._mac(gun_once=5, skor_a=3, skor_b=0)
+        for veren in self.digerleri[:3]:
+            Puan.objects.create(mac=mac, puanlayan=veren, puanlanan=self.ozan, deger=9)
+
+        self.assertEqual(self._ist()["macin_adami"], 1)
+
+    def test_sayfa_uyeye_acik_yabanciya_kapali(self):
+        self._mac(gun_once=5, skor_a=1, skor_b=0)
+        adres = reverse("groups:uye_istatistik", args=[self.grup.genel_id, self.ozan.pk])
+
+        self.client.force_login(self.digerleri[0])
+        self.assertEqual(self.client.get(adres).status_code, 200)
+
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.force_login(yabanci)
+        self.assertEqual(self.client.get(adres).status_code, 403)
+
+    def test_grup_disindaki_kullanici_icin_404(self):
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.force_login(self.ozan)
+        yanit = self.client.get(
+            reverse("groups:uye_istatistik", args=[self.grup.genel_id, yabanci.pk])
+        )
+        self.assertEqual(yanit.status_code, 404)
+
+
+class TopluMacinAdamiTesti(_TakimliMacKurulumu):
+    """Toplu sayaç, tek maçlık hesapla aynı sonucu vermeli."""
+
+    def test_toplu_sayac_tek_tek_hesapla_ayni(self):
+        from apps.ratings.denetim import grup_macin_adami_sayilari, macin_adami
+
+        self.mac.skor_a, self.mac.skor_b = 4, 1
+        self.mac.save()
+        yildiz = self._a_takimi()[1]
+        self._puanla(yildiz, [(v, 9) for v in self._b_takimi()[:3]])
+        self._puanla(self._a_takimi()[2], [(v, 6) for v in self._b_takimi()[:3]])
+
+        ikinci = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=5),
+            olusturan=self.ozan,
+            skor_a=0, skor_b=2,
+        )
+        for i, k in enumerate(self.herkes):
+            Katilim.objects.create(
+                mac=ikinci, kullanici=k, yanit=Katilim.Yanit.GELIYORUM,
+                katildi=True, takim="a" if i % 2 == 0 else "b",
+            )
+        b_yildizi = self._b_takimi()[0]
+        for veren in self._a_takimi()[:3]:
+            Puan.objects.create(
+                mac=ikinci, puanlayan=veren, puanlanan=b_yildizi, deger=8
+            )
+
+        toplu = grup_macin_adami_sayilari(self.grup)
+
+        tek_tek: dict[int, int] = {}
+        for mac in Mac.objects.filter(grup=self.grup):
+            for adam in macin_adami(mac):
+                tek_tek[adam["kullanici"].pk] = tek_tek.get(adam["kullanici"].pk, 0) + 1
+
+        self.assertEqual(toplu, tek_tek)
+        self.assertEqual(toplu.get(yildiz.pk), 1)
+        self.assertEqual(toplu.get(b_yildizi.pk), 1)
+
+    def test_skoru_olmayan_mac_sayilmiyor(self):
+        from apps.ratings.denetim import grup_macin_adami_sayilari
+
+        self._puanla(self._a_takimi()[1], [(v, 9) for v in self._b_takimi()[:3]])
+        self.assertEqual(grup_macin_adami_sayilari(self.grup), {})
 
 
 class GelistiriciRozetiTesti(TestCase):

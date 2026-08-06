@@ -1,5 +1,4 @@
 from django import forms
-from django.utils import timezone
 
 from apps.core.images import DOSYA_SECICI_ACCEPT, MAC_FOTOGRAFI, gorseli_isle
 
@@ -16,7 +15,15 @@ class YerelDatetimeAlani(forms.DateTimeField):
 
 
 class MacFormu(forms.ModelForm):
-    baslangic = YerelDatetimeAlani(label="Tarih ve saat")
+    baslangic = YerelDatetimeAlani(
+        label="Tarih ve saat",
+        help_text=(
+            "Geçmiş bir tarih de girebilirsin (unutulan maçlar, eski kayıtlar). "
+            "Ancak puanlama maç saatinden itibaren bir hafta açık kalıyor: "
+            "bir haftadan eskiye eklenen maç puanlamaya kapalı doğar, "
+            "yalnızca kadro ve sonuç kaydı olarak durur."
+        ),
+    )
     yoklama_son = YerelDatetimeAlani(
         label="Yoklama son tarihi (isteğe bağlı)",
         required=False,
@@ -51,8 +58,13 @@ class MacFormu(forms.ModelForm):
         baslangic = temiz.get("baslangic")
         yoklama_son = temiz.get("yoklama_son")
 
-        if baslangic and self.instance.pk is None and baslangic < timezone.now():
-            self.add_error("baslangic", "Geçmiş bir tarihe maç eklenemez.")
+        # Geçmiş tarih bilinçli olarak SERBEST.
+        #
+        # Eskiden "geçmiş bir tarihe maç eklenemez" deniyordu; bu, unutulan
+        # bir maçı sonradan girmeyi ya da grubun eski maçlarını arşiv olarak
+        # doldurmayı imkânsız kılıyordu. Maç oluşturma görünümü zaten
+        # @yonetici_gerekli ile korunuyor (apps/matches/views.py::olustur),
+        # yani bu formu yalnızca grup yöneticileri ve nihai yönetici görüyor.
         if baslangic and yoklama_son and yoklama_son > baslangic:
             self.add_error(
                 "yoklama_son", "Yoklama son tarihi maç saatinden sonra olamaz."

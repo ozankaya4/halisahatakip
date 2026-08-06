@@ -427,3 +427,35 @@ def _uyelik_degisti(grup, ayrilan) -> None:
     from apps.chat.services import anahtari_dondur
 
     anahtari_dondur(grup, ayrilan_kullanici=ayrilan)
+
+
+@uye_gerekli
+def uye_istatistik(request, grup, kullanici_id: int):
+    """
+    Bir oyuncunun bu gruptaki istatistikleri.
+
+    @uye_gerekli ile korunuyor: bir grubun istatistikleri o grubun üyelerine
+    özel. Ayrıca hedef kişinin de aynı grupta ONAYLI üye olması aranıyor;
+    aksi hâlde grup dışından rastgele bir kullanıcı kimliği verip
+    istatistik sayfası açılabilirdi.
+    """
+    from apps.groups.istatistik import uye_istatistikleri
+
+    uyelik = get_object_or_404(
+        Uyelik.objects.select_related("kullanici", "kullanici__profil"),
+        grup=grup,
+        kullanici_id=kullanici_id,
+        durum=Uyelik.Durum.ONAYLI,
+    )
+
+    return render(
+        request,
+        "groups/uye_istatistik.html",
+        {
+            "grup": grup,
+            "uyelik": uyelik,
+            "gosterilen": uyelik.kullanici,
+            "istatistik": uye_istatistikleri(grup, uyelik.kullanici),
+            "yonetici_mi": grup.yonetici_mi(request.user),
+        },
+    )

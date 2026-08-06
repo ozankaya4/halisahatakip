@@ -54,9 +54,16 @@
             <span class="rozet rozet-yesil">Yönetici</span>
           {% endif %}
 
-          {% if uyelik.kullanici.profil.ortalama_gosterilsin %}
-            <span class="olcek-yazisi">Ort. {{ uyelik.kullanici.profil.ortalama_puan }}</span>
-          {% endif %}
+          {% comment %}
+          Buradaki bağlantı grup içi istatistiklere gider. Eskiden bu satırda
+          profildeki KÜRESEL ortalama gösteriliyordu; puanlar gruba özel hâle
+          getirilirken burası atlanmıştı ve başka gruplardan gelen puanlar da
+          sayıya karışıyordu.
+          {% endcomment %}
+          <a class="dugme dugme-kucuk dugme-sessiz"
+             href="{% url 'groups:uye_istatistik' grup.genel_id uyelik.kullanici_id %}">
+            İstatistikler
+          </a>
 
           {% if yonetici_mi and uyelik.kullanici_id != user.pk %}
             <span class="satir sag">
