@@ -16,6 +16,21 @@
     {% endif %}
   </div>
 
+  {% if not durum.gorebilir %}
+    <div class="serit serit-uyari">
+      <strong>Puanları görmek için tüm oyunculara puan verilmeli.</strong>
+      Puanlamadığınız oyuncular bulunmakta
+      ({{ durum.eksik_sayisi }} oyuncu).
+      <a href="{% url 'ratings:puanla' mac.pk %}">Puanlamayı tamamla</a>.
+      <br>
+      <span class="kucuk solgun">
+        Dizilimi, kadroları ve istatistikleri görebilirsin; yalnızca puanlar,
+        takım ortalaması ve maçın adamı gizli. Puanlama süresi dolduğunda
+        herkese açılır.
+      </span>
+    </div>
+  {% endif %}
+
   {% if duzenlenebilir %}
     <div class="serit serit-bilgi">
       Oyuncuları sahada <strong>sürükleyerek</strong> yerleştir. Dokunmatik
@@ -141,10 +156,48 @@
     </div>
 
     {% comment %}
+    Takım puan özetleri. Puanlar gizliyken görünüm bloğu hiç basılmıyor:
+    veriyi göndermeyip şablonda saklamak yerine görünümde temizliyoruz
+    (bkz. apps/matches/dizilim.py::puanlari_gizle), böylece sayfa
+    kaynağında da yer almıyor.
+    {% endcomment %}
+    <div class="takim-ozetleri">
+      {% for takim in takimlar %}
+        <div class="takim-ozet {% if takim.kazandi %}takim-ozet-kazandi{% endif %}">
+          <p class="takim-ozet-ad">
+            {{ takim.ad }}
+            {% if takim.kazandi %}<span class="rozet rozet-yesil">Kazandı</span>{% endif %}
+          </p>
+          {% if takim.ortalama_puan %}
+            <p class="takim-ozet-sayilar">
+              <span>
+                <span class="takim-ozet-etiket">Ortalama</span>
+                <span class="puan-rozeti {{ takim.ortalama_sinifi }} rakam">{{ takim.ortalama_puan }}</span>
+              </span>
+              <span>
+                <span class="takim-ozet-etiket">Toplam</span>
+                <strong class="rakam">{{ takim.toplam_puan }}</strong>
+              </span>
+              <span class="kucuk solgun">{{ takim.puanli_oyuncu }} oyuncudan</span>
+            </p>
+          {% elif durum.gorebilir %}
+            <p class="kucuk solgun">Bu takımda henüz puanlanmış oyuncu yok.</p>
+          {% else %}
+            <p class="kucuk solgun">Puanlama tamamlanınca görünecek.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {% comment %}
     Ölçek açıklaması. Önceden "2 altı", "4 altı" gibi yazıyordu; rozetin
     üstündeki sayı ile yanındaki kelime birbirini tutmuyor, hangi aralığın
     hangi renk olduğu anlaşılmıyordu. Artık doğrudan aralıklar yazıyor.
+
+    Puanlar gizliyken ölçek de basılmıyor: sahada hiç rozet yokken renk
+    cetveli anlamsız kalıyor.
     {% endcomment %}
+    {% if durum.gorebilir %}
     <p class="kucuk solgun olcek-aciklama">
       <span class="olcek-giris">
         Rozetteki sayı oyuncunun <strong>bu maçtaki</strong> ortalamasıdır.
@@ -158,6 +211,7 @@
       <span class="olcek-parca"><span class="puan-rozeti puan-lacivert rakam">8-9</span> üstün</span>
       <span class="olcek-parca"><span class="puan-rozeti puan-mor rakam">9-10</span> kusursuz</span>
     </p>
+    {% endif %}
 
     {% if duzenlenebilir %}
       <section class="kutu">

@@ -2023,6 +2023,407 @@ class TopluMacinAdamiTesti(_TakimliMacKurulumu):
         self.assertEqual(grup_macin_adami_sayilari(self.grup), {})
 
 
+class PuanGorunurluguTesti(_TakimliMacKurulumu):
+    """
+    Puanları görmek için maçta oynayan herkesi puanlamış olmak gerekiyor.
+
+    Amaç: kimse kendi oyunu vermeden başkalarının ortalamasına bakıp ona
+    göre oy veremesin, ya da hiç oy vermeden sonucu izlemesin.
+    """
+
+    def _hepsini_puanla(self, veren, deger=6):
+        for hedef in self.herkes:
+            if hedef.pk == veren.pk:
+                continue
+            Puan.objects.update_or_create(
+                mac=self.mac,
+                puanlayan=veren,
+                puanlanan=hedef,
+                defaults={"deger": deger},
+            )
+
+    def test_hic_puanlamayan_goremiyor(self):
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        durum = puan_gorunurlugu(self.mac, self.oyuncular[0])
+        self.assertFalse(durum.gorebilir)
+        self.assertEqual(durum.eksik_sayisi, len(self.herkes) - 1)
+
+    def test_eksik_puanlayan_goremiyor(self):
+        """Bir kişiyi bile atlamak yeterli."""
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        veren = self.oyuncular[0]
+        hedefler = [k for k in self.herkes if k.pk != veren.pk]
+        for hedef in hedefler[:-1]:  # sonuncusu hariç hepsi
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=6)
+
+        durum = puan_gorunurlugu(self.mac, veren)
+        self.assertFalse(durum.gorebilir)
+        self.assertEqual(durum.eksik_sayisi, 1)
+
+    def test_herkesi_puanlayan_gorebiliyor(self):
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        veren = self.oyuncular[0]
+        self._hepsini_puanla(veren)
+        self.assertTrue(puan_gorunurlugu(self.mac, veren).gorebilir)
+
+    def test_sonradan_eklenen_oyuncu_gorunurlugu_kapatiyor(self):
+        """Kadroya biri eklenirse ona da puan verilmeden puanlar gizlenir."""
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        veren = self.oyuncular[0]
+        self._hepsini_puanla(veren)
+        self.assertTrue(puan_gorunurlugu(self.mac, veren).gorebilir)
+
+        yeni = kullanici("yeni@example.com", "Yeni Oyuncu")
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=yeni, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+        )
+        Katilim.objects.create(
+            mac=self.mac, kullanici=yeni, yanit=Katilim.Yanit.GELIYORUM,
+            katildi=True, takim="a",
+        )
+
+        durum = puan_gorunurlugu(self.mac, veren)
+        self.assertFalse(durum.gorebilir)
+        self.assertEqual(durum.eksik_sayisi, 1)
+
+    def test_sure_dolunca_herkes_gorebiliyor(self):
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        self.mac.baslangic = timezone.now() - timezone.timedelta(
+            days=settings.RATING_WINDOW_DAYS + 1
+        )
+        self.mac.save()
+
+        durum = puan_gorunurlugu(self.mac, self.oyuncular[0])
+        self.assertTrue(durum.gorebilir)
+        self.assertTrue(durum.sure_doldu)
+
+    def test_yoneticiler_muaf(self):
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        # Ozan grup yöneticisi, hiç puan vermedi
+        self.assertTrue(puan_gorunurlugu(self.mac, self.ozan).gorebilir)
+
+        nihai = kullanici("dev@example.com", "Nihai Yönetici")
+        nihai.is_superuser = True
+        nihai.save()
+        self.assertTrue(puan_gorunurlugu(self.mac, nihai).gorebilir)
+
+    def test_puanlar_sayfa_kaynaginda_da_yok(self):
+        """
+        Gizleme şablonda değil görünümde yapılıyor; puan HTML'e hiç girmemeli.
+
+        Aksi hâlde "ekranda görünmüyor ama kaynağa bakınca var" olurdu.
+        """
+        hedef = self._a_takimi()[1]
+        for veren in self._b_takimi()[:3]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=9)
+
+        izleyen = self.oyuncular[0]  # yönetici değil, hiç puanlamadı
+        self.client.force_login(izleyen)
+        govde = self.client.get(
+            reverse("matches:dizilim", args=[self.mac.pk])
+        ).content.decode("utf-8")
+
+        self.assertIn("tüm oyunculara puan verilmeli", govde)
+        self.assertNotIn("puan-rozeti puan-", govde)
+        self.assertNotIn("Maçın adamı", govde)
+
+    def test_puanlayan_dizilimde_puanlari_goruyor(self):
+        hedef = self._a_takimi()[1]
+        for veren in self._b_takimi()[:3]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=9)
+
+        izleyen = self.oyuncular[0]
+        self._hepsini_puanla(izleyen)
+
+        self.client.force_login(izleyen)
+        govde = self.client.get(
+            reverse("matches:dizilim", args=[self.mac.pk])
+        ).content.decode("utf-8")
+        self.assertNotIn("tüm oyunculara puan verilmeli", govde)
+        self.assertIn("puan-rozeti puan-", govde)
+
+    def test_sonuclar_tek_oyla_acilmiyor(self):
+        """Eskiden tek bir oy sonuçları açıyordu; artık hepsi gerekli."""
+        veren = self.oyuncular[0]
+        Puan.objects.create(
+            mac=self.mac, puanlayan=veren, puanlanan=self.oyuncular[1], deger=7
+        )
+        self.client.force_login(veren)
+        govde = self.client.get(
+            reverse("ratings:sonuclar", args=[self.mac.pk])
+        ).content.decode("utf-8")
+        self.assertIn("tüm oyunculara puan verilmeli", govde)
+
+
+class ToplamlaraSizmaTesti(_TakimliMacKurulumu):
+    """
+    Maç sayfasını gizlemek tek başına yetmiyor.
+
+    Grup sıralaması, üye istatistikleri ve form ortalaması aynı puanlardan
+    besleniyor; sayfayı maçtan önce ve sonra açan biri farktan puanı
+    çıkarabilirdi. Puanlamasını tamamlamayan kişiye o maç hiçbir toplamda
+    görünmemeli.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mac.skor_a, self.mac.skor_b = 3, 1
+        self.mac.save()
+        self.hedef = self._a_takimi()[1]
+        for veren in self._b_takimi()[:4]:
+            Puan.objects.create(
+                mac=self.mac, puanlayan=veren, puanlanan=self.hedef, deger=9
+            )
+
+    def _hepsini_puanla(self, veren, deger=6):
+        for hedef in self.herkes:
+            if hedef.pk != veren.pk:
+                Puan.objects.update_or_create(
+                    mac=self.mac,
+                    puanlayan=veren,
+                    puanlanan=hedef,
+                    defaults={"deger": deger},
+                )
+
+    def _ist(self, izleyen):
+        from apps.groups.istatistik import uye_istatistikleri
+
+        return uye_istatistikleri(self.grup, self.hedef, izleyen=izleyen)
+
+    def test_puanlamayan_istatistikte_puan_gormuyor(self):
+        ist = self._ist(self.oyuncular[1])
+        self.assertIsNone(ist["ortalama"])
+        self.assertIsNone(ist["form_ortalamasi"])
+        self.assertEqual(ist["macin_adami"], 0)
+        self.assertEqual(ist["gizli_mac_sayisi"], 1)
+        # Puanla ilgisi olmayan sayılar etkilenmiyor.
+        self.assertEqual(ist["oynanan_mac"], 1)
+
+    def test_puanlamayi_tamamlayan_goruyor(self):
+        izleyen = self.oyuncular[1]
+        self._hepsini_puanla(izleyen)
+
+        ist = self._ist(izleyen)
+        self.assertIsNotNone(ist["ortalama"])
+        self.assertIsNotNone(ist["form_ortalamasi"])
+        self.assertEqual(ist["macin_adami"], 1)
+        self.assertEqual(ist["gizli_mac_sayisi"], 0)
+
+    def test_sure_dolunca_puanlamayana_da_aciliyor(self):
+        self.mac.baslangic = timezone.now() - timezone.timedelta(
+            days=settings.RATING_WINDOW_DAYS + 1
+        )
+        self.mac.save()
+
+        ist = self._ist(self.oyuncular[1])
+        self.assertIsNotNone(ist["ortalama"])
+        self.assertEqual(ist["gizli_mac_sayisi"], 0)
+
+    def test_yonetici_muaf(self):
+        ist = self._ist(self.ozan)
+        self.assertIsNotNone(ist["ortalama"])
+        self.assertEqual(ist["gizli_mac_sayisi"], 0)
+
+    def test_grup_siralamasinda_da_gizli(self):
+        from apps.ratings.hesaplar import grup_siralamasi
+
+        izleyen = self.oyuncular[1]
+        self.assertEqual(grup_siralamasi(self.grup, izleyen=izleyen), [])
+
+        self._hepsini_puanla(izleyen)
+        adlar = [s["kullanici"].pk for s in grup_siralamasi(self.grup, izleyen=izleyen)]
+        self.assertIn(self.hedef.pk, adlar)
+
+    def test_siralama_sayfasi_puanlamayana_kapali(self):
+        self.client.force_login(self.oyuncular[1])
+        govde = self.client.get(
+            reverse("ratings:siralama", args=[self.grup.genel_id])
+        ).content.decode("utf-8")
+
+        self.assertIn("tüm oyunculara puan verilmeli", govde)
+        self.assertIn("Sıralama için yeterli puan yok", govde)
+
+    def test_mac_detayinda_macin_adami_gizli(self):
+        izleyen = self.oyuncular[1]
+        self.client.force_login(izleyen)
+        adres = reverse("matches:detay", args=[self.mac.pk])
+
+        govde = self.client.get(adres).content.decode("utf-8")
+        self.assertNotIn("Maçın adamı</span>", govde)
+        self.assertIn("puanlamanı tamamlayınca görünür", govde)
+
+        self._hepsini_puanla(izleyen)
+        govde = self.client.get(adres).content.decode("utf-8")
+        self.assertIn("Maçın adamı", govde)
+
+
+class TakimPuanOzetiTesti(_TakimliMacKurulumu):
+    """Dizilimde takım başına ortalama ve toplam."""
+
+    def test_ortalama_ve_toplam_hesaplaniyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        a = self._a_takimi()
+        # İki oyuncuya sırasıyla 8 ve 6 ortalama
+        for veren in self._b_takimi()[:2]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=a[0], deger=8)
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=a[1], deger=6)
+
+        takim = next(t for t in dizilim_verisi(self.mac) if t["kod"] == "a")
+        self.assertEqual(takim["toplam_puan"], 14.0)
+        self.assertEqual(takim["ortalama_puan"], 7.0)
+        self.assertEqual(takim["puanli_oyuncu"], 2)
+
+    def test_puansiz_oyuncu_ortalamayi_dusurmuyor(self):
+        from apps.matches.dizilim import dizilim_verisi
+
+        a = self._a_takimi()
+        for veren in self._b_takimi()[:2]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=a[0], deger=8)
+
+        takim = next(t for t in dizilim_verisi(self.mac) if t["kod"] == "a")
+        self.assertEqual(takim["ortalama_puan"], 8.0)
+        self.assertEqual(takim["puanli_oyuncu"], 1)
+
+    def test_gizlenince_ozet_de_gidiyor(self):
+        from apps.matches.dizilim import dizilim_verisi, puanlari_gizle
+
+        a = self._a_takimi()
+        for veren in self._b_takimi()[:2]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=a[0], deger=8)
+
+        takimlar = puanlari_gizle(dizilim_verisi(self.mac))
+        for takim in takimlar:
+            self.assertIsNone(takim["ortalama_puan"])
+            self.assertIsNone(takim["toplam_puan"])
+            for oyuncu in takim["oyuncular"]:
+                self.assertIsNone(oyuncu["puan"])
+                self.assertFalse(oyuncu["macin_adami"])
+
+
+class PuanDegistirmeHakkiTesti(_TakimliMacKurulumu):
+    """Her oyuncuya en fazla iki kez puan yazılabilir (ilk oy + bir düzeltme)."""
+
+    def _gonder(self, veren, degerler: dict):
+        self.client.force_login(veren)
+        return self.client.post(
+            reverse("ratings:puanla", args=[self.mac.pk]),
+            {f"puan_{k.pk}": str(v) for k, v in degerler.items()},
+        )
+
+    def test_ilk_oy_ve_bir_duzeltme_gecerli(self):
+        veren = self.oyuncular[0]
+        hedef = self.oyuncular[1]
+
+        self._gonder(veren, {hedef: 5})
+        kayit = Puan.objects.get(mac=self.mac, puanlayan=veren, puanlanan=hedef)
+        self.assertEqual((kayit.deger, kayit.yazim_sayisi), (5, 1))
+
+        self._gonder(veren, {hedef: 8})
+        kayit.refresh_from_db()
+        self.assertEqual((kayit.deger, kayit.yazim_sayisi), (8, 2))
+
+    def test_ucuncu_yazim_reddediliyor(self):
+        veren = self.oyuncular[0]
+        hedef = self.oyuncular[1]
+
+        self._gonder(veren, {hedef: 5})
+        self._gonder(veren, {hedef: 8})
+        self._gonder(veren, {hedef: 10})
+
+        kayit = Puan.objects.get(mac=self.mac, puanlayan=veren, puanlanan=hedef)
+        self.assertEqual(kayit.deger, 8, "üçüncü değişiklik uygulanmamalı")
+        self.assertEqual(kayit.yazim_sayisi, 2)
+
+    def test_ayni_degeri_kaydetmek_hak_yakmiyor(self):
+        """
+        Form herkesi birden gönderiyor; tek bir oyuncuyu düzelten kişi
+        diğerlerinin hakkını harcamamalı.
+        """
+        veren = self.oyuncular[0]
+        hedef = self.oyuncular[1]
+
+        self._gonder(veren, {hedef: 5})
+        self._gonder(veren, {hedef: 5})
+        self._gonder(veren, {hedef: 5})
+
+        kayit = Puan.objects.get(mac=self.mac, puanlayan=veren, puanlanan=hedef)
+        self.assertEqual(kayit.yazim_sayisi, 1, "aynı değer hak yakmamalı")
+
+        # Hak hâlâ duruyor: gerçek bir değişiklik yapılabilmeli.
+        self._gonder(veren, {hedef: 9})
+        kayit.refresh_from_db()
+        self.assertEqual((kayit.deger, kayit.yazim_sayisi), (9, 2))
+
+    def test_hak_oyuncu_bazinda_tutuluyor(self):
+        """Bir oyuncunun hakkının dolması diğerlerini etkilememeli."""
+        veren = self.oyuncular[0]
+        biri, digeri = self.oyuncular[1], self.oyuncular[2]
+
+        self._gonder(veren, {biri: 4, digeri: 4})
+        self._gonder(veren, {biri: 6, digeri: 4})  # yalnızca "biri" değişti
+        self._gonder(veren, {biri: 9, digeri: 7})  # biri kilitli, digeri serbest
+
+        biri_kayit = Puan.objects.get(mac=self.mac, puanlayan=veren, puanlanan=biri)
+        digeri_kayit = Puan.objects.get(mac=self.mac, puanlayan=veren, puanlanan=digeri)
+        self.assertEqual(biri_kayit.deger, 6, "hakkı dolan oyuncu değişmemeli")
+        self.assertEqual(digeri_kayit.deger, 7, "hakkı olan oyuncu değişmeli")
+
+    def test_kalan_hak_formda_gosteriliyor(self):
+        from apps.ratings.gorunurluk import kalan_yazim_haklari
+
+        veren = self.oyuncular[0]
+        hedef = self.oyuncular[1]
+        self._gonder(veren, {hedef: 5})
+
+        haklar = kalan_yazim_haklari(self.mac, veren)
+        self.assertEqual(haklar[hedef.pk], settings.RATING_MAX_WRITES - 1)
+        # Hiç puanlanmamış birinde hak tam.
+        self.assertEqual(haklar[self.oyuncular[2].pk], settings.RATING_MAX_WRITES)
+
+
+class AramaMotoruTesti(TestCase):
+    """Google'ın arama sonucunda simge gösterebilmesi için gerekenler."""
+
+    def test_favicon_kokten_kararli_adreste(self):
+        yanit = self.client.get("/favicon.ico")
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(yanit["Content-Type"], "image/x-icon")
+        # Karma içeren adres her değişiklikte kayıyor; Google kararlı adres istiyor.
+        self.assertNotIn("static", yanit.request["PATH_INFO"])
+
+    def test_logo_erisilebilir(self):
+        yanit = self.client.get("/logo.png")
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(yanit["Content-Type"], "image/png")
+
+    def test_robots_simgeleri_engellemiyor(self):
+        govde = self.client.get("/robots.txt").content.decode("utf-8")
+        self.assertIn("Allow: /favicon.ico", govde)
+        self.assertIn("Allow: /logo.png", govde)
+        # Kişisel veri taramaya kapalı olmalı.
+        for gizli in ["/gruplar/", "/maclar/", "/sohbet/", "/dosya/"]:
+            self.assertIn(f"Disallow: {gizli}", govde)
+
+    def test_sitemap_yalnizca_tanitim_sayfasi(self):
+        govde = self.client.get("/sitemap.xml").content.decode("utf-8")
+        self.assertIn("<urlset", govde)
+        self.assertEqual(govde.count("<loc>"), 1)
+
+    def test_sayfada_yapilandirilmis_veri_var(self):
+        govde = self.client.get(reverse("core:home")).content.decode("utf-8")
+        self.assertIn("application/ld+json", govde)
+        self.assertIn('"@type": "Organization"', govde)
+        self.assertIn("/logo.png", govde)
+        self.assertIn('href="/favicon.ico"', govde)
+
+
 class GelistiriciRozetiTesti(TestCase):
     def test_nihai_yonetici_rozeti_gorunuyor(self):
         gelistirici = kullanici("dev@example.com", "Ozan Kaya")

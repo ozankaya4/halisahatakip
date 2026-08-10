@@ -43,6 +43,13 @@ class Puan(models.Model):
     # yanlışlıkla yok edilmiş olmuyor.
     karantinada = models.BooleanField("karantinada", default=False, db_index=True)
 
+    # Bu puanın kaç kez yazıldığı: ilk oy 1, bir düzeltme 2.
+    # settings.RATING_MAX_WRITES sınırına gelince değer kilitlenir.
+    # Yalnızca GERÇEK değişiklikler sayılır; aynı puanı tekrar kaydetmek
+    # hak yakmaz (form herkesi birden gönderdiği için, tek bir oyuncuyu
+    # düzelten kişi diğerlerinin hakkını da harcamış olurdu).
+    yazim_sayisi = models.PositiveSmallIntegerField("yazım sayısı", default=1)
+
     class Meta:
         verbose_name = "puan"
         verbose_name_plural = "puanlar"

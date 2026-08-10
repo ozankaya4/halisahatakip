@@ -249,7 +249,7 @@ def _mac_adaylari(kazanan_takim, katilimlar, puanlar: dict) -> dict[int, float]:
     return adaylar
 
 
-def grup_macin_adami_sayilari(grup) -> dict[int, int]:
+def grup_macin_adami_sayilari(grup, haric: set[int] | None = None) -> dict[int, int]:
     """
     Gruptaki her oyuncunun kaç kez maçın adamı olduğu.
 
@@ -257,6 +257,10 @@ def grup_macin_adami_sayilari(grup) -> dict[int, int]:
     Burada üç sorguyla tüm veriyi çekip hesabı Python'da yapıyoruz; kurallar
     `_mac_adaylari` / `_en_iyileri_sec` üzerinden paylaşıldığı için tek maçlık
     hesapla aynı sonucu veriyor.
+
+    `haric` verilen maçlar sayılmaz: maçın adamı "en yüksek puanı kim aldı"
+    demek olduğu için, puanları o kişiye kapalı olan maç sayacı da artırmamalı
+    (bkz. apps/ratings/gorunurluk.py::gizli_mac_idleri).
     """
     from apps.matches.models import Katilim, Mac
 
@@ -264,6 +268,7 @@ def grup_macin_adami_sayilari(grup) -> dict[int, int]:
         Mac.objects.filter(grup=grup, iptal=False)
         .exclude(skor_a=None)
         .exclude(skor_b=None)
+        .exclude(pk__in=haric or [])
     )
     if not maclar:
         return {}

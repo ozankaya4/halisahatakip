@@ -47,6 +47,15 @@
           {% for satir in satirlar %}
             <li>
               {% include "partials/_oyuncu.html" with kisi=satir.kullanici %}
+              {% if satir.mevcut %}
+                <span class="rozet rozet-sessiz rozet-kucuk">
+                  {% if satir.kalan_hak %}
+                    {{ satir.kalan_hak }} değişiklik hakkın kaldı
+                  {% else %}
+                    Değişiklik hakkın doldu
+                  {% endif %}
+                </span>
+              {% endif %}
               <fieldset class="puan-secim sag">
                 <legend class="gizli">{{ satir.kullanici.gorunen_ad }} için puan</legend>
                 {% for deger in satir.araliklar %}

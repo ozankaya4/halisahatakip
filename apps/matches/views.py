@@ -16,9 +16,10 @@ from apps.groups.models import Uyelik
 from apps.groups.yetki import uye_gerekli, yonetici_gerekli
 from apps.notifications.models import Bildirim, toplu_bildir
 from apps.ratings.denetim import macin_adami
+from apps.ratings.gorunurluk import puan_gorunurlugu
 from apps.ratings.hesaplar import mac_puanlarini_sil
 
-from .dizilim import dizilim_verisi, takim_araligi, x_kirp
+from .dizilim import dizilim_verisi, puanlari_gizle, takim_araligi, x_kirp
 from .forms import FotografFormu, MacFormu
 from .models import Katilim, Mac, MacFotografi
 
@@ -118,7 +119,13 @@ def detay(request, mac_id: int):
     toplam_uye = max(grup.uye_sayisi, 1)
 
     # Takım kadroları ve maçın adamı yalnızca maç oynandıysa anlamlı.
-    adamlar = macin_adami(mac) if mac.gecmis_mi else []
+    #
+    # Maçın adamı, adının yanında ortalamasıyla birlikte yazıldığı için
+    # doğrudan bir puan sızıntısı; yıldızın kendisi de "en yüksek puan
+    # kimde" bilgisini veriyor. Puanlamasını tamamlamamış kişiye ikisi de
+    # gösterilmiyor (bkz. apps/ratings/gorunurluk.py).
+    durum = puan_gorunurlugu(mac, request.user)
+    adamlar = macin_adami(mac) if mac.gecmis_mi and durum.gorebilir else []
     adam_idleri = {a["kullanici"].pk for a in adamlar}
 
     takimlar = []
@@ -157,6 +164,7 @@ def detay(request, mac_id: int):
             "foto_formu": FotografFormu(),
             "takimlar": takimlar,
             "macin_adamlari": adamlar,
+            "durum": durum,
         },
     )
 
@@ -494,15 +502,24 @@ def dizilim(request, mac_id: int):
     # dizilimi planlayabilsin, oyuncular da nerede oynayacaklarını görebilsin.
     # Puan rozetleri ve maçın adamı yalnızca veri oluştuğunda görünür.
     adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
+    takimlar = dizilim_verisi(mac, adam_idleri)
+
+    # Puanları görebilmek için maçta oynayan herkesi puanlamış olmak
+    # gerekiyor (süre dolduysa ya da yöneticiyse serbest).
+    durum = puan_gorunurlugu(mac, request.user)
+    if not durum.gorebilir:
+        takimlar = puanlari_gizle(takimlar)
+
     return render(
         request,
         "matches/dizilim.html",
         {
             "mac": mac,
             "grup": mac.grup,
-            "takimlar": dizilim_verisi(mac, adam_idleri),
+            "takimlar": takimlar,
             "yonetici_mi": mac.grup.yonetici_mi(request.user),
             "duzenlenebilir": False,
+            "durum": durum,
         },
     )
 
@@ -567,6 +584,8 @@ def dizilim_duzenle(request, mac_id: int):
             "takimlar": dizilim_verisi(mac, adam_idleri),
             "yonetici_mi": True,
             "duzenlenebilir": True,
+            # Düzenleme yalnızca yöneticide; yöneticiler puan kısıtından muaf.
+            "durum": puan_gorunurlugu(mac, request.user),
         },
     )
 

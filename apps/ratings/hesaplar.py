@@ -25,15 +25,25 @@ from .models import Puan
 GECERLI_PUAN = Q(mac__iptal=False) & Q(karantinada=False)
 
 
-def grup_ozeti(grup, kullanici) -> dict:
+def grup_ozeti(grup, kullanici, izleyen=None) -> dict:
     """
     Bir kullanıcının **tek bir gruptaki** puan özeti.
 
+    `izleyen` verilirse, o kişiye kapalı olan maçlar (puanlamasını
+    tamamlamadığı, süresi henüz dolmamış maçlar) hesaba katılmaz; yoksa
+    ortalamadaki oynama üzerinden maçtaki puan tahmin edilebilirdi.
+    Bkz. apps/ratings/gorunurluk.py::gizli_mac_idleri.
+
     Döner: {"ortalama": Decimal|None, "adet": int, "gosterilsin": bool}
     """
-    ozet = Puan.objects.filter(
-        GECERLI_PUAN, puanlanan=kullanici, mac__grup=grup
-    ).aggregate(ortalama=Avg("deger"), adet=Count("id"))
+    from .gorunurluk import gizli_mac_idleri
+
+    sorgu = Puan.objects.filter(GECERLI_PUAN, puanlanan=kullanici, mac__grup=grup)
+    gizli = gizli_mac_idleri(grup, izleyen) if izleyen is not None else set()
+    if gizli:
+        sorgu = sorgu.exclude(mac_id__in=gizli)
+
+    ozet = sorgu.aggregate(ortalama=Avg("deger"), adet=Count("id"))
 
     adet = ozet["adet"] or 0
     ortalama = round(ozet["ortalama"], 2) if ozet["ortalama"] is not None else None
@@ -45,7 +55,7 @@ def grup_ozeti(grup, kullanici) -> dict:
     }
 
 
-def kullanicinin_grup_ozetleri(kullanici, gruplar) -> list[dict]:
+def kullanicinin_grup_ozetleri(kullanici, gruplar, izleyen=None) -> list[dict]:
     """
     Kullanıcının verilen gruplardaki özetleri, ortalaması yüksekten düşüğe.
 
@@ -55,7 +65,7 @@ def kullanicinin_grup_ozetleri(kullanici, gruplar) -> list[dict]:
     """
     satirlar = []
     for grup in gruplar:
-        ozet = grup_ozeti(grup, kullanici)
+        ozet = grup_ozeti(grup, kullanici, izleyen=izleyen)
         if ozet["adet"] == 0:
             continue
         satirlar.append({"grup": grup, **ozet})
@@ -64,15 +74,24 @@ def kullanicinin_grup_ozetleri(kullanici, gruplar) -> list[dict]:
     return satirlar
 
 
-def grup_siralamasi(grup, limit: int | None = None) -> list[dict]:
+def grup_siralamasi(grup, limit: int | None = None, izleyen=None) -> list[dict]:
     """
     Grubun kendi puan sıralaması.
 
     Yalnızca o grupta oynanan maçlardan gelen puanlar sayılır ve eşiğin
     altında oy almış oyuncular listelenmez (az oyla oluşan ortalama
     yanıltıcıdır).
+
+    `izleyen`e kapalı maçlar sıralamaya girmez (bkz. `grup_ozeti`).
     """
     from apps.groups.models import Uyelik
+
+    from .gorunurluk import gizli_mac_idleri
+
+    gizli = gizli_mac_idleri(grup, izleyen) if izleyen is not None else set()
+    gizleme = (
+        ~Q(kullanici__aldigi_puanlar__mac_id__in=gizli) if gizli else Q()
+    )
 
     uyelikler = (
         Uyelik.objects.filter(grup=grup, durum=Uyelik.Durum.ONAYLI)
@@ -82,13 +101,15 @@ def grup_siralamasi(grup, limit: int | None = None) -> list[dict]:
                 "kullanici__aldigi_puanlar__deger",
                 filter=Q(kullanici__aldigi_puanlar__mac__grup=grup)
                 & Q(kullanici__aldigi_puanlar__mac__iptal=False)
-                & Q(kullanici__aldigi_puanlar__karantinada=False),
+                & Q(kullanici__aldigi_puanlar__karantinada=False)
+                & gizleme,
             ),
             grup_oy_sayisi=Count(
                 "kullanici__aldigi_puanlar",
                 filter=Q(kullanici__aldigi_puanlar__mac__grup=grup)
                 & Q(kullanici__aldigi_puanlar__mac__iptal=False)
-                & Q(kullanici__aldigi_puanlar__karantinada=False),
+                & Q(kullanici__aldigi_puanlar__karantinada=False)
+                & gizleme,
             ),
         )
         .filter(grup_oy_sayisi__gte=settings.RATING_MIN_VOTES_TO_DISPLAY)

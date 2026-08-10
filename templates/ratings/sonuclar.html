@@ -15,14 +15,18 @@
 
   {% if not gorunur %}
     <div class="bos-durum">
-      <p><strong>Sonuçlar henüz sana kapalı.</strong></p>
+      <p><strong>Puanları görmek için tüm oyunculara puan verilmeli.</strong></p>
       <p>
+        Puanlamadığınız oyuncular bulunmakta: <strong>{{ durum.eksik_sayisi }} oyuncu</strong>.
         Başkalarının ortalamasını görüp ona göre oy vermeyi engellemek için
-        sonuçlar, sen kendi puanlarını verdikten sonra ya da puanlama penceresi
-        kapandığında açılır.
+        sonuçlar, maçta oynayan herkesi puanladıktan sonra açılır.
+      </p>
+      <p class="kucuk solgun">
+        Puanlama süresi dolduğunda puanlar herkese açılır; o zaman
+        puanlamamış olsan da görebilirsin.
       </p>
       {% if puanlayabilir %}
-        <p><a class="dugme dugme-birincil" href="{% url 'ratings:puanla' mac.pk %}">Önce sen puanla</a></p>
+        <p><a class="dugme dugme-birincil" href="{% url 'ratings:puanla' mac.pk %}">Puanlamayı tamamla</a></p>
       {% endif %}
     </div>
   {% elif ozet %}

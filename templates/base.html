@@ -8,6 +8,14 @@
     <title>{% block baslik %}{{ site_adi }}{% endblock %}</title>
     <meta name="description" content="{% block aciklama %}Halı saha maçlarını, kadroları ve oyuncu puanlarını takip eden özel grup defteri.{% endblock %}">
     <link rel="stylesheet" href="{% static 'css/defter.css' %}">
+
+    {% comment %}
+    Site simgesi. /favicon.ico KÖKTEN ve karmasız sunuluyor: Google arama
+    sonucundaki simgeyi kararlı bir adresten okuyor, statik dosyaların
+    içerik karmalı adresi ise her değişiklikte kayıyor. SVG modern
+    tarayıcılar için, .ico ise Google ve eski tarayıcılar için.
+    {% endcomment %}
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
 
     {# Ana ekrana eklenebilir uygulama #}
@@ -20,6 +28,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Halısaha Defteri">
     <meta name="application-name" content="Halısaha Defteri">
+
+    {% comment %}
+    Arama motorlarına site kimliği. Google, arama sonucunda logo
+    gösterebilmek için bu yapılandırılmış veriyi arıyor.
+    Not: Google'ın logoyu gerçekten göstereceğinin garantisi yok ve
+    site yeniden taranana kadar (günler, bazen haftalar) görünmez.
+    Bu JSON bir betik DEĞİL, veri; CSP script-src'yi ihlal etmiyor.
+    {% endcomment %}
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Halısaha Defteri",
+        "url": "{{ request.scheme }}://{{ request.get_host }}/",
+        "logo": "{{ request.scheme }}://{{ request.get_host }}/logo.png",
+        "description": "Halı saha maçlarını, kadroları ve oyuncu puanlarını takip eden özel grup defteri."
+      }
+    </script>
 
     {% block ekstra_head %}{% endblock %}
   </head>

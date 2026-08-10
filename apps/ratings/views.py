@@ -18,6 +18,7 @@ from apps.groups.yetki import uye_gerekli
 from apps.matches.models import Mac
 
 from .denetim import karantinadaki_oylar, karantinayi_coz, mac_oylarini_denetle
+from .gorunurluk import gizli_mac_idleri, kalan_yazim_haklari, puan_gorunurlugu
 from .models import Puan
 
 
@@ -54,6 +55,7 @@ def puanla(request, mac_id: int):
         p.puanlanan_id: p.deger
         for p in Puan.objects.filter(mac=mac, puanlayan=request.user)
     }
+    oyuncular_haritasi = {k.pk: k.gorunen_ad for k in oynayanlar}
 
     if request.method == "POST":
         if sinir_asildi(f"puan:{request.user.pk}:{mac.pk}", limit=15, saniye=600):
@@ -94,17 +96,60 @@ def puanla(request, mac_id: int):
             messages.info(request, "Hiç puan girmedin.")
             return redirect("matches:detay", mac_id=mac.pk)
 
+        azami_yazim = settings.RATING_MAX_WRITES
+        yazilanlar: dict[int, int] = {}
+        kilitliler: list[str] = []
+
         with transaction.atomic():
-            for oyuncu_id, deger in kaydedilecek.items():
-                Puan.objects.update_or_create(
-                    mac=mac,
-                    puanlayan=request.user,
-                    puanlanan_id=oyuncu_id,
-                    defaults={"deger": deger},
+            mevcut_kayitlar = {
+                p.puanlanan_id: p
+                for p in Puan.objects.select_for_update().filter(
+                    mac=mac, puanlayan=request.user, puanlanan_id__in=kaydedilecek
                 )
+            }
+
+            for oyuncu_id, deger in kaydedilecek.items():
+                kayit = mevcut_kayitlar.get(oyuncu_id)
+
+                if kayit is None:
+                    Puan.objects.create(
+                        mac=mac,
+                        puanlayan=request.user,
+                        puanlanan_id=oyuncu_id,
+                        deger=deger,
+                        yazim_sayisi=1,
+                    )
+                    yazilanlar[oyuncu_id] = deger
+                    continue
+
+                # Aynı değeri yeniden kaydetmek hak yakmaz. Form herkesi
+                # birden gönderdiği için, tek bir oyuncuyu düzelten kişi
+                # aksi hâlde diğerlerinin hakkını da harcamış olurdu.
+                if kayit.deger == deger:
+                    continue
+
+                if kayit.yazim_sayisi >= azami_yazim:
+                    kilitliler.append(
+                        oyuncular_haritasi.get(oyuncu_id, "bir oyuncu")
+                    )
+                    continue
+
+                kayit.deger = deger
+                kayit.yazim_sayisi += 1
+                kayit.save(update_fields=["deger", "yazim_sayisi", "guncellenme"])
+                yazilanlar[oyuncu_id] = deger
+
             # Etkilenen oyuncuların profil ortalamalarını tazele.
-            for profil in Profil.objects.filter(kullanici_id__in=kaydedilecek):
+            for profil in Profil.objects.filter(kullanici_id__in=yazilanlar):
                 profil.istatistikleri_yenile()
+
+        if kilitliler:
+            messages.warning(
+                request,
+                "Şu oyuncular için puan değiştirme hakkın doldu, "
+                "puanları olduğu gibi kaldı: " + ", ".join(sorted(kilitliler)) + ". "
+                f"Her oyuncuya en fazla {azami_yazim} kez puan yazılabiliyor.",
+            )
 
         # Oy dağılımını denetle. Herkese aynı uç puanı verildiyse puanlar
         # silinir; dağılımsız ama uç olmayan durumlarda karantinaya alınıp
@@ -125,14 +170,33 @@ def puanla(request, mac_id: int):
                 "şimdilik ortalamalara katılmıyor. Grup yöneticisi bakıp "
                 "onaylayacak.",
             )
-        else:
+        elif yazilanlar:
             messages.success(
-                request, f"{len(kaydedilecek)} oyuncu için puanların kaydedildi."
+                request, f"{len(yazilanlar)} oyuncu için puanların kaydedildi."
             )
-        return redirect("ratings:sonuclar", mac_id=mac.pk)
+        elif not kilitliler:
+            messages.info(request, "Puanlarında değişiklik yoktu.")
 
+        # Herkesi puanlamayan kişi puanları göremiyor; sonuç sayfası yerine
+        # eksiklerini görebileceği maç sayfasına döndürüyoruz.
+        durum = puan_gorunurlugu(mac, request.user)
+        if durum.gorebilir:
+            return redirect("ratings:sonuclar", mac_id=mac.pk)
+        messages.info(
+            request,
+            f"Puanları görebilmek için {durum.eksik_sayisi} oyuncuyu daha "
+            "puanlaman gerekiyor.",
+        )
+        return redirect("ratings:puanla", mac_id=mac.pk)
+
+    kalan_haklar = kalan_yazim_haklari(mac, request.user)
     satirlar = [
-        {"kullanici": k, "mevcut": mevcut.get(k.pk), "araliklar": range(1, 11)}
+        {
+            "kullanici": k,
+            "mevcut": mevcut.get(k.pk),
+            "araliklar": range(1, 11),
+            "kalan_hak": kalan_haklar.get(k.pk, settings.RATING_MAX_WRITES),
+        }
         for k in oynayanlar
     ]
     kalan = mac.puanlama_bitis - timezone.now()
@@ -161,13 +225,13 @@ def sonuclar(request, mac_id: int):
     """
     mac = _mac_ve_yetki(request, mac_id)
 
-    kendi_oyu_var = Puan.objects.filter(mac=mac, puanlayan=request.user).exists()
     pencere_kapandi = timezone.now() > mac.puanlama_bitis
 
-    # Oyunu vermeden başkalarının ortalamasını görüp ona göre oy vermeyi
-    # engellemek için sonuçlar ya oy verdikten sonra ya da pencere kapanınca
-    # açılır.
-    gorunur = kendi_oyu_var or pencere_kapandi or request.user.is_superuser
+    # Sonuçları görmek için maçta oynayan HERKESİ puanlamış olmak gerekiyor.
+    # Eskiden tek bir oy yeterliydi; kişi bir kişiye puan verip geri kalanının
+    # ortalamasını görebiliyor, sonra ona göre oy verebiliyordu.
+    durum = puan_gorunurlugu(mac, request.user)
+    gorunur = durum.gorebilir
 
     ozet = []
     if gorunur:
@@ -192,6 +256,7 @@ def sonuclar(request, mac_id: int):
             "gorunur": gorunur,
             "pencere_kapandi": pencere_kapandi,
             "puanlayabilir": mac.kullanici_puanlayabilir(request.user),
+            "durum": durum,
         },
     )
 
@@ -200,8 +265,14 @@ def sonuclar(request, mac_id: int):
 def siralama(request, grup):
     """Grup içi genel sıralama — yalnızca ortalamalar."""
     # İptal edilen maçların ve karantinadaki oyların puanları sayılmaz.
+    #
+    # Puanlamasını tamamlamayan kişiye, o maçların puanları burada da
+    # gösterilmiyor: sıralamayı maçtan önce ve sonra karşılaştıran biri
+    # ortalamadaki oynamadan puanı çıkarabilirdi.
+    gizli = gizli_mac_idleri(grup, request.user)
     satirlar = (
         Puan.objects.filter(mac__grup=grup, mac__iptal=False, karantinada=False)
+        .exclude(mac_id__in=gizli)
         .values("puanlanan_id", "puanlanan__ad_soyad", "puanlanan__email")
         .annotate(ortalama=Avg("deger"), oy_sayisi=Count("id"))
         .order_by("-ortalama")
@@ -223,6 +294,7 @@ def siralama(request, grup):
             "listelenen": listelenen,
             "yetersiz": yetersiz,
             "esik": esik,
+            "gizli_mac_sayisi": len(gizli),
         },
     )
 

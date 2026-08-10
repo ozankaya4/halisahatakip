@@ -22,6 +22,14 @@ urlpatterns = [
     #   kendimiz veriyoruz.
     path("sw.js", views.servis_calisani, name="servis_calisani"),
     path("manifest.webmanifest", views.manifest, name="manifest"),
+    # --- Arama motorları ---------------------------------------------------
+    # Favicon ve logo KÖKTEN, karma içermeyen kararlı adreslerden sunuluyor:
+    # Google arama sonucundaki site simgesini kararlı bir adresten okuyor ve
+    # botların çoğu doğrudan /favicon.ico deniyor.
+    path("favicon.ico", views.favicon, name="favicon"),
+    path("logo.png", views.logo, name="logo"),
+    path("robots.txt", views.robots, name="robots"),
+    path("sitemap.xml", views.sitemap, name="sitemap"),
     # Korumalı dosya sunumu. Yol bilgisi değil, veritabanı kimliği alır;
     # bu sayede yol geçişi (path traversal) yapısal olarak imkânsızdır.
     path("dosya/avatar/<uuid:dosya_id>/", views.avatar_dosyasi, name="avatar_dosyasi"),

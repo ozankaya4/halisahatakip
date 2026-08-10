@@ -74,6 +74,11 @@
               <span class="kucuk solgun">{{ adam.ortalama }}</span>{% if not forloop.last %} ·{% endif %}
             {% endfor %}
           </p>
+        {% elif mac.gecmis_mi and not durum.gorebilir %}
+          <p class="kucuk solgun">
+            Maçın adamı, puanlamanı tamamlayınca görünür.
+            <a href="{% url 'ratings:puanla' mac.pk %}">Puanlamayı tamamla</a>.
+          </p>
         {% endif %}
       </div>
 
@@ -105,7 +110,7 @@
         {% endfor %}
       </div>
 
-      {% if mac.berabere_mi %}
+      {% if mac.berabere_mi and macin_adamlari %}
         <p class="kucuk solgun">
           Maç berabere bitti; maçın adamı iki takım arasından en yüksek puanlı
           oyuncu olarak seçildi.

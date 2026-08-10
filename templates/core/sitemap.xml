@@ -1,0 +1,11 @@
+{% comment %}
+Site haritası. Yalnızca herkese açık tek sayfa var: tanıtım sayfası.
+Geri kalan her şey giriş gerektiriyor ve indekslenmemeli.
+{% endcomment %}<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{ request.scheme }}://{{ request.get_host }}/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

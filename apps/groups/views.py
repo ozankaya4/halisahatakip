@@ -79,9 +79,12 @@ def detay(request, grup):
     # Sıralama yalnızca BU grupta oynanan maçların puanlarından hesaplanır.
     # Eskiden profildeki küresel ortalamaya bakılıyordu; o hâliyle biri kendi
     # grubunu kurup kendine 10 vererek buradaki sıralamayı da yükseltebiliyordu.
+    from apps.ratings.gorunurluk import gizli_mac_idleri
     from apps.ratings.hesaplar import grup_siralamasi
 
-    en_iyiler = grup_siralamasi(grup, limit=5)
+    en_iyiler = grup_siralamasi(grup, limit=5, izleyen=request.user)
+    # Puanlaması tamamlanmadığı için sıralamaya girmeyen maç adedi.
+    gizli_mac_sayisi = len(gizli_mac_idleri(grup, request.user))
 
     # Şüpheli oylama nedeniyle karantinaya alınmış, yönetici kararı bekleyen
     # kayıt var mı? Sayfada uyarı olarak gösteriliyor.
@@ -105,6 +108,7 @@ def detay(request, grup):
             "yaklasan_maclar": yaklasan,
             "gecmis_maclar": gecmis,
             "en_iyiler": en_iyiler,
+            "gizli_mac_sayisi": gizli_mac_sayisi,
             "bekleyen_sayisi": grup.bekleyen_sayisi,
             "bekleyen_oy_incelemesi": bekleyen_oy_incelemesi,
         },
@@ -455,7 +459,9 @@ def uye_istatistik(request, grup, kullanici_id: int):
             "grup": grup,
             "uyelik": uyelik,
             "gosterilen": uyelik.kullanici,
-            "istatistik": uye_istatistikleri(grup, uyelik.kullanici),
+            "istatistik": uye_istatistikleri(
+                grup, uyelik.kullanici, izleyen=request.user
+            ),
             "yonetici_mi": grup.yonetici_mi(request.user),
         },
     )

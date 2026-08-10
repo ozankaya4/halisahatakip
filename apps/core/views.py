@@ -114,6 +114,54 @@ def cevrimdisi(request):
     return render(request, "core/cevrimdisi.html")
 
 
+def favicon(request):
+    """
+    /favicon.ico — kararlı adresten site simgesi.
+
+    Statik dosyalar içerik karmasıyla adlandırılıyor
+    (favicon.a1b2c3.svg); o adres her CSS/ikon değişiminde kayıyor.
+    Google arama sonucundaki site simgesini kararlı bir adresten okumak
+    istiyor, üstelik tarayıcılar ve botlar doğrudan /favicon.ico deniyor.
+    Bu yüzden kökten, sabit adla ve uzun önbellekle sunuyoruz.
+    """
+    return _statik_dosya(request, "img/favicon.ico", "image/x-icon")
+
+
+def logo(request):
+    """/logo.png — yapılandırılmış veride (JSON-LD) gösterilen kare logo."""
+    return _statik_dosya(request, "img/logo-512.png", "image/png")
+
+
+def _statik_dosya(request, goreli_yol: str, icerik_tipi: str) -> HttpResponse:
+    """Statik bir dosyayı kararlı bir adresten sunar."""
+    from django.contrib.staticfiles import finders
+
+    yol = finders.find(goreli_yol)
+    if not yol:
+        raise Http404("Bulunamadı.")
+
+    yanit = FileResponse(open(yol, "rb"), content_type=icerik_tipi)
+    # Simge nadiren değişiyor; botlar ve tarayıcılar için uzun önbellek.
+    yanit["Cache-Control"] = "public, max-age=604800"
+    return yanit
+
+
+def robots(request):
+    """
+    robots.txt.
+
+    Sitenin neredeyse tamamı giriş gerektiriyor; taranacak tek şey tanıtım
+    sayfası. Yine de faviconun ve logonun taranabilir olması şart: Google
+    erişemediği bir simgeyi arama sonucunda göstermiyor.
+    """
+    return render(request, "core/robots.txt", content_type="text/plain")
+
+
+def sitemap(request):
+    """Site haritası. Herkese açık tek sayfa var: tanıtım sayfası."""
+    return render(request, "core/sitemap.xml", content_type="application/xml")
+
+
 def manifest(request):
     """
     Uygulama tanımı.

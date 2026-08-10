@@ -64,20 +64,28 @@ def _seri_hesapla(sonuclar: list[str]) -> tuple[int, int]:
     return guncel, en_uzun
 
 
-def uye_istatistikleri(grup, kullanici) -> dict:
+def uye_istatistikleri(grup, kullanici, izleyen=None) -> dict:
     """
     Bir oyuncunun bu gruptaki bütün istatistikleri.
 
     Sorgu sayısı maç sayısından bağımsız: katılımlar, puanlar ve maçın adamı
     sayaçları toplu çekiliyor.
+
+    `izleyen` sayfaya bakan kişidir. Puanlamasını tamamlamadığı maçların
+    puanları buradaki hiçbir sayıya girmez: maç bazlı puan, ortalama, form
+    ve maçın adamı sayacı. Aksi hâlde sayfayı maçtan önce ve sonra açan biri
+    farktan puanı çıkarabilirdi (bkz. apps/ratings/gorunurluk.py).
     """
     from apps.matches.dizilim import puan_rengi
     from apps.matches.models import Katilim, Mac
     from apps.ratings.denetim import grup_macin_adami_sayilari
+    from apps.ratings.gorunurluk import gizli_mac_idleri
     from apps.ratings.hesaplar import grup_ozeti
     from apps.ratings.models import Puan
 
     from django.db.models import Avg
+
+    gizli_maclar = gizli_mac_idleri(grup, izleyen) if izleyen is not None else set()
 
     # --- Grubun maçları ve oyuncunun katılımları --------------------------
     toplam_mac = Mac.objects.filter(grup=grup, iptal=False, baslangic__lt=_simdi()).count()
@@ -97,6 +105,7 @@ def uye_istatistikleri(grup, kullanici) -> dict:
         for satir in Puan.objects.filter(
             puanlanan=kullanici, mac__grup=grup, mac__iptal=False, karantinada=False
         )
+        .exclude(mac_id__in=gizli_maclar)
         .values("mac_id")
         .annotate(ortalama=Avg("deger"))
     }
@@ -128,7 +137,7 @@ def uye_istatistikleri(grup, kullanici) -> dict:
     guncel_seri, en_uzun_seri = _seri_hesapla(sonuc_kodlari)
 
     # --- Puan özetleri -----------------------------------------------------
-    ozet = grup_ozeti(grup, kullanici)
+    ozet = grup_ozeti(grup, kullanici, izleyen=izleyen)
     mac_puanlari = [s.puan for s in sonuclar if s.puan is not None]
     son_puanlar = [p for p in mac_puanlari[:SON_MAC_SAYISI]]
 
@@ -144,7 +153,9 @@ def uye_istatistikleri(grup, kullanici) -> dict:
     kirmizi = sum(1 for k in oynadiklari if k.kirmizi_kart)
 
     oynanan = len(oynadiklari)
-    macin_adami_sayisi = grup_macin_adami_sayilari(grup).get(kullanici.pk, 0)
+    macin_adami_sayisi = grup_macin_adami_sayilari(grup, haric=gizli_maclar).get(
+        kullanici.pk, 0
+    )
 
     return {
         "kullanici": kullanici,
@@ -176,6 +187,8 @@ def uye_istatistikleri(grup, kullanici) -> dict:
         "en_yuksek_puan": en_yuksek,
         "en_yuksek_sinifi": puan_rengi(en_yuksek),
         "macin_adami": macin_adami_sayisi,
+        # Puanlaması tamamlanmadığı için sayılara girmeyen maç adedi.
+        "gizli_mac_sayisi": len(gizli_maclar),
         # İstatistikler — görünürlük grup ayarına bağlı (dizilimdeki kuralın aynısı)
         "gol": gol if grup.gol_gosterilsin else None,
         "asist": asist if grup.asist_gosterilsin else None,

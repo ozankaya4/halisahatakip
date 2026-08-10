@@ -10,6 +10,15 @@
     </div>
   </div>
 
+  {% if gizli_mac_sayisi %}
+    <div class="serit serit-uyari">
+      <strong>Puanları görmek için tüm oyunculara puan verilmeli.</strong>
+      Puanlamadığınız oyuncular bulunmakta; bu yüzden {{ gizli_mac_sayisi }} maçın
+      puanları aşağıdaki ortalamalara katılmıyor. Puanlamanı tamamladığında
+      ya da puanlama süresi dolduğunda eklenir.
+    </div>
+  {% endif %}
+
   {% if listelenen %}
     <section class="kutu">
       <div class="tablo-sarmal">

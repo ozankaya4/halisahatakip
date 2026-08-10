@@ -26,6 +26,15 @@
     <a class="dugme dugme-sessiz" href="{% url 'accounts:profil' gosterilen.pk %}">Profili gör</a>
   </div>
 
+  {% if istatistik.gizli_mac_sayisi %}
+    <div class="serit serit-uyari">
+      <strong>Puanları görmek için tüm oyunculara puan verilmeli.</strong>
+      Puanlamadığınız oyuncular bulunmakta; bu yüzden {{ istatistik.gizli_mac_sayisi }} maçın
+      puanları buradaki ortalamaya, forma ve maçın adamı sayısına katılmıyor.
+      Katılım, galibiyet ve gol sayıları etkilenmiyor.
+    </div>
+  {% endif %}
+
   <div class="iki-sutun">
     <div class="yigin">
 

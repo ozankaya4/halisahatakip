@@ -365,7 +365,16 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 # Uygulama kuralları (soruların yanıtlarına göre)
 # --------------------------------------------------------------------------
 # Maç sonrası puanlama penceresi: maç saatinden itibaren 1 hafta
-RATING_WINDOW_DAYS = 7
+# Maç saatinden itibaren puanlama süresi. Süre dolduğunda puanlama kapanır
+# VE puanlar herkese açılır (o ana kadar yalnızca herkesi puanlayanlar
+# görebiliyor; bkz. apps/ratings/gorunurluk.py).
+RATING_WINDOW_DAYS = 3
+
+# Bir kişinin aynı oyuncuya kaç kez puan yazabileceği: ilk oy + bir düzeltme.
+# Sayaç oyuncu BAZINDA tutuluyor, maç bazında değil; sonradan kadroya
+# eklenen biri için de iki hak yeniden geçerli.
+# Aynı değeri tekrar kaydetmek hak yakmaz, yalnızca gerçek değişiklik sayılır.
+RATING_MAX_WRITES = 2
 # Yalnızca maça katılanlar puan verebilir
 RATING_REQUIRES_ATTENDANCE = True
 # Kimse kendine puan veremez

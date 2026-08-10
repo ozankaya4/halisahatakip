@@ -1,0 +1,24 @@
+{% comment %}
+Sitenin neredeyse tamamı giriş gerektiriyor; arama motorlarının indeksleyeceği
+tek sayfa tanıtım sayfası. Yine de simgelerin taranabilir kalması şart:
+Google, erişemediği bir faviconu arama sonucunda göstermiyor.
+{% endcomment %}User-agent: *
+Allow: /$
+Allow: /favicon.ico
+Allow: /logo.png
+Allow: /static/
+Allow: /manifest.webmanifest
+
+# Kişisel veri içeren ya da giriş gerektiren her yer taramaya kapalı.
+Disallow: /panel/
+Disallow: /profil/
+Disallow: /gruplar/
+Disallow: /maclar/
+Disallow: /puanlar/
+Disallow: /sohbet/
+Disallow: /bildirimler/
+Disallow: /hesap/
+Disallow: /yonetim/
+Disallow: /dosya/
+
+Sitemap: {{ request.scheme }}://{{ request.get_host }}/sitemap.xml

@@ -132,6 +132,12 @@
         {% else %}
           <p class="solgun">Sıralama için yeterli puan birikmedi.</p>
         {% endif %}
+        {% if gizli_mac_sayisi %}
+          <p class="kucuk solgun">
+            Puanlamadığın {{ gizli_mac_sayisi }} maç bu ortalamalara katılmıyor.
+            Puanlamanı tamamlayınca ya da süre dolunca eklenecek.
+          </p>
+        {% endif %}
       </section>
     </aside>
   </div>

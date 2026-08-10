@@ -83,6 +83,27 @@ def main() -> None:
         ikon_ciz(boyut, guvenli, kose).save(yol, format="PNG", optimize=True)
         print(f"  {ad:28} {boyut}x{boyut}  {yol.stat().st_size:>6} bayt")
 
+    # --- Arama motorları için favicon ---------------------------------------
+    # Google, arama sonucunda site simgesini gösterirken faviconu KARARLI bir
+    # adresten okumak istiyor. Django'nun statik dosyaları içerik karmasıyla
+    # adlandırdığı için (favicon.a1b2c3.svg) o adres her değişiklikte
+    # kayıyordu; ayrıca birçok tarayıcı ve tarayıcı botu doğrudan
+    # /favicon.ico adresini deniyor. Bu yüzden kök dizinden sabit adla
+    # sunulacak dosyaları burada üretiyoruz.
+    ico_yol = HEDEF / "favicon.ico"
+    # Çok boyutlu .ico: Google en az 48x48 istiyor, tarayıcılar 16/32 kullanıyor.
+    ikon_ciz(256, 0.16, 0.16).save(
+        ico_yol,
+        format="ICO",
+        sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+    )
+    print(f"  {'favicon.ico':28} çok boyutlu  {ico_yol.stat().st_size:>6} bayt")
+
+    # Yapılandırılmış veride (JSON-LD) kullanılacak kare logo.
+    logo_yol = HEDEF / "logo-512.png"
+    ikon_ciz(512, 0.16, 0.16).save(logo_yol, format="PNG", optimize=True)
+    print(f"  {'logo-512.png':28} 512x512  {logo_yol.stat().st_size:>6} bayt")
+
 
 if __name__ == "__main__":
     main()

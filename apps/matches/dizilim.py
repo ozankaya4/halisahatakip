@@ -178,6 +178,12 @@ def dizilim_verisi(mac, macin_adami_idleri: set[int] | None = None) -> list[dict
                 }
             )
 
+        # Takımın puan toplamı ve ortalaması. Yalnızca puanı olan oyuncular
+        # hesaba giriyor; puanlanmamış biri ortalamayı aşağı çekmemeli.
+        puanlilar = [o["puan"] for o in oyuncular if o["puan"] is not None]
+        toplam = round(sum(puanlilar), 1) if puanlilar else None
+        ortalama = round(sum(puanlilar) / len(puanlilar), 1) if puanlilar else None
+
         takimlar.append(
             {
                 "kod": kod,
@@ -185,7 +191,34 @@ def dizilim_verisi(mac, macin_adami_idleri: set[int] | None = None) -> list[dict
                 "oyuncular": oyuncular,
                 "skor": mac.skor_a if kod == Mac.Takim.A else mac.skor_b,
                 "kazandi": mac.kazanan_takim == kod,
+                "toplam_puan": toplam,
+                "ortalama_puan": ortalama,
+                "ortalama_sinifi": puan_rengi(ortalama),
+                "puanli_oyuncu": len(puanlilar),
             }
         )
 
+    return takimlar
+
+
+def puanlari_gizle(takimlar: list) -> list:
+    """
+    Puanla ilgili her şeyi listeden çıkarır.
+
+    Maçta oynayan herkesi puanlamamış kişiye dizilim gösteriliyor ama
+    puanlar gösterilmiyor. Gizleme ŞABLONDA değil burada yapılıyor: veriyi
+    hiç göndermezsek sayfa kaynağında da görünmez, "gizli ama HTML'de var"
+    durumu oluşmaz.
+    """
+    for takim in takimlar:
+        takim["toplam_puan"] = None
+        takim["ortalama_puan"] = None
+        takim["ortalama_sinifi"] = ""
+        takim["puanli_oyuncu"] = 0
+        for oyuncu in takim["oyuncular"]:
+            oyuncu["puan"] = None
+            oyuncu["puan_sinifi"] = ""
+            # Maçın adamı da puanlardan çıkıyor: kimin en yüksek aldığını
+            # ele verirdi.
+            oyuncu["macin_adami"] = False
     return takimlar

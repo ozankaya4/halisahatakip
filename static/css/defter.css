@@ -1976,6 +1976,62 @@ p {
   margin-inline-start: 0.3rem;
 }
 
+/* Takım puan özetleri (sahanın altında) */
+.takim-ozetleri {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-block: 1rem 1.25rem;
+}
+
+@media (min-width: 40rem) {
+  .takim-ozetleri {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.takim-ozet {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  background: var(--kagit-ust);
+}
+
+.takim-ozet-kazandi {
+  border-inline-start: 3px solid var(--yesil);
+}
+
+.takim-ozet-ad {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-block-end: 0.5rem;
+}
+
+.takim-ozet-sayilar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.takim-ozet-sayilar > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.takim-ozet-etiket {
+  font-size: 0.8rem;
+  color: var(--murekkep-soluk);
+}
+
+.takim-ozet-sayilar strong {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .olcek-aciklama {
   display: flex;
   align-items: center;

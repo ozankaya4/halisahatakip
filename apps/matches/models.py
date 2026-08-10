@@ -81,7 +81,7 @@ class Mac(ZamanDamgaliModel):
 
     @property
     def puanlama_acik(self) -> bool:
-        """Puanlama maç saatinde açılır, bir hafta sonra kapanır."""
+        """Puanlama maç saatinde açılır, RATING_WINDOW_DAYS gün sonra kapanır."""
         if self.iptal:
             return False
         return self.baslangic <= timezone.now() <= self.puanlama_bitis
