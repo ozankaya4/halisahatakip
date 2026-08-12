@@ -364,7 +364,6 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 # --------------------------------------------------------------------------
 # Uygulama kuralları (soruların yanıtlarına göre)
 # --------------------------------------------------------------------------
-# Maç sonrası puanlama penceresi: maç saatinden itibaren 1 hafta
 # Maç saatinden itibaren puanlama süresi. Süre dolduğunda puanlama kapanır
 # VE puanlar herkese açılır (o ana kadar yalnızca herkesi puanlayanlar
 # görebiliyor; bkz. apps/ratings/gorunurluk.py).

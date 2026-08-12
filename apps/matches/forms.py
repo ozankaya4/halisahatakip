@@ -19,8 +19,8 @@ class MacFormu(forms.ModelForm):
         label="Tarih ve saat",
         help_text=(
             "Geçmiş bir tarih de girebilirsin (unutulan maçlar, eski kayıtlar). "
-            "Ancak puanlama maç saatinden itibaren bir hafta açık kalıyor: "
-            "bir haftadan eskiye eklenen maç puanlamaya kapalı doğar, "
+            "Ancak puanlama maç saatinden itibaren 3 gün açık kalıyor: "
+            "3 günden eskiye eklenen maç puanlamaya kapalı doğar, "
             "yalnızca kadro ve sonuç kaydı olarak durur."
         ),
     )

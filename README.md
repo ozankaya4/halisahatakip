@@ -49,7 +49,9 @@ Seçtiğiniz kurallar hem görünüm hem veritabanı seviyesinde uygulanıyor:
 | Yalnızca maçta oynayanlar puan verebilir | `Mac.kullanici_puanlayabilir()` |
 | Kimse kendine puan veremez | Görünüm filtresi **+** `kendine_puan_verilemez` veritabanı kısıtı |
 | Puanlar anonim | Arayüzde yalnızca ortalama gösterilir |
-| Puanlama 1 hafta sonra kapanır | `RATING_WINDOW_DAYS = 7` |
+| Puanlama 3 gün sonra kapanır | `RATING_WINDOW_DAYS = 3` |
+| Puanları görmek için maçtaki herkesi puanlamak gerekir | `apps/ratings/gorunurluk.py` |
+| Bir oyuncuya en fazla 2 kez puan yazılır | `RATING_MAX_WRITES = 2`, `Puan.yazim_sayisi` |
 
 Ek olarak: bir oyuncunun ortalaması, en az **3** puan toplanana kadar
 gösterilmez (`RATING_MIN_VOTES_TO_DISPLAY`) — iki kişilik ortalama yanıltıcı

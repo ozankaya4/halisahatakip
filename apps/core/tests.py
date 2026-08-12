@@ -348,11 +348,13 @@ class MacVePuanTesti(TestCase):
         )
         self.assertEqual(Puan.objects.count(), 0)
 
-    def test_puanlama_penceresi_bir_hafta_sonra_kapanir(self):
+    def test_puanlama_penceresi_sure_dolunca_kapanir(self):
         mac = self._oynanmis_mac()
         self.assertTrue(mac.puanlama_acik)
 
-        mac.baslangic = timezone.now() - timezone.timedelta(days=8)
+        mac.baslangic = timezone.now() - timezone.timedelta(
+            days=settings.RATING_WINDOW_DAYS + 1
+        )
         mac.save(update_fields=["baslangic"])
         self.assertFalse(mac.puanlama_acik)
 
@@ -3172,6 +3174,47 @@ class HesapSayfalariStiliTesti(TestCase):
         ]:
             with self.subTest(secici=secici):
                 self.assertIn(secici, css, f"defter.css içinde {secici} yok")
+
+    def test_saha_parmakla_kaydirmayi_engellemiyor(self):
+        """
+        Telefonda sahaya dokunan sayfayı kaydırabilmeli.
+
+        Eskiden `.saha` ve `.oyuncu-kart` için koşulsuz `touch-action: none`
+        yazıyordu; saha ekranın yarısını kapladığı için parmağını oraya koyan
+        kimse sayfayı kaydıramıyordu. Artık yalnızca düzenleme ekranındaki
+        kartlar parmağı yakalıyor: oyuncunun üstünden başlayan hareket
+        sürükleme, sahanın boşundan başlayan hareket kaydırma.
+        """
+        import re
+
+        css = (settings.BASE_DIR / "static" / "css" / "defter.css").read_text(
+            encoding="utf-8"
+        )
+        # Açıklamalar çıkarılıyor: "eskiden touch-action: none vardı" diyen
+        # bir yorum kuralın kendisi sanılmasın.
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+
+        # Kuralın hangi bloklarda geçtiğine bakılıyor.
+        bloklar = {}
+        for ham in css.split("}"):
+            if "{" not in ham:
+                continue
+            secici, govde = ham.rsplit("{", 1)
+            bloklar[secici.strip().splitlines()[-1].strip()] = govde
+
+        kilitli = [
+            secici
+            for secici, govde in bloklar.items()
+            if "touch-action: none" in govde
+        ]
+
+        self.assertNotIn(".saha", kilitli, "saha tüm dokunuşları yutuyor")
+        self.assertNotIn(".oyuncu-kart", kilitli, "kartlar salt okunurken de yutuyor")
+        self.assertIn(
+            ".saha[data-duzenlenebilir] .oyuncu-kart",
+            kilitli,
+            "düzenleme ekranında kart sürüklenirken sayfa kaymamalı",
+        )
 
 
 class ProfilTesti(TestCase):

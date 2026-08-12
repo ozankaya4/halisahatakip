@@ -1789,7 +1789,12 @@ p {
     transparent 6.25% 12.5%
   );
   border: 2px solid rgba(246, 243, 234, 0.35);
-  touch-action: none; /* parmakla sürüklerken sayfa kaymasın */
+
+  /* touch-action BİLEREK ayarlanmıyor.
+     Eskiden burada "touch-action: none" vardı ve telefonda parmağını sahaya
+     koyan hiç kimse sayfayı kaydıramıyordu; saha ekranın yarısını kapladığı
+     için pratikte sayfa kilitleniyordu. Sürükleme sırasında kaymayı önlemek
+     yalnızca sürüklenebilir kartların işi (aşağıya bakınız). */
 }
 
 /* --- Saha çizgileri (hepsi süs; ekran okuyucudan gizli) ------------------ */
@@ -1894,11 +1899,15 @@ p {
   gap: 0.2rem;
   width: 4.5rem;
   text-align: center;
-  touch-action: none;
 }
 
+/* Yalnızca DÜZENLEME ekranındaki kartlar parmağı yakalıyor: oyuncunun
+   üstünden başlayan hareket sürükleme, sahanın boş yerinden başlayan
+   hareket sayfa kaydırma. Salt okunur dizilimde sürükleme yok, dolayısıyla
+   kart da parmağı tutmuyor. */
 .saha[data-duzenlenebilir] .oyuncu-kart {
   cursor: grab;
+  touch-action: none;
 }
 
 .oyuncu-kart.suruklerken {
