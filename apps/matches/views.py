@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -387,7 +388,14 @@ def kadro_duzenle(request, mac_id: int):
                 except ValueError:
                     messages.error(request, "Skor sayı olmalı; skor kaydedilmedi.")
                     mac.skor_a = mac.skor_b = None
-            mac.save(update_fields=["skor_a", "skor_b", "guncellenme"])
+
+            # --- Forma golü ---------------------------------------------
+            # Skor girilmemişse forma golü de anlamsız; birlikte temizleniyor.
+            secilen = (request.POST.get("forma_golu") or "").strip()
+            gecerli = {kod for kod, _ in Mac.Takim.choices}
+            mac.forma_golu = secilen if secilen in gecerli and mac.skor_girildi_mi else ""
+
+            mac.save(update_fields=["skor_a", "skor_b", "forma_golu", "guncellenme"])
 
         messages.success(request, "Kadro ve sonuç kaydedildi.")
         return redirect("matches:detay", mac_id=mac.pk)
@@ -525,6 +533,39 @@ def dizilim(request, mac_id: int):
 
 
 @login_required
+def dizilim_gorseli(request, mac_id: int):
+    """
+    Dizilimin paylaşılabilir PNG hâli.
+
+    `?yon=yatay` (varsayılan) ya da `?yon=dikey`. Dikey, telefon hikâyesi
+    ölçüsünde (1080x1920) ve eksenleri değişmiş olarak çiziliyor.
+
+    Puan görünürlüğü sayfayla aynı kurala tabi: puanlamasını tamamlamamış
+    kişinin görselinde de puan, ortalama ve maçın adamı çıkmıyor.
+    """
+    from .gorsel import YONLER, dizilim_gorseli as ciz, dosya_adi
+
+    mac = _mac_getir(request, mac_id)
+
+    yon = request.GET.get("yon", "yatay")
+    if yon not in YONLER:
+        yon = "yatay"
+
+    adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
+    takimlar = dizilim_verisi(mac, adam_idleri)
+    if not puan_gorunurlugu(mac, request.user).gorebilir:
+        takimlar = puanlari_gizle(takimlar)
+
+    icerik = ciz(mac, takimlar, yon)
+
+    yanit = HttpResponse(icerik, content_type="image/png")
+    yanit["Content-Disposition"] = f'attachment; filename="{dosya_adi(mac, yon)}"'
+    # Puan durumu kişiden kişiye değiştiği için paylaşımlı önbellek olmaz.
+    yanit["Cache-Control"] = "private, max-age=0, no-store"
+    return yanit
+
+
+@login_required
 def dizilim_duzenle(request, mac_id: int):
     """
     Dizilim düzenleyici: oyuncular sahada sürüklenerek yerleştirilir.
@@ -607,6 +648,10 @@ def _istatistik_tutarli_mi(mac: Mac, katilimlar: list) -> str:
     olabilir). Aksi hâlde "3-1 biten maçta 5 gol atmış" gibi kayıtlar
     oluşuyor ve istatistik sayfası saçmalıyor.
 
+    Forma golü olan takımda sınır bir fazla: o gol gerçekten atıldı, sadece
+    skor tabelasına yazılmadı. Golü atan oyuncu kendi istatistiğinde
+    hakkını alıyor.
+
     Skor girilmemişse denetlenecek bir üst sınır yok; boş dizge döner.
     Hata varsa kullanıcıya gösterilecek mesajı döner.
     """
@@ -620,18 +665,21 @@ def _istatistik_tutarli_mi(mac: Mac, katilimlar: list) -> str:
         if not takimdakiler:
             continue
 
+        sinir = skor + (1 if mac.forma_golu == takim else 0)
+        forma_notu = " (forma golü dâhil)" if sinir > skor else ""
+
         gol = sum(k.gol for k in takimdakiler)
         asist = sum(k.asist for k in takimdakiler)
         ad = dict(Mac.Takim.choices)[takim]
 
-        if gol > skor:
+        if gol > sinir:
             return (
-                f"{ad} için girilen gol toplamı ({gol}) takımın skorundan "
-                f"({skor}) fazla. Skoru düzelt ya da golleri azalt."
+                f"{ad} için girilen gol toplamı ({gol}) en fazla "
+                f"{sinir} olabilir{forma_notu}. Skoru düzelt ya da golleri azalt."
             )
-        if asist > skor:
+        if asist > sinir:
             return (
-                f"{ad} için girilen asist toplamı ({asist}) takımın skorundan "
-                f"({skor}) fazla. Her golün en fazla bir asisti olabilir."
+                f"{ad} için girilen asist toplamı ({asist}) en fazla "
+                f"{sinir} olabilir{forma_notu}. Her golün en fazla bir asisti olabilir."
             )
     return ""

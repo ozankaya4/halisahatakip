@@ -16,6 +16,7 @@ urlpatterns = [
     path("<int:mac_id>/kadro/", views.kadro_duzenle, name="kadro_duzenle"),
     path("<int:mac_id>/dizilim/", views.dizilim, name="dizilim"),
     path("<int:mac_id>/dizilim/duzenle/", views.dizilim_duzenle, name="dizilim_duzenle"),
+    path("<int:mac_id>/dizilim/gorsel.png", views.dizilim_gorseli, name="dizilim_gorseli"),
     path("<int:mac_id>/fotograf/", views.fotograf_yukle, name="fotograf_yukle"),
     path("fotograf/<int:foto_id>/sil/", views.fotograf_sil, name="fotograf_sil"),
 ]

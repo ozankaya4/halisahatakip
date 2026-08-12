@@ -11,10 +11,50 @@
       </p>
       <h1>{% if duzenlenebilir %}Dizilimi düzenle{% else %}Dizilim{% endif %}</h1>
     </div>
-    {% if yonetici_mi and not duzenlenebilir %}
-      <a class="dugme" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Düzenle</a>
-    {% endif %}
+    <div class="satir">
+      {% if not duzenlenebilir %}
+        <button class="dugme" type="button" data-gorsel-ac>Görsel olarak kaydet</button>
+      {% endif %}
+      {% if yonetici_mi and not duzenlenebilir %}
+        <a class="dugme dugme-sessiz" href="{% url 'matches:dizilim_duzenle' mac.pk %}">Düzenle</a>
+      {% endif %}
+    </div>
   </div>
+
+  {% comment %}
+  Görsel indirme/paylaşma.
+
+  Bağlantılar gerçek <a download> olarak duruyor: betik yüklenmezse ya da
+  paylaşım desteklenmiyorsa tarayıcı dosyayı doğrudan indiriyor. Betik
+  varsa telefonda araya girip paylaşım sayfasını açıyor
+  (bkz. static/js/gorsel-paylas.js).
+  {% endcomment %}
+  {% if not duzenlenebilir %}
+    <dialog id="gorsel-secim" class="secim-kutusu" aria-labelledby="gorsel-secim-baslik">
+      <form method="dialog" class="secim-kapat-sarmal">
+        <button class="secim-kapat" type="submit" aria-label="Kapat">
+          <span aria-hidden="true">×</span>
+        </button>
+      </form>
+      <h2 id="gorsel-secim-baslik">Görseli kaydet</h2>
+      <p class="kucuk solgun" data-gorsel-aciklama>
+        Hangi yönde olsun? Dikey, telefon hikâyesi ölçüsündedir.
+      </p>
+      <div class="secim-secenekler">
+        <a class="dugme dugme-birincil" data-gorsel-yon="yatay" download
+           href="{% url 'matches:dizilim_gorseli' mac.pk %}?yon=yatay">
+          Yatay
+          <span class="kucuk solgun">Geniş ekran</span>
+        </a>
+        <a class="dugme dugme-birincil" data-gorsel-yon="dikey" download
+           href="{% url 'matches:dizilim_gorseli' mac.pk %}?yon=dikey">
+          Dikey
+          <span class="kucuk solgun">Hikâye</span>
+        </a>
+      </div>
+      <p class="kucuk solgun" data-gorsel-durum role="status" aria-live="polite"></p>
+    </dialog>
+  {% endif %}
 
   {% if not durum.gorebilir %}
     <div class="serit serit-uyari">
@@ -167,6 +207,9 @@
           <p class="takim-ozet-ad">
             {{ takim.ad }}
             {% if takim.kazandi %}<span class="rozet rozet-yesil">Kazandı</span>{% endif %}
+            {% if takim.forma_golu %}
+              <span class="rozet rozet-hardal" title="Maçın ilk golü; skora yazılmaz">Forma golü</span>
+            {% endif %}
           </p>
           {% if takim.ortalama_puan %}
             <p class="takim-ozet-sayilar">
@@ -282,4 +325,7 @@
 
 {% block ekstra_js %}
   <script type="module" src="{% static 'js/dizilim.js' %}"></script>
+  {% if not duzenlenebilir %}
+    <script type="module" src="{% static 'js/gorsel-paylas.js' %}"></script>
+  {% endif %}
 {% endblock %}

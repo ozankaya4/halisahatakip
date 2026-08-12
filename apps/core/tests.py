@@ -1170,6 +1170,242 @@ class _TakimliMacKurulumu(TestCase):
             )
 
 
+class FormaGoluTesti(_TakimliMacKurulumu):
+    """
+    Forma golü: maçın ilk golü, skora yazılmaz, karşı takım forma giyer.
+
+    Sonuçta yarım gol değerinde: yalnızca skor eşit bittiğinde maçı belirler.
+    """
+
+    def _kur(self, a, b, forma=""):
+        self.mac.skor_a, self.mac.skor_b, self.mac.forma_golu = a, b, forma
+        self.mac.save()
+        return self.mac
+
+    def test_beraberligi_forma_golu_bozuyor(self):
+        mac = self._kur(3, 3, Mac.Takim.A)
+        self.assertFalse(mac.berabere_mi)
+        self.assertEqual(mac.kazanan_takim, Mac.Takim.A)
+        self.assertTrue(mac.forma_golu_belirledi_mi)
+
+    def test_bir_farkla_kaybeden_forma_golüyle_kazanamaz(self):
+        """3-4 kaybeden takım forma golüyle maçı çeviremez (3.5 < 4)."""
+        mac = self._kur(3, 4, Mac.Takim.A)
+        self.assertEqual(mac.kazanan_takim, Mac.Takim.B)
+        self.assertFalse(mac.forma_golu_belirledi_mi)
+
+    def test_zaten_kazanan_takimda_sonuc_degismiyor(self):
+        mac = self._kur(4, 3, Mac.Takim.A)
+        self.assertEqual(mac.kazanan_takim, Mac.Takim.A)
+        self.assertFalse(mac.forma_golu_belirledi_mi)
+
+    def test_golsuz_macta_da_gecerli(self):
+        """0-0: ilk golü atan yok gibi görünse de forma golü maçı bitirir."""
+        mac = self._kur(0, 0, Mac.Takim.B)
+        self.assertEqual(mac.kazanan_takim, Mac.Takim.B)
+        self.assertTrue(mac.forma_golu_belirledi_mi)
+
+    def test_forma_golu_yoksa_eski_davranis(self):
+        mac = self._kur(3, 3)
+        self.assertTrue(mac.berabere_mi)
+        self.assertIsNone(mac.kazanan_takim)
+        self.assertFalse(mac.forma_golu_belirledi_mi)
+
+    def test_skor_yazisina_yansimiyor(self):
+        """Yarım gol tabelada görünmez."""
+        self.assertEqual(self._kur(3, 3, Mac.Takim.A).skor_yazisi, "3 - 3")
+
+    def test_skor_girilmemisse_sayilmiyor(self):
+        self.mac.forma_golu = Mac.Takim.A
+        self.mac.save()
+        self.assertFalse(self.mac.forma_golu_var_mi)
+        self.assertIsNone(self.mac.kazanan_takim)
+
+    def test_macin_adami_forma_golu_olan_takimdan(self):
+        """Beraberlikte normalde iki takım da adaydı; forma golü daraltıyor."""
+        from apps.ratings.denetim import macin_adami
+
+        self._kur(3, 3, Mac.Takim.A)
+        b_yildizi = self._b_takimi()[0]
+        a_ikincisi = self._a_takimi()[1]
+        self._puanla(b_yildizi, [(v, 10) for v in self._a_takimi()[:3]])
+        self._puanla(a_ikincisi, [(v, 7) for v in self._b_takimi()[:3]])
+
+        adamlar = macin_adami(self.mac)
+        self.assertEqual([a["kullanici"].pk for a in adamlar], [a_ikincisi.pk])
+
+    def test_forma_golu_olan_takim_bir_fazla_gol_girebiliyor(self):
+        from apps.matches.views import _istatistik_tutarli_mi
+
+        self._kur(3, 3, Mac.Takim.A)
+        katilimlar = list(self.mac.oynayan_katilimlar())
+        a_takimi = [k for k in katilimlar if k.takim == Mac.Takim.A]
+        b_takimi = [k for k in katilimlar if k.takim == Mac.Takim.B]
+
+        # A forma golüyle 4 gol girebilir, B yalnızca 3.
+        a_takimi[0].gol = 4
+        self.assertEqual(_istatistik_tutarli_mi(self.mac, katilimlar), "")
+
+        a_takimi[0].gol = 5
+        self.assertIn("en fazla 4", _istatistik_tutarli_mi(self.mac, katilimlar))
+
+        a_takimi[0].gol = 0
+        b_takimi[0].gol = 4
+        self.assertIn("en fazla 3", _istatistik_tutarli_mi(self.mac, katilimlar))
+
+    def test_kadro_formundan_kaydediliyor(self):
+        self.client.force_login(self.ozan)
+        veri = {"skor_a": "2", "skor_b": "2", "forma_golu": "b"}
+        for k in self.herkes:
+            veri[f"oynadi_{k.pk}"] = "1"
+        veri["oynayan"] = [str(k.pk) for k in self.herkes]
+        for i, k in enumerate(self.herkes):
+            veri[f"takim_{k.pk}"] = "a" if i % 2 == 0 else "b"
+
+        self.client.post(reverse("matches:kadro_duzenle", args=[self.mac.pk]), veri)
+        self.mac.refresh_from_db()
+        self.assertEqual(self.mac.forma_golu, "b")
+        self.assertEqual(self.mac.kazanan_takim, Mac.Takim.B)
+
+    def test_uydurma_deger_kabul_edilmiyor(self):
+        self.client.force_login(self.ozan)
+        veri = {"skor_a": "1", "skor_b": "1", "forma_golu": "c"}
+        for k in self.herkes:
+            veri[f"oynadi_{k.pk}"] = "1"
+        veri["oynayan"] = [str(k.pk) for k in self.herkes]
+
+        self.client.post(reverse("matches:kadro_duzenle", args=[self.mac.pk]), veri)
+        self.mac.refresh_from_db()
+        self.assertEqual(self.mac.forma_golu, "")
+
+
+class DizilimGorseliTesti(_TakimliMacKurulumu):
+    """Paylaşılabilir PNG: ölçüler, yetki ve puan gizleme."""
+
+    def setUp(self):
+        super().setUp()
+        self.mac.skor_a, self.mac.skor_b = 2, 1
+        self.mac.save()
+        for sira, katilim in enumerate(self.mac.oynayan_katilimlar()):
+            katilim.poz_x = 20 if katilim.takim == "a" else 80
+            katilim.poz_y = 10 + sira * 8
+            katilim.save()
+        self.adres = reverse("matches:dizilim_gorseli", args=[self.mac.pk])
+
+    def _boyut(self, icerik: bytes):
+        import io
+
+        from PIL import Image
+
+        return Image.open(io.BytesIO(icerik)).size
+
+    def test_yatay_ve_dikey_olculer(self):
+        self.client.force_login(self.oyuncular[0])
+
+        yatay = self.client.get(self.adres, {"yon": "yatay"})
+        self.assertEqual(yatay.status_code, 200)
+        self.assertEqual(yatay["Content-Type"], "image/png")
+        self.assertEqual(self._boyut(yatay.content), (1920, 1080))
+
+        dikey = self.client.get(self.adres, {"yon": "dikey"})
+        self.assertEqual(self._boyut(dikey.content), (1080, 1920))
+
+    def test_gecersiz_yon_yataya_dusuyor(self):
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(self.adres, {"yon": "capraz"})
+        self.assertEqual(self._boyut(yanit.content), (1920, 1080))
+
+    def test_dosya_adi_ascii_ve_indirmeye_hazir(self):
+        """
+        Türkçe harf içeren grup adı dosya adına ASCII olarak geçmeli.
+
+        Aksi hâlde Django başlığı RFC 2047 ile kodluyor ve tarayıcılar
+        dosya adını bozuk gösteriyor.
+        """
+        yanit_basligi = None
+        self.client.force_login(self.oyuncular[0])
+        yanit_basligi = self.client.get(self.adres)["Content-Disposition"]
+
+        self.assertIn("attachment", yanit_basligi)
+        self.assertIn("persembe-ekibi", yanit_basligi)
+        self.assertIn(".png", yanit_basligi)
+        self.assertTrue(yanit_basligi.isascii())
+
+    def test_grup_disindaki_goremiyor(self):
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.force_login(yabanci)
+        self.assertEqual(self.client.get(self.adres).status_code, 403)
+
+    def test_giris_yapmayan_yonlendiriliyor(self):
+        self.assertEqual(self.client.get(self.adres).status_code, 302)
+
+    def test_puanlamayanin_gorselinde_puan_yok(self):
+        """
+        Görsel de sayfayla aynı kurala tabi.
+
+        Piksel karşılaştırmak yerine iki görselin farklı olduğu kontrol
+        ediliyor: puanları gören ile görmeyen aynı PNG'yi alamaz.
+        """
+        hedef = self._a_takimi()[1]
+        for veren in self._b_takimi()[:3]:
+            Puan.objects.create(mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=9)
+
+        izleyen = self.oyuncular[1]
+        self.client.force_login(izleyen)
+        gizli = self.client.get(self.adres).content
+
+        for k in self.herkes:
+            if k.pk != izleyen.pk:
+                Puan.objects.update_or_create(
+                    mac=self.mac, puanlayan=izleyen, puanlanan=k,
+                    defaults={"deger": 6},
+                )
+        acik = self.client.get(self.adres).content
+
+        self.assertNotEqual(gizli, acik, "puanlar görselde de gizlenmeli")
+
+    def test_takimlar_kurulmamisken_de_cizilebiliyor(self):
+        """Kadro yoksa çökmemeli; boş saha dönmeli."""
+        self.mac.katilimlar.all().update(takim="")
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(self.adres)
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(self._boyut(yanit.content), (1920, 1080))
+
+    def test_dizilim_sayfasinda_dugme_ve_baglantilar(self):
+        self.client.force_login(self.oyuncular[0])
+        govde = self.client.get(
+            reverse("matches:dizilim", args=[self.mac.pk])
+        ).content.decode("utf-8")
+
+        self.assertIn("data-gorsel-ac", govde)
+        self.assertIn(f"{self.adres}?yon=yatay", govde)
+        self.assertIn(f"{self.adres}?yon=dikey", govde)
+        # Betik yüklenmese de indirilebilmeli.
+        self.assertIn("download", govde)
+
+    def test_duzenleme_ekraninda_dugme_yok(self):
+        """Düzenlerken konumlar kaydedilmemiş olabilir; görsel yanıltıcı olur."""
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("matches:dizilim_duzenle", args=[self.mac.pk])
+        ).content.decode("utf-8")
+        self.assertNotIn("data-gorsel-ac", govde)
+
+    def test_forma_golu_gorselde_yaziliyor(self):
+        """Belirleyici forma golü görselde de görünmeli (piksel farkı)."""
+        self.client.force_login(self.oyuncular[0])
+        self.mac.skor_a = self.mac.skor_b = 2
+        self.mac.save()
+        formasiz = self.client.get(self.adres).content
+
+        self.mac.forma_golu = Mac.Takim.A
+        self.mac.save()
+        formali = self.client.get(self.adres).content
+
+        self.assertNotEqual(formasiz, formali)
+
+
 class TakimVeSkorTesti(_TakimliMacKurulumu):
     def test_skor_girilmeden_kazanan_yok(self):
         self.assertFalse(self.mac.skor_girildi_mi)

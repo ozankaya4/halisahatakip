@@ -1520,6 +1520,83 @@ p {
   }
 }
 
+/* --- Görsel kaydetme kutusu ----------------------------------------------
+   Büyüteçle aynı ortalama hilesi geçerli: sıfırlamadaki "* { margin: 0 }"
+   tarayıcının <dialog> ortalamasını eziyor, burada geri veriliyor. */
+.secim-kutusu {
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  padding: 1.25rem 1.35rem 1.4rem;
+  max-width: min(92vw, 26rem);
+  background: var(--kagit-ust);
+  color: var(--murekkep);
+
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+}
+
+.secim-kutusu::backdrop {
+  background: rgba(10, 12, 10, 0.55);
+}
+
+.secim-kutusu h2 {
+  font-size: 1.2rem;
+  margin-block-end: 0.35rem;
+}
+
+.secim-kapat-sarmal {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: -0.5rem;
+}
+
+.secim-kapat {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--cetvel);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--murekkep-yumusak);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.secim-kapat:hover {
+  background: var(--kagit-golge);
+}
+
+.secim-secenekler {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-block-start: 0.9rem;
+}
+
+/* Yön düğmeleri iki satırlı: üstte yön, altta ne işe yaradığı. */
+.secim-secenekler .dugme {
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-block: 0.7rem;
+  text-align: center;
+}
+
+.secim-secenekler .dugme .kucuk {
+  color: inherit;
+  opacity: 0.75;
+}
+
+[data-gorsel-durum]:empty {
+  display: none;
+}
+
+[data-gorsel-durum] {
+  margin-block-start: 0.75rem;
+}
+
 /* =========================================================================
    15c. Kadro ve skor girişi
    ====================================================================== */
@@ -1563,6 +1640,63 @@ p {
   padding-block-end: 0.7rem;
   font-size: 1.4rem;
   color: var(--murekkep-soluk);
+}
+
+/* Forma golü seçimi: skorun hemen altında, üç seçenekli tek satır.
+   Radyo düğmesi gizlenip etiketin kendisi tıklanabilir kutuya dönüşüyor;
+   dokunmatik ekranda 2 mm'lik yuvarlağa isabet ettirmek zor. */
+.forma-golu-secim {
+  margin-block-start: 1.1rem;
+  border: 0;
+  padding: 0;
+}
+
+.forma-golu-secim legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--murekkep-yumusak);
+  margin-block-end: 0.4rem;
+}
+
+.secenek-satiri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.secenek {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  transition: border-color var(--gecis), background var(--gecis);
+}
+
+.secenek input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.secenek:hover {
+  background: var(--kagit-golge);
+}
+
+.secenek:has(input:checked) {
+  border-color: var(--yesil);
+  background: var(--yesil-sis);
+  font-weight: 600;
+}
+
+.secenek:has(input:focus-visible) {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
 }
 
 /* Maçın adamı yıldızı */

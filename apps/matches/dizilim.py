@@ -191,6 +191,9 @@ def dizilim_verisi(mac, macin_adami_idleri: set[int] | None = None) -> list[dict
                 "oyuncular": oyuncular,
                 "skor": mac.skor_a if kod == Mac.Takim.A else mac.skor_b,
                 "kazandi": mac.kazanan_takim == kod,
+                # Rozet yalnızca forma golü maçı belirlediğinde gösteriliyor;
+                # sonucu değiştirmediği maçlarda kayıtta durması yeterli.
+                "forma_golu": mac.forma_golu_belirledi_mi and mac.forma_golu == kod,
                 "toplam_puan": toplam,
                 "ortalama_puan": ortalama,
                 "ortalama_sinifi": puan_rengi(ortalama),

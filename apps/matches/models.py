@@ -47,6 +47,13 @@ class Mac(ZamanDamgaliModel):
     skor_a = models.PositiveSmallIntegerField("A takımı skoru", null=True, blank=True)
     skor_b = models.PositiveSmallIntegerField("B takımı skoru", null=True, blank=True)
 
+    # Forma golü: maçın ilk golü. Atan takımın skoruna yazılmaz, karşı takım
+    # forma giyer. Sonuçta yarım gol değerindedir; yani yalnızca skor eşit
+    # bittiğinde maçı belirler, başka hiçbir durumda sonucu değiştirmez.
+    forma_golu = models.CharField(
+        "forma golü", max_length=1, blank=True, default="", choices=Takim.choices
+    )
+
     class Meta:
         verbose_name = "maç"
         verbose_name_plural = "maçlar"
@@ -104,15 +111,54 @@ class Mac(ZamanDamgaliModel):
         return self.skor_a is not None and self.skor_b is not None
 
     @property
+    def forma_golu_var_mi(self) -> bool:
+        return bool(self.forma_golu) and self.skor_girildi_mi
+
+    @property
+    def etkin_skorlar(self) -> tuple[float, float]:
+        """
+        Sonucu belirleyen skorlar: forma golü yarım gol sayılır.
+
+        Yarım seçilmesinin sebebi, forma golünün sonucu yalnızca berabere
+        biten maçlarda değiştirmesi. 3-3 biten maçı forma golü olan takım
+        kazanır (3.5-3), ama 3-4 kaybeden takım forma golüyle maçı çeviremez
+        (3.5-4). Skor tabelasında hiçbir zaman görünmez.
+        """
+        a = float(self.skor_a or 0)
+        b = float(self.skor_b or 0)
+        if self.forma_golu == self.Takim.A:
+            a += 0.5
+        elif self.forma_golu == self.Takim.B:
+            b += 0.5
+        return a, b
+
+    @property
     def berabere_mi(self) -> bool:
-        return self.skor_girildi_mi and self.skor_a == self.skor_b
+        if not self.skor_girildi_mi:
+            return False
+        a, b = self.etkin_skorlar
+        return a == b
 
     @property
     def kazanan_takim(self) -> str | None:
         """Kazanan takımın kodu ("a"/"b"). Beraberlikte ve skor yokken None."""
-        if not self.skor_girildi_mi or self.berabere_mi:
+        if not self.skor_girildi_mi:
             return None
-        return self.Takim.A if self.skor_a > self.skor_b else self.Takim.B
+        a, b = self.etkin_skorlar
+        if a == b:
+            return None
+        return self.Takim.A if a > b else self.Takim.B
+
+    @property
+    def forma_golu_belirledi_mi(self) -> bool:
+        """
+        Maçı forma golü mü bitirdi?
+
+        Yalnızca skor eşitken olur. Arayüzde forma golü rozeti sadece bu
+        durumda gösteriliyor: sonucu değiştirmediği maçlarda kayıtta durması
+        yeterli, ekranda yer kaplamasına gerek yok.
+        """
+        return self.forma_golu_var_mi and self.skor_a == self.skor_b
 
     @property
     def skor_yazisi(self) -> str:

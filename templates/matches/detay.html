@@ -89,6 +89,9 @@
               <h3>
                 {{ takim.ad }}
                 {% if takim.kazandi %}<span class="rozet rozet-yesil">Kazandı</span>{% endif %}
+                {% if mac.forma_golu_belirledi_mi and mac.forma_golu == takim.kod %}
+                  <span class="rozet rozet-hardal" title="Maçın ilk golü; skora yazılmaz">Forma golü</span>
+                {% endif %}
               </h3>
               {% if mac.skor_girildi_mi %}
                 <span class="takim-skoru rakam {% if takim.kazandi %}takim-kazandi{% endif %}">{{ takim.skor }}</span>

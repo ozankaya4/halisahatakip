@@ -73,6 +73,40 @@
         </label>
       </div>
 
+      {% comment %}
+      Forma golü: maçın ilk golü. Atan takımın skoruna yazılmaz, karşı takım
+      forma giyer. Sonucu yalnızca skor eşit bittiğinde belirlediği için
+      yarım gol değerinde; 3-3 biten maçı forma golü olan takım kazanır,
+      ama 3-4 kaybeden takımı kurtarmaz.
+      {% endcomment %}
+      <fieldset class="alan forma-golu-secim">
+        <legend>Forma golü</legend>
+        <div class="secenek-satiri">
+          <label class="secenek">
+            <input type="radio" name="forma_golu" value=""
+                   {% if not mac.forma_golu %}checked{% endif %}>
+            <span>Yok</span>
+          </label>
+          <label class="secenek">
+            <input type="radio" name="forma_golu" value="a"
+                   {% if mac.forma_golu == "a" %}checked{% endif %}>
+            <span>A Takımı</span>
+          </label>
+          <label class="secenek">
+            <input type="radio" name="forma_golu" value="b"
+                   {% if mac.forma_golu == "b" %}checked{% endif %}>
+            <span>B Takımı</span>
+          </label>
+        </div>
+        <p class="alan-yardim">
+          Maçın ilk golünü atan takımı işaretle. Bu gol skora yazılmaz, karşı
+          takım forma giyer. Skor eşit biterse maçı forma golü olan takım
+          kazanır; başka hiçbir durumda sonucu değiştirmez. Golü atan oyuncu
+          kendi gol sayısını alır, yani o takım skorundan bir fazla gol
+          girebilir.
+        </p>
+      </fieldset>
+
       <p class="alan-yardim">
         Kazanan takımın en yüksek puanlı oyuncusu <strong>maçın adamı</strong> olur
         ve adının yanında yıldız görünür. Berabere biterse iki takım arasından
