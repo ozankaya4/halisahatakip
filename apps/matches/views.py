@@ -365,15 +365,23 @@ def kadro_duzenle(request, mac_id: int):
                         takim = secim
 
                 if isaretli:
-                    # İşaretli oyuncu kesin oynuyor.
+                    # İşaretlemek "bu oyuncu oynuyor" demek: hem kadro kararı
+                    # hem yoklama yanıtı "Geliyorum" oluyor.
+                    #
+                    # Yanıtı da yazmak şart, çünkü maç sayfasındaki katılım
+                    # listesi ve sayaçlar (Mac.sayim) yalnızca `yanit` alanına
+                    # bakıyor. Bir ara yalnızca `katildi` güncelleniyordu:
+                    # yönetici oyuncuyu kadroya alıyor ama katılım listesinde
+                    # hiçbir şey değişmiyordu, çünkü oyuncunun eski yanıtı
+                    # olduğu gibi duruyordu.
                     if katilim:
                         katilim.katildi = True
                         katilim.takim = takim
-                        katilim.save(update_fields=["katildi", "takim", "guncellenme"])
+                        katilim.yanit = Katilim.Yanit.GELIYORUM
+                        katilim.save(
+                            update_fields=["katildi", "takim", "yanit", "guncellenme"]
+                        )
                     else:
-                        # Yoklamaya hiç yanıt vermemiş birini yönetici kadroya
-                        # aldıysa yanıtı da "Geliyorum" olarak açılıyor; yanıt
-                        # alanı boş bırakılamıyor.
                         Katilim.objects.create(
                             mac=mac,
                             kullanici=uyelik.kullanici,

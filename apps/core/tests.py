@@ -1291,6 +1291,65 @@ class KadroIsaretlemeTesti(TestCase):
         self.client.post(self.adres, {"oynayan": [str(yabanci.pk)]})
         self.assertFalse(Katilim.objects.filter(mac=self.mac, kullanici=yabanci).exists())
 
+    # --- Katılım listesine yansıma ------------------------------------
+    #
+    # Maç sayfasındaki katılım listesi ve sayaçlar yalnızca `yanit` alanına
+    # bakıyor (bkz. Mac.sayim ve templates/matches/detay.html). Bu yüzden
+    # aşağıdaki testler model alanlarına değil, sayfanın gösterdiğine bakıyor:
+    # "işaretledim ama katılımda bir şey değişmedi" hatası ancak böyle
+    # yakalanıyor.
+
+    def _detay_govdesi(self):
+        return self.client.get(
+            reverse("matches:detay", args=[self.mac.pk])
+        ).content.decode("utf-8")
+
+    def test_isaretlemek_katilimi_hemen_degistiriyor(self):
+        self._kaydet(self.oyuncular[:2])
+        self.assertEqual(self.mac.sayim()["geliyorum"], 2)
+
+    def test_ikinci_turda_isaretlenenlerin_katilimi_da_degisiyor(self):
+        """
+        Bildirilen hata: ilk kayıttan sonra işaretlemek katılımı değiştirmiyordu.
+
+        Sebebi, kaydın yalnızca `katildi` alanını güncellemesiydi; katılım
+        listesi `yanit`e baktığı için ekranda hiçbir şey olmuyordu.
+        """
+        self._kaydet(self.oyuncular[:2])
+        self.assertEqual(self.mac.sayim()["geliyorum"], 2)
+
+        self._kaydet(self.oyuncular[:4])
+        self.assertEqual(self.mac.sayim()["geliyorum"], 4)
+
+        self._kaydet(self.oyuncular[:6])
+        self.assertEqual(self.mac.sayim()["geliyorum"], 6)
+
+    def test_yokum_diyen_kadroya_alininca_geliyor_oluyor(self):
+        """Yönetici kadroya aldıysa oyuncu oynuyordur; liste bunu göstermeli."""
+        gelmeyecek = self.oyuncular[3]
+        Katilim.objects.create(
+            mac=self.mac, kullanici=gelmeyecek, yanit=Katilim.Yanit.YOKUM
+        )
+        self.assertEqual(self.mac.sayim()["yokum"], 1)
+
+        self._kaydet([gelmeyecek])
+
+        self.assertEqual(self.mac.sayim()["yokum"], 0)
+        self.assertEqual(self.mac.sayim()["geliyorum"], 1)
+
+    def test_ilk_kayitta_kimse_yok_olarak_isaretlenmiyor(self):
+        """İkinci şikâyet: ilk taslak herkesi 'Yok' yapıyordu."""
+        self._kaydet(self.oyuncular[:2])
+
+        sayim = self.mac.sayim()
+        self.assertEqual(sayim["yokum"], 0, "kimse 'Yok' olmamalı")
+        self.assertEqual(sayim["geliyorum"], 2)
+        self.assertEqual(sayim["yanitsiz"], 5, "kalanlar yanıtsız kalmalı")
+
+        govde = self._detay_govdesi()
+        self.assertNotIn(">Yok<", govde)
+        self.assertIn("Yanıt yok", govde)
+
 
 class YonetimBaglantisiTesti(TestCase):
     """Yönetim paneli bağlantısı yalnızca nihai yöneticide görünmeli."""
