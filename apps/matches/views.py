@@ -349,30 +349,67 @@ def kadro_duzenle(request, mac_id: int):
 
         gecerli_takimlar = {t.value for t in Mac.Takim}
 
+        mevcut_katilimlar = {k.kullanici_id: k for k in mac.katilimlar.all()}
+
         with transaction.atomic():
             for uyelik in uyelikler:
-                oynadi = str(uyelik.kullanici_id) in secilen
+                isaretli = str(uyelik.kullanici_id) in secilen
+                katilim = mevcut_katilimlar.get(uyelik.kullanici_id)
 
                 # Takım yalnızca sahaya çıkanlara verilir; oynamayanın
                 # takımı temizlenir ki eski atama ortalıkta kalmasın.
                 takim = ""
-                if oynadi:
+                if isaretli:
                     secim = (request.POST.get(f"takim_{uyelik.kullanici_id}") or "").strip()
                     if secim in gecerli_takimlar:
                         takim = secim
 
-                Katilim.objects.update_or_create(
-                    mac=mac,
-                    kullanici=uyelik.kullanici,
-                    defaults={"katildi": oynadi, "takim": takim},
-                    create_defaults={
-                        "katildi": oynadi,
-                        "takim": takim,
-                        "yanit": (
-                            Katilim.Yanit.GELIYORUM if oynadi else Katilim.Yanit.YOKUM
-                        ),
-                    },
+                if isaretli:
+                    # İşaretli oyuncu kesin oynuyor.
+                    if katilim:
+                        katilim.katildi = True
+                        katilim.takim = takim
+                        katilim.save(update_fields=["katildi", "takim", "guncellenme"])
+                    else:
+                        # Yoklamaya hiç yanıt vermemiş birini yönetici kadroya
+                        # aldıysa yanıtı da "Geliyorum" olarak açılıyor; yanıt
+                        # alanı boş bırakılamıyor.
+                        Katilim.objects.create(
+                            mac=mac,
+                            kullanici=uyelik.kullanici,
+                            katildi=True,
+                            takim=takim,
+                            yanit=Katilim.Yanit.GELIYORUM,
+                        )
+                    continue
+
+                # --- İşaretsiz -----------------------------------------
+                #
+                # Burada oyuncuyu "gelmiyor" diye işaretlemek YOK. Eskiden
+                # kadro her kaydedildiğinde işaretsiz herkese katildi=False
+                # ve yanıt yoksa "Yokum" yazılıyordu; yani yönetici ilk
+                # taslağı kaydettiği anda yoklamaya hiç cevap vermemiş
+                # herkes "gelmiyorum" demiş sayılıyordu ve sonradan
+                # işaretlendiklerinde bile yanıtları "Yokum" kalıyordu.
+                #
+                # Artık:
+                #   kaydı olmayan       dokunulmuyor (yanıt vermemiş demek)
+                #   "Geliyorum" diyen   katildi=False, yani yönetici kararı
+                #                       yanıtın önüne geçiyor; kutunun
+                #                       işaretini kaldırmak böyle çalışıyor
+                #   diğerleri           katildi=None, karar yok, yanıt geçerli
+                #
+                # Yanıt alanına hiç dokunulmuyor: o oyuncunun kendi beyanı.
+                if not katilim:
+                    continue
+
+                yeni_katildi = (
+                    False if katilim.yanit == Katilim.Yanit.GELIYORUM else None
                 )
+                if katilim.katildi != yeni_katildi or katilim.takim != "":
+                    katilim.katildi = yeni_katildi
+                    katilim.takim = ""
+                    katilim.save(update_fields=["katildi", "takim", "guncellenme"])
 
             # --- Skor ---------------------------------------------------
             # İkisi de boşsa skor girilmemiş sayılır (0-0 geçerli sonuç
@@ -391,9 +428,10 @@ def kadro_duzenle(request, mac_id: int):
 
             # --- Forma golü ---------------------------------------------
             # Skor girilmemişse forma golü de anlamsız; birlikte temizleniyor.
-            secilen = (request.POST.get("forma_golu") or "").strip()
-            gecerli = {kod for kod, _ in Mac.Takim.choices}
-            mac.forma_golu = secilen if secilen in gecerli and mac.skor_girildi_mi else ""
+            forma = (request.POST.get("forma_golu") or "").strip()
+            mac.forma_golu = (
+                forma if forma in gecerli_takimlar and mac.skor_girildi_mi else ""
+            )
 
             mac.save(update_fields=["skor_a", "skor_b", "forma_golu", "guncellenme"])
 

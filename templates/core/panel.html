@@ -8,7 +8,18 @@
       <p class="uststart">Merhaba {{ user.get_short_name }}</p>
       <h1>Panel</h1>
     </div>
-    <a class="dugme dugme-birincil" href="{% url 'groups:olustur' %}">Yeni grup kur</a>
+    <div class="satir">
+      {% comment %}
+      Yönetim paneli bağlantısı yalnızca nihai yöneticide. Grup yöneticisi
+      olmak yetmiyor: burası Django'nun yönetim arayüzü, bütün veritabanına
+      erişiyor. Adres de tahmin edilebilir /admin/ değil (bkz. halisaha/urls.py),
+      bu yüzden elle yazmak yerine buradan gitmek pratik.
+      {% endcomment %}
+      {% if user.is_superuser %}
+        <a class="dugme dugme-sessiz" href="{% url 'admin:index' %}">Yönetim paneli</a>
+      {% endif %}
+      <a class="dugme dugme-birincil" href="{% url 'groups:olustur' %}">Yeni grup kur</a>
+    </div>
   </div>
 
   {% if grup_yok %}

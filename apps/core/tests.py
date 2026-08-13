@@ -1172,6 +1172,158 @@ class _TakimliMacKurulumu(TestCase):
             )
 
 
+class KadroIsaretlemeTesti(TestCase):
+    """
+    Kadro kaydetmek işaretsiz oyuncuları "gelmiyor" yapmamalı.
+
+    `Katilim.katildi` üç durumlu: True/False yönetici kararı, None ise karar
+    yok ve oyuncunun kendi yoklama yanıtı geçerli. Kadro formu eskiden her
+    kayıtta bu üçlüyü ikiliye indiriyor, yanıt vermemiş herkese "Yokum"
+    yazıyordu.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.oyuncular = [kullanici(f"o{i}@example.com", f"Oyuncu {i}") for i in range(6)]
+        for k in self.oyuncular:
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k,
+                rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() + timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+        self.adres = reverse("matches:kadro_duzenle", args=[self.mac.pk])
+        self.client.force_login(self.ozan)
+
+    def _kaydet(self, oynayanlar, takimlar=None):
+        veri = {"oynayan": [str(k.pk) for k in oynayanlar]}
+        for k, takim in (takimlar or {}).items():
+            veri[f"takim_{k.pk}"] = takim
+        return self.client.post(self.adres, veri)
+
+    def test_isaretsiz_oyuncuya_kayit_acilmiyor(self):
+        """İlk taslak, yanıt vermemişleri "gelmiyor" yapmamalı."""
+        self._kaydet(self.oyuncular[:2])
+
+        self.assertEqual(Katilim.objects.filter(mac=self.mac).count(), 2)
+        for k in self.oyuncular[2:]:
+            self.assertFalse(
+                Katilim.objects.filter(mac=self.mac, kullanici=k).exists(),
+                "yanıt vermemiş oyuncuya kayıt açılmamalı",
+            )
+
+    def test_sonradan_eklenen_oyuncu_kadroya_giriyor(self):
+        """Asıl şikâyet: ikinci turda işaretlenen oyuncu kadroya girmiyordu."""
+        self._kaydet(self.oyuncular[:2])
+        self._kaydet(self.oyuncular[:4])
+
+        oynayanlar = self.mac.oynayan_kullanici_idleri()
+        for k in self.oyuncular[:4]:
+            self.assertIn(k.pk, oynayanlar, f"{k.gorunen_ad} kadroda olmalı")
+
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=self.oyuncular[3])
+        self.assertTrue(katilim.katildi)
+        self.assertEqual(katilim.yanit, Katilim.Yanit.GELIYORUM)
+
+    def test_kac_kez_kaydedilirse_kaydedilsin_ayni_sonuc(self):
+        for _ in range(4):
+            self._kaydet(self.oyuncular[:3])
+
+        self.assertEqual(Katilim.objects.filter(mac=self.mac).count(), 3)
+        self.assertEqual(
+            self.mac.oynayan_kullanici_idleri(),
+            {k.pk for k in self.oyuncular[:3]},
+        )
+
+    def test_oyuncunun_kendi_yaniti_ezilmiyor(self):
+        """Yoklamada 'Belki' diyen, kadroya alınmayınca 'Yokum' olmamalı."""
+        Katilim.objects.create(
+            mac=self.mac, kullanici=self.oyuncular[4], yanit=Katilim.Yanit.BELKI
+        )
+        self._kaydet(self.oyuncular[:2])
+
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=self.oyuncular[4])
+        self.assertEqual(katilim.yanit, Katilim.Yanit.BELKI)
+        self.assertIsNone(katilim.katildi, "karar yokken katildi None kalmalı")
+
+    def test_geliyorum_diyenin_isareti_kaldirilabiliyor(self):
+        """
+        Kutunun işaretini kaldırmak hâlâ çalışmalı.
+
+        'Geliyorum' diyen biri kendiliğinden işaretli geliyor; yönetici
+        işareti kaldırdığında bu karar yanıtın önüne geçmeli, yoksa
+        gelemeyen oyuncu kadrodan çıkarılamazdı.
+        """
+        gelen = self.oyuncular[5]
+        Katilim.objects.create(
+            mac=self.mac, kullanici=gelen, yanit=Katilim.Yanit.GELIYORUM
+        )
+        self.assertIn(gelen.pk, self.mac.oynayan_kullanici_idleri())
+
+        self._kaydet(self.oyuncular[:2])
+
+        katilim = Katilim.objects.get(mac=self.mac, kullanici=gelen)
+        self.assertFalse(katilim.katildi)
+        self.assertEqual(katilim.yanit, Katilim.Yanit.GELIYORUM, "yanıt korunmalı")
+        self.assertNotIn(gelen.pk, self.mac.oynayan_kullanici_idleri())
+
+    def test_kadrodan_cikarilanin_takimi_temizleniyor(self):
+        self._kaydet(self.oyuncular[:2], {self.oyuncular[0]: "a", self.oyuncular[1]: "b"})
+        self.assertEqual(
+            Katilim.objects.get(mac=self.mac, kullanici=self.oyuncular[0]).takim, "a"
+        )
+
+        self._kaydet(self.oyuncular[1:2], {self.oyuncular[1]: "b"})
+        self.assertEqual(
+            Katilim.objects.get(mac=self.mac, kullanici=self.oyuncular[0]).takim, ""
+        )
+
+    def test_grup_disindaki_kimlik_yok_sayiliyor(self):
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.post(self.adres, {"oynayan": [str(yabanci.pk)]})
+        self.assertFalse(Katilim.objects.filter(mac=self.mac, kullanici=yabanci).exists())
+
+
+class YonetimBaglantisiTesti(TestCase):
+    """Yönetim paneli bağlantısı yalnızca nihai yöneticide görünmeli."""
+
+    def setUp(self):
+        self.adres = reverse("core:dashboard")
+
+    def _govde(self, kisi):
+        self.client.force_login(kisi)
+        return self.client.get(self.adres).content.decode("utf-8")
+
+    def test_nihai_yonetici_goruyor(self):
+        nihai = kullanici("dev@example.com", "Nihai Yönetici")
+        nihai.is_superuser = True
+        nihai.is_staff = True
+        nihai.save()
+        self.assertIn("Yönetim paneli", self._govde(nihai))
+        self.assertIn("/yonetim/", self._govde(nihai))
+
+    def test_siradan_uye_gormuyor(self):
+        self.assertNotIn("Yönetim paneli", self._govde(kullanici("a@example.com", "Ali")))
+
+    def test_grup_yoneticisi_de_gormuyor(self):
+        """Grup yöneticiliği Django yönetim arayüzüne erişim vermez."""
+        yonetici = kullanici("y@example.com", "Grup Yöneticisi")
+        grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=yonetici)
+        Uyelik.objects.create(
+            grup=grup, kullanici=yonetici,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.assertNotIn("Yönetim paneli", self._govde(yonetici))
+
+
 class FormaGoluTesti(_TakimliMacKurulumu):
     """
     Forma golü: maçın ilk golü, skora yazılmaz, karşı takım forma giyer.
