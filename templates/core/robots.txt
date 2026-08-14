@@ -11,6 +11,8 @@ Allow: /manifest.webmanifest
 # Gizlilik politikası herkese açık kalmalı: Play Store yayına almadan önce
 # bu adresi kendi robotuyla açıp okuyor.
 Allow: /gizlilik/
+Allow: /kurallar/
+Allow: /hesap-silme/
 # Android uygulamasını alan adıyla eşleştiren dosya.
 Allow: /.well-known/
 

@@ -203,6 +203,19 @@ def dijital_varlik_baglantilari(request):
     return yanit
 
 
+def hesap_silme(request):
+    """
+    Hesap silmenin herkese açık anlatımı.
+
+    Silme işleminin kendisi accounts:hesabimi_sil sayfasında ve giriş
+    istiyor. Play Console'a verilen "Hesap silme URL'si" ise oturum
+    açmadan açılabilmeli: Google'ın incelemecisi adresi doğrudan ziyaret
+    ediyor ve giriş duvarına çarparsa uygulama reddediliyor. Bu sayfa o
+    yüzden var.
+    """
+    return render(request, "core/hesap_silme.html")
+
+
 def kurallar(request):
     """
     İçerik kuralları.

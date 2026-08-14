@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block baslik %}Hesap silme · {{ site_adi }}{% endblock %}
+{% block aciklama %}Halısaha Defteri hesabınızı nasıl silersiniz, hangi veriler silinir, hangileri kalır.{% endblock %}
+
+{% block icerik %}
+  {% comment %}
+  Bu sayfa GİRİŞ GEREKTİRMEZ ve öyle kalmalı.
+
+  Play Console'daki "Hesap silme URL'si" alanına verilen adres, Google'ın
+  incelemecisi tarafından oturum açmadan açılıyor. Asıl silme işlemi
+  accounts:hesabimi_sil sayfasında ve doğal olarak giriş istiyor; burası
+  onu ANLATAN herkese açık sayfa.
+
+  Play üç şey arıyor, üçü de aşağıda:
+    1. Uygulama adına atıf
+    2. Silme adımlarının belirgin olması
+    3. Silinen ve saklanan veri türleri + saklama süreleri
+  {% endcomment %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Halısaha Defteri</p>
+      <h1>Hesap silme</h1>
+    </div>
+    <p class="kucuk solgun">Son güncelleme: 15 Ağustos 2026</p>
+  </div>
+
+  <div class="kutu kutu-vurgu">
+    <p>
+      <strong>Halısaha Defteri</strong> hesabını ve sana ait verileri istediğin
+      zaman kendin silebilirsin. Silme talebi beklemeye alınmaz, onay
+      gerektirmez; onayladığın anda gerçekleşir.
+    </p>
+  </div>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Nasıl silinir</h2>
+    </div>
+    <ol class="alan-yardim">
+      <li>
+        <a href="{% url 'account_login' %}">halisahadefteri.site</a> adresinden
+        hesabına giriş yap.
+      </li>
+      <li>Sağ üstteki <strong>Profilim</strong> bağlantısına dokun.</li>
+      <li><strong>Profili düzenle</strong> sayfasını aç.</li>
+      <li>
+        Hesap ayarları listesinin altındaki
+        <strong>Hesabımı sil</strong> satırına dokun.
+      </li>
+      <li>
+        Onay kutusuna <strong>e-posta adresini</strong> yaz ve
+        <strong>Hesabımı kalıcı olarak sil</strong> düğmesine bas.
+      </li>
+    </ol>
+    <p class="alan-yardim">
+      Giriş yapamıyorsan (şifreni unuttuysan ya da hesabına erişemiyorsan)
+      <a href="mailto:{{ iletisim_eposta }}">{{ iletisim_eposta }}</a> adresine
+      hesabının e-posta adresiyle yaz; talebini en geç 30 gün içinde
+      sonuçlandırıyoruz.
+    </p>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Silinen veriler</h2>
+      <span class="kucuk solgun">Anında, kalıcı olarak</span>
+    </div>
+    <div class="tablo-sarmal">
+      <table class="tablo">
+        <thead>
+          <tr>
+            <th>Veri</th>
+            <th>Saklama süresi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hesap bilgilerin (e-posta adresi, ad soyad)</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+          <tr>
+            <td>Profil fotoğrafın</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+          <tr>
+            <td>Grup üyeliklerin</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+          <tr>
+            <td>Maç katılımların, gollerin, asistlerin ve kartların</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+          <tr>
+            <td>Verdiğin ve aldığın bütün oyuncu puanları</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+          <tr>
+            <td>Sohbet şifreleme anahtarın</td>
+            <td>Silinir, saklanmaz</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Silinmeyen veriler</h2>
+      <span class="kucuk solgun">Grubun ortak kaydı</span>
+    </div>
+    <div class="tablo-sarmal">
+      <table class="tablo">
+        <thead>
+          <tr>
+            <th>Veri</th>
+            <th>Neden ve ne kadar</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Maçların kendisi, tarihleri ve skorları</td>
+            <td>
+              Grubun ortak geçmişi olduğu için kalır; senin adın bu kayıtlardan
+              kaldırılır. Grup silinene kadar saklanır.
+            </td>
+          </tr>
+          <tr>
+            <td>Yüklediğin maç fotoğrafları</td>
+            <td>
+              Kalır ve yükleyen bilgisi kaldırılır. Silinmesini istiyorsan
+              hesabını silmeden önce fotoğrafın altındaki
+              <strong>Sil</strong> düğmesini kullan; grup yöneticisi de
+              silebilir.
+            </td>
+          </tr>
+          <tr>
+            <td>Gönderdiğin sohbet mesajları</td>
+            <td>
+              Uçtan uca şifrelidir; sunucuda yalnızca okunamaz şifreli metin
+              olarak kalır. Anahtarın silindiği için içeriği kimse
+              çözemez. Grup silinene kadar saklanır.
+            </td>
+          </tr>
+          <tr>
+            <td>Sunucu yedekleri</td>
+            <td>
+              Günlük yedekler <strong>14 gün</strong> saklanır ve otomatik
+              olarak silinir. Yani silinen verilerin en fazla 14 gün içinde
+              yedeklerden de tamamen kalkar.
+            </td>
+          </tr>
+          <tr>
+            <td>Güvenlik kayıtları (giriş denemeleri, IP adresi)</td>
+            <td>
+              Şifre deneme saldırılarını engellemek için tutulur, en fazla
+              <strong>30 gün</strong> sonra silinir.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Hesabını silmeden veri silmek</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li>Yüklediğin fotoğrafları tek tek silebilirsin.</li>
+      <li>Profil fotoğrafını ve adını istediğin zaman değiştirebilirsin.</li>
+      <li>Bir gruptan ayrılabilirsin; o gruptaki üyeliğin sona erer.</li>
+      <li>
+        Başka bir veri için
+        <a href="mailto:{{ iletisim_eposta }}">{{ iletisim_eposta }}</a>
+        adresine yaz.
+      </li>
+    </ul>
+    <p class="kucuk solgun">
+      Uygulamayı telefonundan kaldırmak hesabını silmez.
+      Ayrıca <a href="{% url 'core:gizlilik' %}">gizlilik politikamıza</a>
+      bakabilirsin.
+    </p>
+  </section>
+{% endblock %}

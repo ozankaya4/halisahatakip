@@ -1528,6 +1528,35 @@ class HesapSilmeTesti(TestCase):
         govde = self.client.get(reverse("core:gizlilik")).content.decode("utf-8")
         self.assertIn(self.adres, govde)
 
+    def test_hesap_silme_anlatimi_giris_gerektirmiyor(self):
+        """
+        Play Console'a verilen "Hesap silme URL'si" oturum açmadan
+        açılabilmeli; Google'ın incelemecisi adresi doğrudan ziyaret ediyor.
+        İşlemin kendisi giriş istiyor, anlatımı istememeli.
+        """
+        yanit = self.client.get(reverse("core:hesap_silme"))
+        self.assertEqual(yanit.status_code, 200)
+
+        govde = yanit.content.decode("utf-8")
+        # Play'in aradığı üç şey.
+        self.assertIn("Halısaha Defteri", govde, "uygulama adına atıf şart")
+        self.assertIn("Hesabımı sil", govde, "adımlar belirgin olmalı")
+        self.assertIn("14 gün", govde, "yedek saklama süresi yazmalı")
+        self.assertIn("30 gün", govde, "güvenlik kaydı süresi yazmalı")
+        # Silinen ve saklanan ayrımı.
+        self.assertIn("Silinen veriler", govde)
+        self.assertIn("Silinmeyen veriler", govde)
+
+    def test_hesap_silme_sayfasi_isleme_yonlendiriyor(self):
+        govde = self.client.get(reverse("core:hesap_silme")).content.decode("utf-8")
+        self.assertIn(settings.CONTACT_EMAIL, govde, "giriş yapamayan için adres")
+        self.assertIn(reverse("core:gizlilik"), govde)
+
+    def test_herkese_acik_sayfalar_robots_ile_engellenmemis(self):
+        govde = self.client.get("/robots.txt").content.decode("utf-8")
+        for yol in ["/gizlilik/", "/kurallar/", "/hesap-silme/"]:
+            self.assertIn(f"Allow: {yol}", govde)
+
 
 class IcerikBildirmeTesti(TestCase):
     """
@@ -3297,15 +3326,28 @@ class AramaMotoruTesti(TestCase):
 
     def test_sitemap_yalnizca_herkese_acik_sayfalar(self):
         """
-        Site haritasında yalnızca giriş gerektirmeyen sayfalar olmalı:
-        tanıtım sayfası ve gizlilik politikası.
+        Site haritasında yalnızca giriş gerektirmeyen sayfalar olmalı.
+
+        Sayı sabitlenmiyor; her adresin gerçekten giriş istemediği
+        doğrulanıyor. Yanlışlıkla korumalı bir sayfa eklenirse yakalanır.
         """
+        import re
+
         govde = self.client.get("/sitemap.xml").content.decode("utf-8")
         self.assertIn("<urlset", govde)
-        self.assertEqual(govde.count("<loc>"), 2)
-        self.assertIn("/gizlilik/", govde)
-        for gizli in ["/panel/", "/gruplar/", "/maclar/", "/sohbet/"]:
-            self.assertNotIn(gizli, govde)
+
+        yollar = re.findall(r"<loc>https?://[^/]+(/[^<]*)</loc>", govde)
+        self.assertIn("/gizlilik/", yollar)
+        self.assertIn("/kurallar/", yollar)
+        self.assertIn("/hesap-silme/", yollar)
+
+        for yol in yollar:
+            with self.subTest(yol=yol):
+                self.assertEqual(
+                    self.client.get(yol).status_code,
+                    200,
+                    f"{yol} giriş gerektiriyor, site haritasında olmamalı",
+                )
 
     def test_sayfada_yapilandirilmis_veri_var(self):
         govde = self.client.get(reverse("core:home")).content.decode("utf-8")
