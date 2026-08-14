@@ -162,6 +162,58 @@ def sitemap(request):
     return render(request, "core/sitemap.xml", content_type="application/xml")
 
 
+def dijital_varlik_baglantilari(request):
+    """
+    /.well-known/assetlinks.json — Android uygulamasıyla alan adını eşleştirir.
+
+    Play Store'daki uygulama bir TWA (Trusted Web Activity): aslında bu siteyi
+    tam ekran açan ince bir Android kabuğu. Android, adres çubuğunu ancak bu
+    dosyayı okuyup uygulamanın imza parmak izini burada bulursa gizliyor.
+    Dosya yoksa ya da parmak izi tutmuyorsa uygulama üstünde tarayıcı çubuğu
+    olan bir Chrome sekmesi gibi açılıyor.
+
+    Parmak izi ayardan (ANDROID_SIGNING_FINGERPRINTS) geliyor, koda gömülü
+    değil. Sebebi: uygulamayı Play'e yükledikten sonra Google onu KENDİ
+    anahtarıyla yeniden imzalıyor, dolayısıyla buraya yazılması gereken
+    parmak izi ancak Play Console'a ilk yükleme yapıldıktan sonra öğreniliyor.
+    Ayar boşken dosya boş liste dönüyor; bu geçerli JSON ve zararsız.
+    """
+    from django.http import JsonResponse
+
+    paket = settings.ANDROID_PACKAGE_NAME
+    parmak_izleri = settings.ANDROID_SIGNING_FINGERPRINTS
+
+    ifadeler = []
+    if paket and parmak_izleri:
+        ifadeler.append(
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": paket,
+                    "sha256_cert_fingerprints": parmak_izleri,
+                },
+            }
+        )
+
+    yanit = JsonResponse(ifadeler, safe=False)
+    # Android bu dosyayı uygulama her açıldığında değil, arada bir okuyor;
+    # kısa önbellek yeni parmak izinin hızlı yayılmasını sağlıyor.
+    yanit["Cache-Control"] = "public, max-age=300"
+    return yanit
+
+
+def gizlilik(request):
+    """
+    Gizlilik politikası.
+
+    Play Store, hesap açan ve kişisel veri toplayan her uygulamada herkese
+    açık (giriş gerektirmeyen) bir gizlilik politikası adresi istiyor;
+    adresi olmayan uygulama yayına alınmıyor.
+    """
+    return render(request, "core/gizlilik.html")
+
+
 def manifest(request):
     """
     Uygulama tanımı.

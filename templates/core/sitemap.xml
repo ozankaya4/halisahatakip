@@ -8,4 +8,9 @@ Geri kalan her şey giriş gerektiriyor ve indekslenmemeli.
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
+  <url>
+    <loc>{{ request.scheme }}://{{ request.get_host }}/gizlilik/</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
 </urlset>

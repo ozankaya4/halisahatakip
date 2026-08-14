@@ -14,4 +14,6 @@ def site_chrome(request):
         "karsi_tema": "koyu" if tema == "acik" else "acik",
         "site_adi": "Halısaha Defteri",
         "debug_modu": settings.DEBUG,
+        # Gizlilik politikasında ve Play Store kaydında aynı adres geçmeli.
+        "iletisim_eposta": settings.CONTACT_EMAIL,
     }

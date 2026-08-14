@@ -30,6 +30,13 @@ env = environ.Env(
     GOOGLE_CLIENT_ID=(str, ""),
     GOOGLE_CLIENT_SECRET=(str, ""),
     PUBLIC_PROFILES=(bool, False),
+    # Android uygulaması (Play Store'daki TWA). Parmak izi Play Console'da
+    # "Uygulama imzalama" sayfasındaki SHA-256; birden çok değer virgülle
+    # ayrılır (Google'ın imzası + kendi yükleme anahtarın).
+    ANDROID_PACKAGE_NAME=(str, ""),
+    ANDROID_SIGNING_FINGERPRINTS=(list, []),
+    # Gizlilik politikasında ve Play Store kaydında görünen adres.
+    CONTACT_EMAIL=(str, "hikmetozankaya@gmail.com"),
     # "none"      : e-posta doğrulaması istenmez, kayıttan sonra doğrudan giriş
     # "optional"  : doğrulama e-postası gider ama zorunlu değildir
     # "mandatory" : doğrulanmadan giriş yapılamaz (çalışan SMTP şart)
@@ -368,6 +375,23 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 # VE puanlar herkese açılır (o ana kadar yalnızca herkesi puanlayanlar
 # görebiliyor; bkz. apps/ratings/gorunurluk.py).
 RATING_WINDOW_DAYS = 3
+
+# --------------------------------------------------------------------------
+# Android uygulaması
+# --------------------------------------------------------------------------
+# Play Store'daki uygulama bu siteyi tam ekran açan bir TWA. Android'in adres
+# çubuğunu gizlemesi için /.well-known/assetlinks.json dosyasında uygulamanın
+# paket adı ve imza parmak izi yazılı olmalı.
+#
+# Parmak izi ancak Play Console'a ilk yükleme yapıldıktan sonra öğrenilir
+# (Google uygulamayı kendi anahtarıyla yeniden imzalar), bu yüzden koda değil
+# ortam değişkenine yazılıyor.
+CONTACT_EMAIL = env("CONTACT_EMAIL")
+
+ANDROID_PACKAGE_NAME = env("ANDROID_PACKAGE_NAME")
+ANDROID_SIGNING_FINGERPRINTS = [
+    p.strip().upper() for p in env("ANDROID_SIGNING_FINGERPRINTS") if p.strip()
+]
 
 # Bir kişinin aynı oyuncuya kaç kez puan yazabileceği: ilk oy + bir düzeltme.
 # Sayaç oyuncu BAZINDA tutuluyor, maç bazında değil; sonradan kadroya

@@ -8,6 +8,11 @@ Allow: /favicon.ico
 Allow: /logo.png
 Allow: /static/
 Allow: /manifest.webmanifest
+# Gizlilik politikası herkese açık kalmalı: Play Store yayına almadan önce
+# bu adresi kendi robotuyla açıp okuyor.
+Allow: /gizlilik/
+# Android uygulamasını alan adıyla eşleştiren dosya.
+Allow: /.well-known/
 
 # Kişisel veri içeren ya da giriş gerektiren her yer taramaya kapalı.
 Disallow: /panel/

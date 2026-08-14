@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block baslik %}Hesabımı sil · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'accounts:profil_duzenle' %}">Profili düzenle</a></p>
+      <h1>Hesabımı sil</h1>
+    </div>
+  </div>
+
+  {% if engeller %}
+    <div class="serit serit-uyari">
+      <strong>Önce yerine birini bırakman gerekiyor.</strong>
+      Şu grupların tek yöneticisisin ve içlerinde başka üyeler var:
+      {% for grup in engeller %}<strong>{{ grup.ad }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+      Sen ayrılırsan bu gruplarda kimse maç ekleyemez ya da üye onaylayamaz.
+      <br>
+      <span class="kucuk solgun">
+        Grubun üyeler sayfasından birini yönetici yap, sonra buraya dön.
+      </span>
+    </div>
+  {% endif %}
+
+  <div class="kutu kutu-uyari">
+    <p><strong>Bu işlem geri alınamaz.</strong></p>
+    <div class="iki-sutun">
+      <div>
+        <p class="alan-yardim"><strong>Silinecekler</strong></p>
+        <ul class="alan-yardim">
+          <li>Hesabın ve profilin (ad, e-posta, profil fotoğrafı)</li>
+          <li>Bütün grup üyeliklerin</li>
+          <li>Maç katılımların, gollerin ve asistlerin</li>
+          <li>Verdiğin ve aldığın bütün puanlar</li>
+          <li>Sohbet anahtarın; eski mesajlarını bir daha okuyamazsın</li>
+        </ul>
+      </div>
+      <div>
+        <p class="alan-yardim"><strong>Kalacaklar</strong></p>
+        <ul class="alan-yardim">
+          <li>Grupların kendisi ve diğer üyeler</li>
+          <li>Maçlar, skorlar ve maç fotoğrafları</li>
+        </ul>
+        <p class="kucuk solgun">
+          Bunlar grubun ortak geçmişi; bir kişinin ayrılması onları
+          silmiyor. Senin adın bu kayıtlardan kaldırılıyor.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {% if not engeller %}
+    <form class="kutu" method="post">
+      {% csrf_token %}
+      <label class="alan">
+        <span>Onaylamak için e-posta adresini yaz</span>
+        <input type="text" name="onay" autocomplete="off" autocapitalize="none"
+               spellcheck="false" placeholder="{{ user.email }}" required>
+      </label>
+      <p class="alan-yardim">
+        Kazayla silmeyi zorlaştırmak için tam olarak
+        <strong>{{ user.email }}</strong> yazman gerekiyor.
+      </p>
+      <div class="satir">
+        <button class="dugme dugme-tehlike" type="submit">Hesabımı kalıcı olarak sil</button>
+        <a class="dugme dugme-sessiz" href="{% url 'accounts:profil_duzenle' %}">Vazgeç</a>
+      </div>
+    </form>
+  {% endif %}
+{% endblock %}

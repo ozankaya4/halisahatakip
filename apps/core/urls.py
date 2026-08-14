@@ -30,6 +30,16 @@ urlpatterns = [
     path("logo.png", views.logo, name="logo"),
     path("robots.txt", views.robots, name="robots"),
     path("sitemap.xml", views.sitemap, name="sitemap"),
+    # --- Android uygulaması (Play Store) -----------------------------------
+    # TWA'nın adres çubuğunu gizleyebilmesi için Android'in bu dosyayı tam
+    # olarak bu adreste bulması şart; alt klasör ya da yönlendirme kabul
+    # edilmiyor (bkz. views.dijital_varlik_baglantilari).
+    path(
+        ".well-known/assetlinks.json",
+        views.dijital_varlik_baglantilari,
+        name="assetlinks",
+    ),
+    path("gizlilik/", views.gizlilik, name="gizlilik"),
     # Korumalı dosya sunumu. Yol bilgisi değil, veritabanı kimliği alır;
     # bu sayede yol geçişi (path traversal) yapısal olarak imkânsızdır.
     path("dosya/avatar/<uuid:dosya_id>/", views.avatar_dosyasi, name="avatar_dosyasi"),

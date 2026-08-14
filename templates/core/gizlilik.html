@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block baslik %}Gizlilik politikası · {{ site_adi }}{% endblock %}
+{% block aciklama %}Halısaha Defteri'nin hangi verileri neden sakladığı, kimlerin görebildiği ve nasıl silineceği.{% endblock %}
+
+{% block icerik %}
+  {% comment %}
+  Bu sayfa GİRİŞ GEREKTİRMEZ ve öyle kalmalı: Play Store yayına almadan önce
+  gizlilik politikasını kendi robotuyla açıp okuyor, giriş duvarının
+  arkasındaki adresi kabul etmiyor.
+
+  Metin, uygulamanın gerçekten yaptığı şeyi anlatıyor. Play Console'daki
+  "Veri güvenliği" formunu doldururken buradaki listeyle birebir aynı
+  cevapları vermek gerekiyor; iki beyan çelişirse uygulama reddediliyor.
+  {% endcomment %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Halısaha Defteri</p>
+      <h1>Gizlilik politikası</h1>
+    </div>
+    <p class="kucuk solgun">Son güncelleme: 14 Ağustos 2026</p>
+  </div>
+
+  <div class="kutu kutu-vurgu">
+    <p>
+      Halısaha Defteri, bir halı saha grubunun maçlarını, kadrolarını ve
+      oyuncu puanlarını tuttuğu özel bir defterdir. Veriler yalnızca
+      grubun kendi üyeleri içindir; satılmaz, reklam için kullanılmaz,
+      üçüncü taraflara aktarılmaz.
+    </p>
+  </div>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Toplanan veriler</h2>
+    </div>
+    <div class="tablo-sarmal">
+      <table class="tablo">
+        <thead>
+          <tr>
+            <th>Veri</th>
+            <th>Neden</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>E-posta adresi</td>
+            <td>Hesabı açmak, girişi doğrulamak ve şifre sıfırlamak için.</td>
+          </tr>
+          <tr>
+            <td>Ad soyad</td>
+            <td>
+              Grup içinde kimin kim olduğunun anlaşılması için. İstediğin
+              adı yazabilirsin; gerçek kimlik zorunlu değildir.
+            </td>
+          </tr>
+          <tr>
+            <td>Profil fotoğrafı</td>
+            <td>İsteğe bağlı. Kadroda ve dizilimde tanınmak için.</td>
+          </tr>
+          <tr>
+            <td>Maç fotoğrafları</td>
+            <td>Grubun kendi maç arşivi. Yükleyen ve yöneticiler silebilir.</td>
+          </tr>
+          <tr>
+            <td>Maç ve katılım kayıtları</td>
+            <td>
+              Hangi maça geldiğin, hangi takımda oynadığın, gol ve asistlerin.
+            </td>
+          </tr>
+          <tr>
+            <td>Oyuncu puanları</td>
+            <td>
+              Maç sonrası verilen 1-10 puanlar. <strong>Kimin kime kaç
+              verdiği hiçbir yerde gösterilmez</strong>, yalnızca ortalamalar
+              görünür.
+            </td>
+          </tr>
+          <tr>
+            <td>Grup sohbeti</td>
+            <td>
+              <strong>Uçtan uca şifrelidir.</strong> Şifre çözme anahtarı
+              yalnızca grup üyelerinin cihazındadır; sunucu mesajların
+              içeriğini okuyamaz, biz de okuyamayız.
+            </td>
+          </tr>
+          <tr>
+            <td>Giriş kayıtları (IP adresi, tarih)</td>
+            <td>
+              Şifre deneme saldırılarını engellemek için kısa süre tutulur.
+              Güvenlik amaçlıdır, başka hiçbir yerde kullanılmaz.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="kucuk solgun">
+      Konum bilgisi, rehber, arama kaydı, reklam kimliği ya da cihazdaki
+      başka hiçbir veri toplanmaz. Uygulamada reklam ve analiz izleyicisi
+      (Google Analytics benzeri) bulunmaz.
+    </p>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Verileri kim görebilir</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li>
+        <strong>Grubunun onaylı üyeleri:</strong> maçları, kadroları,
+        fotoğrafları ve puan ortalamalarını görür.
+      </li>
+      <li>
+        <strong>Grup yöneticisi:</strong> ek olarak kadroyu, skoru ve üyelik
+        başvurularını yönetir.
+      </li>
+      <li>
+        <strong>Grubun dışındaki hiç kimse:</strong> hiçbir şeyi göremez.
+        Fotoğraflar bile doğrudan adresle değil, yetki kontrolünden geçen
+        bir görünüm üzerinden sunulur.
+      </li>
+      <li>
+        <strong>Sohbet mesajlarını hiç kimse:</strong> grup üyeleri dışında,
+        sunucu yöneticisi dâhil kimse okuyamaz.
+      </li>
+    </ul>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Google ile giriş</h2>
+    </div>
+    <p class="alan-yardim">
+      Google hesabınla giriş yapmayı seçersen Google'dan yalnızca e-posta
+      adresin ve adın alınır. Google'a şifren verilmez ve Google'daki
+      dosyalarına, kişilerine ya da başka hiçbir bilgine erişilmez.
+    </p>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Verilerin saklanması ve silinmesi</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li>
+        Veriler Almanya'daki (Frankfurt) bir sunucuda tutulur ve
+        aktarım her zaman şifreli bağlantı (HTTPS) üzerinden yapılır.
+      </li>
+      <li>
+        <strong>Hesabını kendin silebilirsin:</strong> uygulamada
+        <em>Profili düzenle &rsaquo; Hesabımı sil</em> yolunu izle ya da
+        doğrudan <a href="{% url 'accounts:hesabimi_sil' %}">hesap silme
+        sayfasına</a> git. Hesabın, profilin, üyeliklerin, maç katılımların
+        ve verdiğin bütün puanlar anında ve kalıcı olarak silinir.
+        Grubun maçları ve fotoğrafları grubun ortak kaydı olduğu için kalır;
+        senin adın o kayıtlardan kaldırılır.
+      </li>
+      <li>
+        Silme işlemini kendin yapamıyorsan aşağıdaki adrese yazman yeterli.
+      </li>
+      <li>
+        Bir maç silindiğinde ya da iptal edildiğinde o maça ait puanlar ve
+        fotoğraflar da silinir.
+      </li>
+      <li>
+        Uygulamayı telefonundan kaldırmak hesabını silmez; silinmesini
+        istiyorsan yazman gerekir.
+      </li>
+    </ul>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Çocuklar</h2>
+    </div>
+    <p class="alan-yardim">
+      Uygulama genel kullanıma yöneliktir ve çocuklara özel olarak
+      tasarlanmamıştır; çocuklardan bilerek veri toplanmaz.
+    </p>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>İletişim</h2>
+    </div>
+    <p class="alan-yardim">
+      Verilerinle ilgili her soru, düzeltme ve silme talebi için:
+      <a href="mailto:{{ iletisim_eposta }}">{{ iletisim_eposta }}</a>
+    </p>
+  </section>
+{% endblock %}

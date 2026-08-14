@@ -13,6 +13,7 @@ Uçtan uca duman testleri.
 from __future__ import annotations
 
 import io
+import json
 import shutil
 import tempfile
 
@@ -1349,6 +1350,183 @@ class KadroIsaretlemeTesti(TestCase):
         govde = self._detay_govdesi()
         self.assertNotIn(">Yok<", govde)
         self.assertIn("Yanıt yok", govde)
+
+
+class AndroidUygulamasiTesti(TestCase):
+    """
+    Play Store'daki TWA için gereken iki herkese açık adres.
+
+    assetlinks.json: Android adres çubuğunu ancak bu dosyada uygulamanın
+    paket adını ve imza parmak izini bulursa gizliyor.
+    /gizlilik/: Play, hesap açan uygulamalarda giriş gerektirmeyen bir
+    gizlilik politikası adresi istiyor.
+    """
+
+    ADRES = "/.well-known/assetlinks.json"
+
+    def test_ayar_bosken_gecerli_bos_json(self):
+        """Parmak izi Play'e yüklemeden önce bilinmiyor; sayfa yine de çalışmalı."""
+        with self.settings(ANDROID_PACKAGE_NAME="", ANDROID_SIGNING_FINGERPRINTS=[]):
+            yanit = self.client.get(self.ADRES)
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(yanit["Content-Type"], "application/json")
+        self.assertEqual(json.loads(yanit.content), [])
+
+    def test_parmak_izi_verilince_dogru_yapida(self):
+        parmak = "A1:B2:C3:D4:E5:F6:07:18:29:3A:4B:5C:6D:7E:8F:90:A1:B2:C3:D4:E5:F6:07:18:29:3A:4B:5C:6D:7E:8F:90"
+        with self.settings(
+            ANDROID_PACKAGE_NAME="site.halisahadefteri.twa",
+            ANDROID_SIGNING_FINGERPRINTS=[parmak],
+        ):
+            veri = json.loads(self.client.get(self.ADRES).content)
+
+        self.assertEqual(len(veri), 1)
+        ifade = veri[0]
+        self.assertEqual(
+            ifade["relation"], ["delegate_permission/common.handle_all_urls"]
+        )
+        self.assertEqual(ifade["target"]["namespace"], "android_app")
+        self.assertEqual(ifade["target"]["package_name"], "site.halisahadefteri.twa")
+        self.assertEqual(ifade["target"]["sha256_cert_fingerprints"], [parmak])
+
+    def test_birden_cok_parmak_izi(self):
+        """Google'ın imzası ve kendi yükleme anahtarı birlikte bulunabilir."""
+        with self.settings(
+            ANDROID_PACKAGE_NAME="site.halisahadefteri.twa",
+            ANDROID_SIGNING_FINGERPRINTS=["AA:BB", "CC:DD"],
+        ):
+            veri = json.loads(self.client.get(self.ADRES).content)
+
+        self.assertEqual(veri[0]["target"]["sha256_cert_fingerprints"], ["AA:BB", "CC:DD"])
+
+    def test_giris_gerektirmiyor(self):
+        """Android bu dosyayı oturum açmadan okuyor."""
+        self.assertEqual(self.client.get(self.ADRES).status_code, 200)
+
+    def test_gizlilik_sayfasi_herkese_acik(self):
+        yanit = self.client.get(reverse("core:gizlilik"))
+        self.assertEqual(yanit.status_code, 200)
+
+        govde = yanit.content.decode("utf-8")
+        self.assertIn("Gizlilik politikası", govde)
+        self.assertIn(settings.CONTACT_EMAIL, govde, "silme talebi için adres şart")
+        self.assertIn("uçtan uca", govde.lower())
+
+    def test_gizlilik_baglantisi_her_sayfada(self):
+        govde = self.client.get(reverse("core:home")).content.decode("utf-8")
+        self.assertIn(reverse("core:gizlilik"), govde)
+
+    def test_robots_gizlilik_ve_wellknown_engellemiyor(self):
+        govde = self.client.get("/robots.txt").content.decode("utf-8")
+        self.assertIn("Allow: /gizlilik/", govde)
+        self.assertIn("Allow: /.well-known/", govde)
+        for satir in govde.splitlines():
+            if satir.startswith("Disallow:"):
+                yol = satir.split(":", 1)[1].strip()
+                self.assertNotEqual(yol, "/", "tüm site taramaya kapatılmış")
+
+
+class HesapSilmeTesti(TestCase):
+    """
+    Play Store, hesap açtıran uygulamalarda hesap silme yolu zorunlu tutuyor.
+
+    Silme, kişinin kendi verisini götürmeli ama grubun ortak geçmişini
+    (maçlar, fotoğraflar) götürmemeli; "oluşturan" alanları bu yüzden
+    SET_NULL.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Öztürk")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.mert,
+            rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.adres = reverse("accounts:hesabimi_sil")
+
+    def test_sayfa_giris_gerektiriyor(self):
+        self.assertEqual(self.client.get(self.adres).status_code, 302)
+
+    def test_profil_ayarlarindan_ulasilabiliyor(self):
+        self.client.force_login(self.mert)
+        govde = self.client.get(
+            reverse("accounts:profil_duzenle")
+        ).content.decode("utf-8")
+        self.assertIn(self.adres, govde)
+
+    def test_eposta_yanlissa_silinmiyor(self):
+        self.client.force_login(self.mert)
+        self.client.post(self.adres, {"onay": "yanlis@example.com"})
+        self.assertTrue(User.objects.filter(pk=self.mert.pk).exists())
+
+    def test_eposta_dogruysa_siliniyor(self):
+        mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+        Katilim.objects.create(
+            mac=mac, kullanici=self.mert, yanit=Katilim.Yanit.GELIYORUM, katildi=True
+        )
+        Puan.objects.create(mac=mac, puanlayan=self.mert, puanlanan=self.ozan, deger=7)
+
+        self.client.force_login(self.mert)
+        self.client.post(self.adres, {"onay": "mert@example.com"})
+
+        self.assertFalse(User.objects.filter(pk=self.mert.pk).exists())
+        self.assertFalse(Uyelik.objects.filter(kullanici_id=self.mert.pk).exists())
+        self.assertFalse(Katilim.objects.filter(kullanici_id=self.mert.pk).exists())
+        self.assertFalse(Puan.objects.filter(puanlayan_id=self.mert.pk).exists())
+
+        # Grubun ortak geçmişi duruyor.
+        self.assertTrue(Grup.objects.filter(pk=self.grup.pk).exists())
+        self.assertTrue(Mac.objects.filter(pk=mac.pk).exists())
+
+    def test_eposta_buyuk_harfle_de_kabul(self):
+        self.client.force_login(self.mert)
+        self.client.post(self.adres, {"onay": "MERT@EXAMPLE.COM"})
+        self.assertFalse(User.objects.filter(pk=self.mert.pk).exists())
+
+    def test_grubu_kuran_silinince_grup_kalmali(self):
+        """Kurucu SET_NULL; kurucunun ayrılması grubu ve maçları silmemeli."""
+        Uyelik.objects.filter(grup=self.grup, kullanici=self.mert).update(
+            rol=Uyelik.Rol.YONETICI
+        )
+        self.client.force_login(self.ozan)
+        self.client.post(self.adres, {"onay": "ozan@example.com"})
+
+        self.grup.refresh_from_db()
+        self.assertIsNone(self.grup.kurucu)
+        self.assertEqual(self.grup.uye_sayisi, 1)
+
+    def test_son_yonetici_once_yerine_birini_birakmali(self):
+        """Tek yönetici çekilirse grup kilitlenir; silme engelleniyor."""
+        self.client.force_login(self.ozan)
+
+        govde = self.client.get(self.adres).content.decode("utf-8")
+        self.assertIn("Perşembe Ekibi", govde)
+        self.assertIn("tek yöneticisisin", govde)
+
+        self.client.post(self.adres, {"onay": "ozan@example.com"})
+        self.assertTrue(User.objects.filter(pk=self.ozan.pk).exists())
+
+    def test_tek_kisilik_grubun_yoneticisi_silebiliyor(self):
+        """Başka üyesi olmayan grup engel değil."""
+        Uyelik.objects.filter(grup=self.grup, kullanici=self.mert).delete()
+        self.client.force_login(self.ozan)
+        self.client.post(self.adres, {"onay": "ozan@example.com"})
+        self.assertFalse(User.objects.filter(pk=self.ozan.pk).exists())
+
+    def test_gizlilik_sayfasi_silme_yolunu_gosteriyor(self):
+        """Play, gizlilik politikasında silme yolunun yazılı olmasını istiyor."""
+        govde = self.client.get(reverse("core:gizlilik")).content.decode("utf-8")
+        self.assertIn(self.adres, govde)
 
 
 class YonetimBaglantisiTesti(TestCase):
@@ -2860,10 +3038,17 @@ class AramaMotoruTesti(TestCase):
         for gizli in ["/gruplar/", "/maclar/", "/sohbet/", "/dosya/"]:
             self.assertIn(f"Disallow: {gizli}", govde)
 
-    def test_sitemap_yalnizca_tanitim_sayfasi(self):
+    def test_sitemap_yalnizca_herkese_acik_sayfalar(self):
+        """
+        Site haritasında yalnızca giriş gerektirmeyen sayfalar olmalı:
+        tanıtım sayfası ve gizlilik politikası.
+        """
         govde = self.client.get("/sitemap.xml").content.decode("utf-8")
         self.assertIn("<urlset", govde)
-        self.assertEqual(govde.count("<loc>"), 1)
+        self.assertEqual(govde.count("<loc>"), 2)
+        self.assertIn("/gizlilik/", govde)
+        for gizli in ["/panel/", "/gruplar/", "/maclar/", "/sohbet/"]:
+            self.assertNotIn(gizli, govde)
 
     def test_sayfada_yapilandirilmis_veri_var(self):
         govde = self.client.get(reverse("core:home")).content.decode("utf-8")
@@ -3348,7 +3533,17 @@ class HesapSayfalariStiliTesti(TestCase):
     def test_profil_duzenlemede_yonlendirmeler_stilli(self):
         govde = self.client.get(reverse("accounts:profil_duzenle")).content.decode("utf-8")
         # Hesap ayarı bağlantıları düz <a> değil, tasarlanmış satır olmalı.
-        self.assertEqual(govde.count("ayar-satiri"), 4)
+        # Toplam sayı sabitlenmiyor; ayar eklendiğinde test kırılmasın diye
+        # her ayarın stilli satır olarak basıldığı tek tek aranıyor.
+        for yol in [
+            reverse("account_change_password"),
+            reverse("account_email"),
+            reverse("socialaccount_connections"),
+            reverse("chat:anahtar_kurulumu"),
+            reverse("accounts:hesabimi_sil"),
+        ]:
+            with self.subTest(yol=yol):
+                self.assertIn(f'<a class="ayar-satiri" href="{yol}"', govde)
         self.assertIn("ayar-ok", govde)
         self.assertIn("kutu-baslik", govde)
         # Form kart içinde dursun.
