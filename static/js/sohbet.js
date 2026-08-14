@@ -51,6 +51,8 @@ async function baslat(kok) {
   const akis = document.getElementById("mesaj-akisi");
   const bilgi = document.getElementById("sohbet-bilgi");
 
+  bildirmeyiBagla(durum, akis);
+
   if (!webcryptoVarMi()) {
     gosterSadece(bolumler, "ortam");
     return;
@@ -313,7 +315,88 @@ async function baloncukYap(durum, mesaj) {
   govde.textContent = metin;
 
   satir.append(ust, govde);
+
+  // Bildir düğmesi yalnızca başkasının çözülebilmiş mesajında.
+  // Kendi mesajını bildirmenin anlamı yok; çözülemeyen mesajda da
+  // gönderilecek bir metin yok.
+  if (mesaj.gonderen_id !== durum.kullaniciId && !cozulemedi) {
+    const bildir = document.createElement("button");
+    bildir.type = "button";
+    bildir.className = "baloncuk-bildir";
+    bildir.textContent = "Bildir";
+    bildir.setAttribute("aria-label", `${mesaj.gonderen_ad} mesajını bildir`);
+    bildir.dataset.mesajId = String(mesaj.id);
+    // Çözülmüş metin burada duruyor: sunucu şifreli mesajı açamadığı için
+    // şikâyette metni bildiren kişinin cihazı gönderiyor.
+    bildir.dataset.metin = metin;
+    satir.append(bildir);
+  }
+
   return satir;
+}
+
+/**
+ * Mesaj şikâyeti.
+ *
+ * Akışa tek bir dinleyici bağlanıyor (olay yetkilendirme): baloncuklar
+ * sürekli yeniden üretildiği için her birine ayrı dinleyici bağlamak
+ * hem gereksiz hem sızıntı kaynağı olurdu.
+ *
+ * Sunucu şifreli mesajı açamadığından, gönderilen metin baloncuğun
+ * üzerinde duran çözülmüş hâli. Kullanıcı kendi isteğiyle iletiyor.
+ */
+function bildirmeyiBagla(durum, akis) {
+  const kutu = document.getElementById("bildir-kutusu");
+  if (!akis || !kutu) return;
+
+  const form = kutu.querySelector("form[data-bildir-formu]");
+  const durumSatiri = kutu.querySelector("[data-bildir-durum]");
+  const onizleme = kutu.querySelector("[data-bildir-onizleme]");
+  let secili = null;
+
+  akis.addEventListener("click", (olay) => {
+    const dugme = olay.target.closest(".baloncuk-bildir");
+    if (!dugme) return;
+
+    secili = { id: dugme.dataset.mesajId, metin: dugme.dataset.metin };
+    onizleme.textContent = secili.metin;
+    durumSatiri.textContent = "";
+    form.reset();
+
+    if (typeof kutu.showModal === "function") kutu.showModal();
+    else kutu.setAttribute("open", "");
+  });
+
+  form.addEventListener("submit", async (olay) => {
+    olay.preventDefault();
+    if (!secili) return;
+
+    const veri = new FormData(form);
+    const sebep = veri.get("sebep");
+    if (!sebep) {
+      durumSatiri.textContent = "Bir sebep seç.";
+      return;
+    }
+
+    durumSatiri.textContent = "Gönderiliyor…";
+    try {
+      const sonuc = await jsonIstek(`/bildir/sohbet/${durum.grupId}/bildir/`, {
+        yontem: "POST",
+        govde: {
+          mesaj_id: Number(secili.id),
+          sebep,
+          aciklama: veri.get("aciklama") || "",
+          metin: secili.metin,
+        },
+      });
+      durumSatiri.textContent = sonuc.zaten
+        ? "Bu mesajı zaten bildirmiştin."
+        : "Bildirimin yöneticiye iletildi.";
+      setTimeout(() => kutu.close(), 1200);
+    } catch (hata) {
+      durumSatiri.textContent = hata.message || "Bildirim gönderilemedi.";
+    }
+  });
 }
 
 function gondermeyiBagla(durum, akis) {

@@ -1529,6 +1529,263 @@ class HesapSilmeTesti(TestCase):
         self.assertIn(self.adres, govde)
 
 
+class IcerikBildirmeTesti(TestCase):
+    """
+    Kullanıcı içeriğini bildirme ve yönetici incelemesi.
+
+    Play, kullanıcı içeriği barındıran uygulamalarda kural + bildirme +
+    kaldırma üçlüsünü birlikte arıyor.
+    """
+
+    def setUp(self):
+        from apps.moderation.models import Sikayet
+
+        self.Sikayet = Sikayet
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Öztürk")
+        self.deniz = kullanici("deniz@example.com", "Deniz Uğurlu")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        for k in (self.mert, self.deniz):
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k,
+                rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(days=1),
+            olusturan=self.ozan,
+        )
+
+    def _fotograf(self, yukleyen):
+        from apps.matches.models import MacFotografi
+
+        return MacFotografi.objects.create(
+            mac=self.mac, yukleyen=yukleyen, dosya="maclar/test.webp"
+        )
+
+    def _mesaj(self, gonderen):
+        from apps.chat.models import Mesaj
+
+        return Mesaj.objects.create(
+            grup=self.grup, gonderen=gonderen, anahtar_surum=1,
+            sifreli_metin="c2lmcmVsaQ==", iv="aXY=",
+        )
+
+    # --- Fotoğraf ------------------------------------------------------
+    def test_uye_baskasinin_fotografini_bildirebiliyor(self):
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+
+        adres = reverse("moderation:fotograf_bildir", args=[foto.pk])
+        self.assertEqual(self.client.get(adres).status_code, 200)
+
+        self.client.post(adres, {"sebep": "mustehcen", "aciklama": "Uygunsuz"})
+
+        sikayet = self.Sikayet.objects.get()
+        self.assertEqual(sikayet.fotograf_id, foto.pk)
+        self.assertEqual(sikayet.bildiren, self.mert)
+        self.assertEqual(sikayet.durum, self.Sikayet.Durum.BEKLIYOR)
+
+    def test_kendi_fotografini_bildiremiyor(self):
+        """Kendi fotoğrafını zaten silebiliyor; bildirmenin anlamı yok."""
+        foto = self._fotograf(self.mert)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]), {"sebep": "spam"}
+        )
+        self.assertEqual(self.Sikayet.objects.count(), 0)
+
+    def test_grup_disindaki_bildiremiyor(self):
+        foto = self._fotograf(self.deniz)
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.force_login(yabanci)
+        yanit = self.client.get(reverse("moderation:fotograf_bildir", args=[foto.pk]))
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_ayni_fotograf_iki_kez_bildirilemiyor(self):
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        adres = reverse("moderation:fotograf_bildir", args=[foto.pk])
+        self.client.post(adres, {"sebep": "spam"})
+        self.client.post(adres, {"sebep": "taciz"})
+        self.assertEqual(self.Sikayet.objects.count(), 1)
+
+    def test_gecersiz_sebep_kaydedilmiyor(self):
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]),
+            {"sebep": "uydurma"},
+        )
+        self.assertEqual(self.Sikayet.objects.count(), 0)
+
+    def test_yoneticiye_bildirim_gidiyor(self):
+        from apps.notifications.models import Bildirim
+
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]), {"sebep": "siddet"}
+        )
+        self.assertTrue(
+            Bildirim.objects.filter(
+                alici=self.ozan, tur=Bildirim.Tur.ICERIK_BILDIRILDI
+            ).exists()
+        )
+
+    # --- Sohbet mesajı -------------------------------------------------
+    def test_mesaj_bildiriminde_metin_istemciden_geliyor(self):
+        """
+        Sunucu şifreli mesajı açamıyor; metin bildiren kişinin cihazından
+        geliyor ve olduğu gibi saklanıyor.
+        """
+        mesaj = self._mesaj(self.deniz)
+        self.client.force_login(self.mert)
+
+        yanit = self.client.post(
+            reverse("moderation:mesaj_bildir", args=[self.grup.genel_id]),
+            data=json.dumps(
+                {
+                    "mesaj_id": mesaj.pk,
+                    "sebep": "taciz",
+                    "aciklama": "Hakaret etti",
+                    "metin": "çözülmüş mesaj metni",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(yanit.status_code, 200)
+        sikayet = self.Sikayet.objects.get()
+        self.assertEqual(sikayet.mesaj_id, mesaj.pk)
+        self.assertEqual(sikayet.mesaj_metni, "çözülmüş mesaj metni")
+        self.assertEqual(sikayet.tur, self.Sikayet.Tur.MESAJ)
+
+    def test_kendi_mesajini_bildiremiyor(self):
+        mesaj = self._mesaj(self.mert)
+        self.client.force_login(self.mert)
+        yanit = self.client.post(
+            reverse("moderation:mesaj_bildir", args=[self.grup.genel_id]),
+            data=json.dumps({"mesaj_id": mesaj.pk, "sebep": "spam", "metin": "x"}),
+            content_type="application/json",
+        )
+        self.assertEqual(yanit.status_code, 400)
+        self.assertEqual(self.Sikayet.objects.count(), 0)
+
+    # --- İnceleme ------------------------------------------------------
+    def test_yonetici_fotografi_kaldirabiliyor(self):
+        from apps.matches.models import MacFotografi
+
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]), {"sebep": "mustehcen"}
+        )
+        sikayet = self.Sikayet.objects.get()
+
+        self.client.force_login(self.ozan)
+        self.client.post(
+            reverse("moderation:karar", args=[self.grup.genel_id, sikayet.pk]),
+            {"islem": "kaldir"},
+        )
+
+        sikayet.refresh_from_db()
+        self.assertEqual(sikayet.durum, self.Sikayet.Durum.KALDIRILDI)
+        self.assertEqual(sikayet.inceleyen, self.ozan)
+        self.assertFalse(MacFotografi.objects.filter(pk=foto.pk).exists())
+        # İçerik gitse de şikâyet kaydı duruyor.
+        self.assertIsNone(sikayet.fotograf_id)
+
+    def test_yonetici_mesaji_sohbetten_cikarabiliyor(self):
+        mesaj = self._mesaj(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:mesaj_bildir", args=[self.grup.genel_id]),
+            data=json.dumps({"mesaj_id": mesaj.pk, "sebep": "taciz", "metin": "x"}),
+            content_type="application/json",
+        )
+        sikayet = self.Sikayet.objects.get()
+
+        self.client.force_login(self.ozan)
+        self.client.post(
+            reverse("moderation:karar", args=[self.grup.genel_id, sikayet.pk]),
+            {"islem": "kaldir"},
+        )
+
+        mesaj.refresh_from_db()
+        self.assertTrue(mesaj.silindi)
+
+    def test_reddedilen_bildirimde_icerik_duruyor(self):
+        from apps.matches.models import MacFotografi
+
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]), {"sebep": "spam"}
+        )
+        sikayet = self.Sikayet.objects.get()
+
+        self.client.force_login(self.ozan)
+        self.client.post(
+            reverse("moderation:karar", args=[self.grup.genel_id, sikayet.pk]),
+            {"islem": "reddet"},
+        )
+
+        sikayet.refresh_from_db()
+        self.assertEqual(sikayet.durum, self.Sikayet.Durum.REDDEDILDI)
+        self.assertTrue(MacFotografi.objects.filter(pk=foto.pk).exists())
+
+    def test_siradan_uye_inceleme_sayfasini_goremiyor(self):
+        self.client.force_login(self.mert)
+        yanit = self.client.get(reverse("moderation:liste", args=[self.grup.genel_id]))
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_yonetici_bekleyenleri_goruyor(self):
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]),
+            {"sebep": "mustehcen", "aciklama": "Uygunsuz görsel"},
+        )
+
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("moderation:liste", args=[self.grup.genel_id])
+        ).content.decode("utf-8")
+        self.assertIn("Müstehcenlik", govde)
+        self.assertIn("Uygunsuz görsel", govde)
+
+    def test_grup_sayfasinda_bekleyen_sayisi(self):
+        foto = self._fotograf(self.deniz)
+        self.client.force_login(self.mert)
+        self.client.post(
+            reverse("moderation:fotograf_bildir", args=[foto.pk]), {"sebep": "spam"}
+        )
+
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("groups:detay", args=[self.grup.genel_id])
+        ).content.decode("utf-8")
+        self.assertIn("bildirilen içerik", govde)
+
+    # --- Kurallar sayfası ----------------------------------------------
+    def test_kurallar_sayfasi_herkese_acik(self):
+        yanit = self.client.get(reverse("core:kurallar"))
+        self.assertEqual(yanit.status_code, 200)
+
+        govde = yanit.content.decode("utf-8")
+        for konu in ["Çıplaklık", "Şiddet", "Hakaret", "Bildir"]:
+            self.assertIn(konu, govde)
+
+    def test_kurallar_her_sayfanin_altinda(self):
+        govde = self.client.get(reverse("core:home")).content.decode("utf-8")
+        self.assertIn(reverse("core:kurallar"), govde)
+
+
 class YonetimBaglantisiTesti(TestCase):
     """Yönetim paneli bağlantısı yalnızca nihai yöneticide görünmeli."""
 

@@ -102,6 +102,7 @@
       <div class="satir-ayrik">
         <p class="kucuk solgun">
           Mesajlar tarayıcında şifrelenir. Sunucu yalnızca şifreli metni saklar.
+          <a href="{% url 'core:kurallar' %}">Kurallar</a>.
         </p>
         <button class="baglanti-dugme" type="button" id="kilitle-dugmesi">
           Bu tarayıcıda kilitle
@@ -109,6 +110,50 @@
       </div>
     </div>
   </div>
+
+  {% comment %}
+  Mesaj şikâyeti kutusu.
+
+  Sunucu şifreli mesajı açamıyor, bu yüzden bildirilen metin baloncuktaki
+  çözülmüş hâlden geliyor ve kullanıcıya burada aynen gösteriliyor:
+  yöneticiye neyin gideceğini görmeden göndermek doğru olmaz.
+  {% endcomment %}
+  <dialog id="bildir-kutusu" class="secim-kutusu" aria-labelledby="bildir-baslik">
+    <form method="dialog" class="secim-kapat-sarmal">
+      <button class="secim-kapat" type="submit" aria-label="Kapat">
+        <span aria-hidden="true">×</span>
+      </button>
+    </form>
+    <h2 id="bildir-baslik">Mesajı bildir</h2>
+    <p class="kucuk solgun">
+      Bildirimin grup yöneticisine gider. Yöneticinin göreceği metin:
+    </p>
+    <blockquote class="sikayet-metin" data-bildir-onizleme></blockquote>
+
+    <form data-bildir-formu>
+      <fieldset class="alan">
+        <legend>Sebep</legend>
+        <div class="secenek-satiri secenek-dikey">
+          {% for kod, ad in sebepler %}
+            <label class="secenek">
+              <input type="radio" name="sebep" value="{{ kod }}">
+              <span>{{ ad }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <label class="alan">
+        <span>Not (isteğe bağlı)</span>
+        <textarea name="aciklama" rows="2" maxlength="500"></textarea>
+      </label>
+
+      <div class="satir">
+        <button class="dugme dugme-birincil" type="submit">Bildir</button>
+      </div>
+      <p class="kucuk solgun" data-bildir-durum role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
 {% endblock %}
 
 {% block ekstra_js %}

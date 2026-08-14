@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block baslik %}Kurallar · {{ site_adi }}{% endblock %}
+{% block aciklama %}Halısaha Defteri'nde neyin paylaşılabileceği, neyin paylaşılamayacağı ve kural dışı içeriğin nasıl bildirileceği.{% endblock %}
+
+{% block icerik %}
+  {% comment %}
+  Bu sayfa GİRİŞ GEREKTİRMEZ ve öyle kalmalı.
+
+  Google Play, kullanıcı içeriği barındıran uygulamalarda üç şeyi birlikte
+  arıyor: yazılı bir kural, bildirme yolu ve kaldırma yetkisi. Bu sayfa
+  birincisi. Bildirme apps/moderation'da, kaldırma grup yöneticisinde.
+  {% endcomment %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart">Halısaha Defteri</p>
+      <h1>Kurallar</h1>
+    </div>
+    <p class="kucuk solgun">Son güncelleme: 15 Ağustos 2026</p>
+  </div>
+
+  <div class="kutu kutu-vurgu">
+    <p>
+      Halısaha Defteri, birbirini tanıyan insanların kurduğu özel gruplar
+      içindir. Gruplar davetle açılır ve dışarıdan kimse içeriği göremez.
+      Yine de paylaşılan her şey grubun diğer üyelerine gider; aşağıdaki
+      kurallar bunun için var.
+    </p>
+  </div>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Paylaşılamayacak içerik</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li><strong>Çıplaklık ve müstehcen içerik.</strong> Fotoğraflarda ve sohbette yasaktır.</li>
+      <li><strong>Şiddet ve tehdit.</strong> Kavga görüntüleri, tehdit içeren mesajlar.</li>
+      <li><strong>Hakaret, taciz ve nefret söylemi.</strong> Kişiye, ırka, dine, cinsiyete ya da takıma yönelik.</li>
+      <li><strong>Başkasının izni olmadan çekilmiş özel fotoğraflar.</strong> Soyunma odası fotoğrafları buna dâhildir.</li>
+      <li><strong>Yasa dışı içerik</strong> ve <strong>spam</strong>.</li>
+    </ul>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Puanlama kuralları</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li>Puanlar oyunculuk içindir; kişisel husumet için değil.</li>
+      <li>Herkese aynı puanı vermek ortalamayı anlamsızlaştırdığı için denetlenir ve geçersiz sayılabilir.</li>
+      <li>Kimin kime kaç verdiği hiçbir yerde gösterilmez; bunu öğrenmeye çalışmak da kural dışıdır.</li>
+    </ul>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Kural dışı içerik görürsen</h2>
+    </div>
+    <p class="alan-yardim">
+      Fotoğrafın altındaki <strong>Bildir</strong> bağlantısını, sohbette ise
+      mesajın yanındaki <strong>Bildir</strong> düğmesini kullan. Bildirimin
+      grup yöneticisine gider; yönetici içeriği kaldırabilir ya da kişiyi
+      gruptan çıkarabilir.
+    </p>
+    <p class="alan-yardim">
+      Kendi yüklediğin bir fotoğrafı istediğin zaman silebilirsin.
+      Grup yöneticisi de her fotoğrafı silebilir.
+    </p>
+    <p class="kucuk solgun">
+      Grup sohbeti uçtan uca şifrelidir: mesajları yalnızca grubun üyeleri
+      okuyabilir, biz okuyamayız. Bu yüzden bir mesajı bildirdiğinde, o mesajın
+      metni senin cihazından gönderilir; yöneticinin görebilmesinin tek yolu
+      budur.
+    </p>
+  </section>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Kural ihlalinin sonucu</h2>
+    </div>
+    <ul class="alan-yardim">
+      <li>İçerik kaldırılır.</li>
+      <li>Grup yöneticisi kişiyi gruptan çıkarabilir.</li>
+      <li>Ağır ya da tekrarlanan ihlallerde hesap kapatılabilir.</li>
+    </ul>
+    <p class="alan-yardim">
+      Bir kararın haksız olduğunu düşünüyorsan
+      <a href="mailto:{{ iletisim_eposta }}">{{ iletisim_eposta }}</a> adresine yaz.
+    </p>
+  </section>
+{% endblock %}

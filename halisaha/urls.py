@@ -20,6 +20,7 @@ urlpatterns = [
     path("maclar/", include("apps.matches.urls")),
     path("puanlar/", include("apps.ratings.urls")),
     path("sohbet/", include("apps.chat.urls")),
+    path("bildir/", include("apps.moderation.urls")),
     path("bildirimler/", include("apps.notifications.urls")),
 ]
 

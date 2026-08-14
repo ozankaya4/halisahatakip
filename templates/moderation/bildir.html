@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block baslik %}İçeriği bildir · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{{ geri_url }}">{{ grup.ad }}</a></p>
+      <h1>İçeriği bildir</h1>
+    </div>
+  </div>
+
+  <div class="kutu kutu-uyari">
+    <p class="kucuk">
+      Bildirimin <strong>grup yöneticisine</strong> gider ve içeriği kimin
+      bildirdiği yöneticiye görünür. Bildirmek içeriği hemen kaldırmaz;
+      yönetici bakıp karar verir.
+      <a href="{% url 'core:kurallar' %}">Grup kurallarına</a> göz atabilirsin.
+    </p>
+  </div>
+
+  {% if fotograf %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Bildirilen fotoğraf</h2>
+      </div>
+      <img class="bildirilen-gorsel" src="{{ fotograf.url }}"
+           alt="Bildirilen fotoğraf" loading="lazy">
+    </section>
+  {% endif %}
+
+  <form class="kutu" method="post">
+    {% csrf_token %}
+    <fieldset class="alan">
+      <legend>Sebep</legend>
+      <div class="secenek-satiri secenek-dikey">
+        {% for kod, ad in sebepler %}
+          <label class="secenek">
+            <input type="radio" name="sebep" value="{{ kod }}" required>
+            <span>{{ ad }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <label class="alan">
+      <span>Eklemek istediğin bir şey var mı? (isteğe bağlı)</span>
+      <textarea name="aciklama" rows="3" maxlength="500"></textarea>
+    </label>
+
+    <div class="satir">
+      <button class="dugme dugme-birincil" type="submit">Bildir</button>
+      <a class="dugme dugme-sessiz" href="{{ geri_url }}">Vazgeç</a>
+    </div>
+  </form>
+{% endblock %}

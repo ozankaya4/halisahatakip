@@ -22,6 +22,7 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 
 from apps.core.ratelimit import sinir_asildi
 from apps.groups.models import Grup, Uyelik
+from apps.moderation.models import Sikayet
 
 from .models import MAX_SIFRELI_UZUNLUK, AnahtarCifti, AnahtarPaketi, GrupAnahtari, Mesaj
 from .services import aktif_anahtar, eksik_paket_uyeleri, sonraki_surum
@@ -103,6 +104,9 @@ def sohbet(request, genel_id):
             "anahtarim_var": anahtarim_var,
             "yonetici_mi": grup.yonetici_mi(request.user),
             "sayfa_boyutu": settings.MESSAGES_PAGE_SIZE,
+            # Şikâyet kutusundaki sebep listesi; tek kaynaktan geliyor ki
+            # şablonla model ayrışmasın.
+            "sebepler": Sikayet.Sebep.choices,
         },
     )
 

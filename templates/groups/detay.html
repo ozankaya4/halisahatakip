@@ -32,6 +32,13 @@
     </div>
   {% endif %}
 
+  {% if yonetici_mi and bekleyen_sikayet %}
+    <div class="serit serit-uyari">
+      <strong>{{ bekleyen_sikayet }} bildirilen içerik</strong> incelemeni bekliyor.
+      <a href="{% url 'moderation:liste' grup.genel_id %}">İncele</a>.
+    </div>
+  {% endif %}
+
   <div class="iki-sutun">
     <div class="yigin">
       <section class="kutu">

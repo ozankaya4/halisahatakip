@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block baslik %}Bildirilen içerikler · {{ site_adi }}{% endblock %}
+
+{% block icerik %}
+  <div class="defter-basligi">
+    <div>
+      <p class="uststart"><a href="{% url 'groups:detay' grup.genel_id %}">{{ grup.ad }}</a></p>
+      <h1>Bildirilen içerikler</h1>
+    </div>
+  </div>
+
+  {% comment %}
+  Sohbet uçtan uca şifreli olduğu için sunucu mesajı okuyamıyor; buradaki
+  metin, bildiren kişinin cihazından gönderdiği hâli. Yani kanıt değil,
+  beyan. Karar verirken bunu bilmek gerekiyor, o yüzden ekranda da yazıyor.
+  {% endcomment %}
+  <div class="kutu kutu-uyari">
+    <p class="kucuk">
+      <strong>Nasıl karar verilir?</strong> “İçeriği kaldır” fotoğrafı kalıcı
+      olarak siler ya da mesajı sohbetten çıkarır. “Kural ihlali yok” yalnızca
+      bildirimi kapatır, içeriğe dokunmaz.
+      <a href="{% url 'core:kurallar' %}">Kurallar</a>.
+    </p>
+    <p class="kucuk solgun">
+      Sohbet mesajlarında görülen metin, bildiren kişinin cihazından geldiği
+      için sunucuda doğrulanamaz. Aynı mesajı birden fazla kişi bildirdiyse
+      bu, tek başına metinden daha güçlü bir işarettir.
+    </p>
+  </div>
+
+  <section class="kutu">
+    <div class="kutu-baslik">
+      <h2>Bekleyenler</h2>
+      <span class="kucuk solgun">{{ bekleyenler|length }} bildirim</span>
+    </div>
+
+    {% if bekleyenler %}
+      <ul class="cetvel-liste sikayet-listesi">
+        {% for sikayet in bekleyenler %}
+          <li class="sikayet">
+            <div class="sikayet-ust">
+              <span class="rozet rozet-kiremit">{{ sikayet.get_sebep_display }}</span>
+              <span class="kucuk solgun">
+                {{ sikayet.get_tur_display }} ·
+                {{ sikayet.olusturulma|date:"j F Y, H:i" }} ·
+                bildiren: {{ sikayet.bildiren.gorunen_ad|default:"Silinmiş kullanıcı" }}
+              </span>
+            </div>
+
+            {% if sikayet.tur == "fotograf" %}
+              {% if sikayet.fotograf %}
+                <a href="{% url 'matches:detay' sikayet.fotograf.mac_id %}">
+                  <img class="sikayet-gorsel" src="{{ sikayet.fotograf.url }}"
+                       alt="Bildirilen fotoğraf" loading="lazy">
+                </a>
+              {% else %}
+                <p class="kucuk solgun">Fotoğraf zaten silinmiş.</p>
+              {% endif %}
+            {% else %}
+              {% if sikayet.mesaj %}
+                <p class="kucuk solgun">
+                  Gönderen: <strong>{{ sikayet.mesaj.gonderen.gorunen_ad }}</strong>
+                  · {{ sikayet.mesaj.olusturulma|date:"j F Y, H:i" }}
+                </p>
+                <blockquote class="sikayet-metin">{{ sikayet.mesaj_metni|default:"(metin iletilmedi)" }}</blockquote>
+              {% else %}
+                <p class="kucuk solgun">Mesaj zaten kaldırılmış.</p>
+              {% endif %}
+            {% endif %}
+
+            {% if sikayet.aciklama %}
+              <p class="kucuk"><strong>Not:</strong> {{ sikayet.aciklama }}</p>
+            {% endif %}
+
+            <form class="satir" method="post"
+                  action="{% url 'moderation:karar' grup.genel_id sikayet.pk %}">
+              {% csrf_token %}
+              <button class="dugme dugme-kucuk dugme-tehlike" type="submit"
+                      name="islem" value="kaldir"
+                      data-onay="İçerik kaldırılsın mı? Fotoğraflarda bu işlem geri alınamaz.">
+                İçeriği kaldır
+              </button>
+              <button class="dugme dugme-kucuk dugme-sessiz" type="submit"
+                      name="islem" value="reddet">
+                Kural ihlali yok
+              </button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="solgun">Bekleyen bildirim yok.</p>
+    {% endif %}
+  </section>
+
+  {% if gecmis %}
+    <section class="kutu">
+      <div class="kutu-baslik">
+        <h2>Geçmiş kararlar</h2>
+      </div>
+      <div class="tablo-sarmal">
+        <table class="tablo">
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Tür</th>
+              <th>Sebep</th>
+              <th>Karar</th>
+              <th>Karar veren</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sikayet in gecmis %}
+              <tr>
+                <td class="kucuk solgun">{{ sikayet.karar_tarihi|date:"j M Y" }}</td>
+                <td>{{ sikayet.get_tur_display }}</td>
+                <td>{{ sikayet.get_sebep_display }}</td>
+                <td>
+                  {% if sikayet.durum == "kaldirildi" %}
+                    <span class="rozet rozet-kiremit">Kaldırıldı</span>
+                  {% else %}
+                    <span class="rozet rozet-sessiz">İhlal yok</span>
+                  {% endif %}
+                </td>
+                <td class="kucuk solgun">{{ sikayet.inceleyen.gorunen_ad|default:"Bilinmiyor" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

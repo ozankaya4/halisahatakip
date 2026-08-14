@@ -203,6 +203,16 @@ def dijital_varlik_baglantilari(request):
     return yanit
 
 
+def kurallar(request):
+    """
+    İçerik kuralları.
+
+    Play, kullanıcı içeriği barındıran uygulamalarda yazılı bir kural
+    metni arıyor; "izin vermiyoruz" demenin tek geçerli hâli bu.
+    """
+    return render(request, "core/kurallar.html")
+
+
 def gizlilik(request):
     """
     Gizlilik politikası.

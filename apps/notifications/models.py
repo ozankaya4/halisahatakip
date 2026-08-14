@@ -22,6 +22,7 @@ class Bildirim(models.Model):
         SUPHELI_OYLAMA = "supheli_oylama", "Şüpheli oylama"
         PUANLARIN_SILINDI = "puanlarin_silindi", "Puanların silindi"
         MACIN_ADAMI = "macin_adami", "Maçın adamı"
+        ICERIK_BILDIRILDI = "icerik_bildirildi", "İçerik bildirildi"
 
     alici = models.ForeignKey(
         settings.AUTH_USER_MODEL,

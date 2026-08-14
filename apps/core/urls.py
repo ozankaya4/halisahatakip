@@ -40,6 +40,7 @@ urlpatterns = [
         name="assetlinks",
     ),
     path("gizlilik/", views.gizlilik, name="gizlilik"),
+    path("kurallar/", views.kurallar, name="kurallar"),
     # Korumalı dosya sunumu. Yol bilgisi değil, veritabanı kimliği alır;
     # bu sayede yol geçişi (path traversal) yapısal olarak imkânsızdır.
     path("dosya/avatar/<uuid:dosya_id>/", views.avatar_dosyasi, name="avatar_dosyasi"),

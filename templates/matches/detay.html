@@ -215,6 +215,13 @@
                     {% csrf_token %}
                     <button class="dugme dugme-kucuk dugme-tehlike" type="submit">Sil</button>
                   </form>
+                {% else %}
+                  {% comment %}
+                  Başkasının yüklediği fotoğrafı bildirme yolu. Kendi
+                  fotoğrafını zaten silebildiğin için orada gösterilmiyor.
+                  {% endcomment %}
+                  <a class="dugme dugme-kucuk dugme-sessiz foto-sil"
+                     href="{% url 'moderation:fotograf_bildir' foto.pk %}">Bildir</a>
                 {% endif %}
               </li>
             {% endfor %}

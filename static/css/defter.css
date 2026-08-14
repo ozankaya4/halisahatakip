@@ -1597,6 +1597,70 @@ p {
   margin-block-start: 0.75rem;
 }
 
+/* --- İçerik şikâyetleri --------------------------------------------------
+   Bildir düğmesi baloncuğun içinde, sessiz duruyor: sık kullanılacak bir
+   şey değil, ama arandığında bulunabilmeli. */
+.secenek-dikey {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.baloncuk-bildir {
+  align-self: flex-end;
+  margin-block-start: 0.3rem;
+  border: 0;
+  background: none;
+  padding: 0.1rem 0;
+  font-size: 0.72rem;
+  color: var(--murekkep-soluk);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.baloncuk-bildir:hover {
+  color: var(--kiremit);
+}
+
+.baloncuk-bildir:focus-visible {
+  outline: 2px solid var(--kiremit);
+  outline-offset: 2px;
+}
+
+.sikayet-listesi .sikayet {
+  display: block;
+  padding-block: 0.9rem;
+}
+
+.sikayet-ust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 0.6rem;
+}
+
+.sikayet-gorsel,
+.bildirilen-gorsel {
+  display: block;
+  max-width: min(100%, 22rem);
+  height: auto;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+}
+
+/* Bildirilen mesaj metni: alıntı olduğu belli olsun, sayfanın geri
+   kalanıyla karışmasın. */
+.sikayet-metin {
+  margin: 0 0 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border-inline-start: 3px solid var(--cetvel);
+  background: var(--kagit-golge);
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* =========================================================================
    15c. Kadro ve skor girişi
    ====================================================================== */

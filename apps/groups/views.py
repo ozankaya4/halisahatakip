@@ -89,7 +89,9 @@ def detay(request, grup):
     # Şüpheli oylama nedeniyle karantinaya alınmış, yönetici kararı bekleyen
     # kayıt var mı? Sayfada uyarı olarak gösteriliyor.
     bekleyen_oy_incelemesi = 0
+    bekleyen_sikayet = 0
     if grup.yonetici_mi(request.user):
+        from apps.moderation.models import Sikayet
         from apps.ratings.models import Puan
 
         bekleyen_oy_incelemesi = (
@@ -98,6 +100,9 @@ def detay(request, grup):
             .distinct()
             .count()
         )
+        bekleyen_sikayet = Sikayet.objects.filter(
+            grup=grup, durum=Sikayet.Durum.BEKLIYOR
+        ).count()
 
     return render(
         request,
@@ -111,6 +116,7 @@ def detay(request, grup):
             "gizli_mac_sayisi": gizli_mac_sayisi,
             "bekleyen_sayisi": grup.bekleyen_sayisi,
             "bekleyen_oy_incelemesi": bekleyen_oy_incelemesi,
+            "bekleyen_sikayet": bekleyen_sikayet,
         },
     )
 
