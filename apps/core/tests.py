@@ -2103,12 +2103,16 @@ class DizilimGorseliIsaretleriTesti(TestCase):
     def setUp(self):
         self.kullanici = kullanici("isaret@example.com", "Ali Vural")
 
-    def _olcu(self):
+    # Hem telefon (dikey) hem bilgisayar (yatay) çıktısı sınanıyor: hata
+    # ikisinde de vardı ve düzeltme ikisini de kapsamalı.
+    YONLER = ("dikey", "yatay")
+
+    def _olcu(self, yon="dikey"):
         from apps.matches.gorsel import _yerlesim
 
-        return _yerlesim("dikey")
+        return _yerlesim(yon)
 
-    def _ciz(self, **degisenler):
+    def _ciz(self, yon="dikey", **degisenler):
         """Tek oyuncu kartı çizer; (görsel, ölçü) döner."""
         from PIL import Image, ImageDraw
 
@@ -2126,7 +2130,7 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         }
         oyuncu.update(degisenler)
 
-        olcu = self._olcu()
+        olcu = self._olcu(yon)
         gorsel = Image.new("RGB", (400, 400), self.ZEMIN)
         ciz = ImageDraw.Draw(gorsel, "RGBA")
         # "b" takımı: diski koyu, dolayısıyla üstüne düşen açık renkli bir
@@ -2134,10 +2138,10 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         _oyuncu_ciz(gorsel, ciz, oyuncu, "b", self.MERKEZ, olcu)
         return gorsel, olcu
 
-    def _degisen_pikseller(self, **degisenler):
+    def _degisen_pikseller(self, yon="dikey", **degisenler):
         """İşaret eklenince değişen piksellerin koordinatları."""
-        temiz, olcu = self._ciz()
-        isaretli, _ = self._ciz(**degisenler)
+        temiz, olcu = self._ciz(yon)
+        isaretli, _ = self._ciz(yon, **degisenler)
 
         farklar = []
         for x in range(400):
@@ -2151,6 +2155,28 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         return ((nokta[0] - mx) ** 2 + (nokta[1] - my) ** 2) ** 0.5
 
     # -- İşaretin yeri ----------------------------------------------------
+    def _isaret_disarida_mi(self, ad: str, **degisenler):
+        """
+        Bir işaretin HER İKİ yönde de diskin dışında kaldığını doğrular.
+
+        Hata telefonda da bilgisayarda da vardı. İşaret çizimi tek kod
+        yolundan geçtiği için (`_oyuncu_ciz` yön parametresi almıyor)
+        düzeltme ikisini birden kapsıyor; test bunu varsaymak yerine
+        ölçüyor, çünkü iki yerleşimin yarıçapları farklı.
+        """
+        for yon in self.YONLER:
+            with self.subTest(yon=yon):
+                farklar, olcu = self._degisen_pikseller(yon, **degisenler)
+                self.assertTrue(farklar, f"{ad} hiç çizilmemiş")
+
+                yaricap = olcu.kart_yaricap
+                iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
+                self.assertEqual(
+                    iceride, [],
+                    f"{yon}: {ad} işaretinin {len(iceride)} pikseli "
+                    "fotoğrafın içinde kalıyor",
+                )
+
     def test_gol_isareti_diskin_disinda(self):
         """
         Gol topu profil fotoğrafının üstüne binmemeli.
@@ -2160,39 +2186,29 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         fotoğrafın İÇİNDE kalıyordu; sitede ise fotoğrafın kenarına
         oturuyorlar.
         """
-        farklar, olcu = self._degisen_pikseller(gol=1)
-        self.assertTrue(farklar, "gol işareti hiç çizilmemiş")
-
-        yaricap = olcu.kart_yaricap
-        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
-        self.assertEqual(
-            iceride, [],
-            f"gol işaretinin {len(iceride)} pikseli fotoğrafın içinde kalıyor",
-        )
+        self._isaret_disarida_mi("gol", gol=1)
 
     def test_asist_isareti_diskin_disinda(self):
-        farklar, olcu = self._degisen_pikseller(asist=1)
-        self.assertTrue(farklar, "asist işareti hiç çizilmemiş")
-
-        yaricap = olcu.kart_yaricap
-        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
-        self.assertEqual(iceride, [], "asist işareti fotoğrafın içinde kalıyor")
+        self._isaret_disarida_mi("asist", asist=1)
 
     def test_kart_isareti_diskin_disinda(self):
-        farklar, olcu = self._degisen_pikseller(kart="sari")
-        self.assertTrue(farklar, "kart hiç çizilmemiş")
+        self._isaret_disarida_mi("kart", kart="sari")
 
-        yaricap = olcu.kart_yaricap
-        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
-        self.assertEqual(iceride, [], "kart fotoğrafın içinde kalıyor")
+    def test_ikinci_sari_karti_diskin_disinda(self):
+        """Bölünmüş kart en geniş kart türü; taşarsa önce o taşar."""
+        self._isaret_disarida_mi("ikinci sarı", kart="ikinci-sari")
 
     def test_macin_adami_yildizi_diskin_disinda(self):
-        farklar, olcu = self._degisen_pikseller(macin_adami=True)
-        self.assertTrue(farklar, "yıldız hiç çizilmemiş")
+        self._isaret_disarida_mi("yıldız", macin_adami=True)
 
-        yaricap = olcu.kart_yaricap
-        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
-        self.assertEqual(iceride, [], "yıldız fotoğrafın içinde kalıyor")
+    def test_dort_isaret_birdenken_de_fotograf_temiz(self):
+        """
+        Canlıda bulunan en kötü durum: aynı oyuncuda kart, gol, asist ve
+        yıldız birden. Dördü de fotoğrafın üstüne biniyordu.
+        """
+        self._isaret_disarida_mi(
+            "dört işaret", kart="ikinci-sari", gol=3, asist=2, macin_adami=True
+        )
 
     def test_isaretler_sitedeki_koselerde(self):
         """
@@ -2212,7 +2228,7 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         for alan, (x_yon, y_yon) in beklenen.items():
             with self.subTest(isaret=alan):
                 deger = "sari" if alan == "kart" else (True if alan == "macin_adami" else 1)
-                farklar, _ = self._degisen_pikseller(**{alan: deger})
+                farklar, _ = self._degisen_pikseller("dikey", **{alan: deger})
                 orta_x = sum(n[0] for n in farklar) / len(farklar)
                 orta_y = sum(n[1] for n in farklar) / len(farklar)
                 self.assertEqual(
