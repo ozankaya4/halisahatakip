@@ -4517,6 +4517,58 @@ class GuvenlikIncelemesiTesti(TestCase):
         gunluk = {f.__name__ for f in registry.registry.get_checks()}
         self.assertNotIn("eposta_dogrulamasi_acik_mi", gunluk)
 
+    def test_guncelleme_betigi_uyariya_takilip_durmuyor(self):
+        """
+        Uyarı, yayına almayı DURDURMAMALI.
+
+        Bu iki denetim eklendiğinde deploy/guncelle.sh içinde
+        "check --deploy --fail-level WARNING" yazıyordu. Django'nun kendi
+        kontrolleri o sırada temiz olduğu için satır yıllarca sorun
+        çıkarmamıştı; yeni uyarılar gelince komut 1 dönmeye başladı ve
+        "set -e" betiği tam o satırda öldürdü.
+
+        Sonuç, teşhis edilmesi zor bir durumdu: "git pull" çalışmış,
+        "systemctl restart" hiç çalışmamıştı. Yeni kod diskteydi, gunicorn
+        modülleri süreç açılışında belleğe aldığı için ESKİ kodu servis
+        etmeye devam ediyordu. Site ayaktaydı, dağıtım yapılmış
+        görünüyordu, yalnızca değişiklikler ortada yoktu.
+
+        Uyarı "şunu da halletmelisin" notudur; gerçek hatadan ayrı tutulmalı.
+        """
+        betik = (settings.BASE_DIR / "deploy" / "guncelle.sh").read_text(
+            encoding="utf-8"
+        )
+
+        calisan_satirlar = [
+            satir for satir in betik.splitlines()
+            if satir.strip() and not satir.lstrip().startswith("#")
+        ]
+        kod = "\n".join(calisan_satirlar)
+
+        self.assertNotIn(
+            "--fail-level WARNING", kod,
+            "Uyarı yayına almayı durduruyor; servis yeniden başlatılmadan "
+            "betik ölür ve sunucu eski kodu çalıştırmaya devam eder.",
+        )
+        # Denetim yine de çalışmalı: sessizce atlanmış olmasın.
+        self.assertIn("check --deploy", kod)
+        # Ve yeniden başlatma adımı hâlâ yerinde olmalı.
+        self.assertIn("systemctl restart halisaha", kod)
+
+    def test_guncelleme_betigi_sessizce_olmuyor(self):
+        """
+        Betik ortada ölürse bunu söylemeli.
+
+        Asıl tuzak buydu: "set -e" ile betik sessizce kapanıyordu ve
+        yayına alınmadığını anlamanın tek yolu, en sonda basılan "Yayında"
+        satırının YOKLUĞUNU fark etmekti.
+        """
+        betik = (settings.BASE_DIR / "deploy" / "guncelle.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("trap", betik)
+        self.assertIn("YENİDEN BAŞLATILMADI", betik)
+
 
 class AcikBulgularTesti(TestCase):
     """
