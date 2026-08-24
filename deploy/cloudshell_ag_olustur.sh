@@ -107,7 +107,7 @@ oci network route-table update --rt-id "${RT_ID}" --force \
 # değişebiliyor; sessizce boş geçmesindense burada patlasın.)
 KURAL=$(oci network route-table get --rt-id "${RT_ID}" \
     --query 'data."route-rules"[?destination==`0.0.0.0/0`] | length(@)' --raw-output)
-[[ "${KURAL}" -ge 1 ]] || hata "Yönlendirme kuralı yazılamadı. Bu mesajı Claude'a yapıştırın."
+[[ "${KURAL}" -ge 1 ]] || hata "Yönlendirme kuralı yazılamadı. Bu çıktının tamamını saklayın."
 bilgi "Yönlendirme kuralı tamam."
 
 # =========================================================================

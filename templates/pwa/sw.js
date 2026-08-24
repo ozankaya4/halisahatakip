@@ -17,13 +17,19 @@
  *   diğer her şey-> hiç dokunma, doğrudan ağa gitsin
  */
 
-const SURUM = "1";
+const SURUM = "2";
 const ONBELLEK_ADI = `halisaha-statik-v${SURUM}`;
 const CEVRIMDISI = "{% url 'core:cevrimdisi' %}";
 
 // Kurulumda saklanacaklar. Hepsi herkese açık ve kullanıcıdan bağımsız.
+//
+// DİKKAT: Çevrimdışı sayfası ÇEREZSİZ indiriliyor (credentials: "omit").
+// Varsayılan "same-origin" ile indirildiğinde sunucu sayfayı o anki
+// kullanıcı için render ediyor ve diske düşen kopyada CSRF jetonu,
+// kullanıcı kimliği ve bildirim sayısı kalıyordu. Sayfanın kendisi de
+// artık base.html'i genişletmiyor; iki koruma birbirini yedekliyor.
 const ON_YUKLENECEK = [
-  CEVRIMDISI,
+  new Request(CEVRIMDISI, { credentials: "omit", cache: "reload" }),
   "{% static 'css/defter.css' %}",
   "{% static 'css/yazitipi.css' %}",
   "{% static 'js/app.js' %}",
@@ -102,7 +108,9 @@ self.addEventListener("fetch", (olay) => {
   if (istek.mode === "navigate") {
     olay.respondWith(
       fetch(istek).catch(() =>
-        caches.match(CEVRIMDISI).then((sayfa) => sayfa || Response.error()),
+        caches
+        .match(CEVRIMDISI, { ignoreVary: true })
+        .then((sayfa) => sayfa || Response.error()),
       ),
     );
     return;

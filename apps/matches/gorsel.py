@@ -43,17 +43,49 @@ BOYUTLAR = {
 }
 
 # --- Renkler (static/css/defter.css ile aynı) ------------------------------
-KAGIT = (246, 243, 234)
-KAGIT_UST = (255, 253, 247)
-MUREKKEP = (27, 28, 23)
-MUREKKEP_YUMUSAK = (85, 86, 75)
-MUREKKEP_SOLUK = (139, 139, 125)
-CETVEL = (214, 209, 192)
+#
+# Sahanın kendisi TEMADAN BAĞIMSIZ. Sitede de öyle: `.saha` için koyu tema
+# kuralı yok, çim her iki temada aynı yeşil. Değişen yalnızca sayfa kabuğu,
+# yani kâğıt zemini, mürekkep ve cetvel çizgileri.
 YESIL = (31, 77, 56)
 YESIL_KOYU = (24, 60, 44)
 YESIL_CIZGI = (255, 255, 255, 46)
-HARDAL = (154, 117, 20)
 BEYAZ = (255, 255, 255)
+
+
+@dataclass(frozen=True)
+class Palet:
+    """Temaya göre değişen renkler. Değerler defter.css'ten birebir alındı."""
+
+    kagit: tuple
+    murekkep: tuple
+    murekkep_yumusak: tuple
+    murekkep_soluk: tuple
+    cetvel: tuple
+    hardal: tuple
+
+
+ACIK = "acik"
+KOYU = "koyu"
+
+PALETLER = {
+    ACIK: Palet(
+        kagit=(246, 243, 234),
+        murekkep=(27, 28, 23),
+        murekkep_yumusak=(85, 86, 75),
+        murekkep_soluk=(139, 139, 125),
+        cetvel=(214, 209, 192),
+        hardal=(154, 117, 20),
+    ),
+    KOYU: Palet(
+        kagit=(20, 21, 15),
+        murekkep=(234, 230, 216),
+        murekkep_yumusak=(168, 166, 152),
+        murekkep_soluk=(119, 118, 106),
+        cetvel=(51, 53, 42),
+        hardal=(210, 171, 82),
+    ),
+}
 
 TAKIM_RENKLERI = {
     "a": (242, 239, 230),  # açık forma
@@ -324,6 +356,95 @@ def _yildiz_ciz(ciz, merkez_x, merkez_y, dis_yaricap, renk) -> None:
     ciz.polygon(noktalar, fill=renk, outline=(24, 30, 26))
 
 
+# Asist işareti: pas atan krampon.
+#
+# Şekil, sitedeki gömülü SVG'nin birebir aynısı (templates/matches/
+# dizilim.html). 24x24'lük SVG kutusundaki değerler olduğu gibi duruyor;
+# çizerken hedef piksel boyutuna ölçekleniyor. İki dosyada aynı silueti
+# tarif etmenin tek yolu bu: Pillow SVG okumuyor, tarayıcı da Pillow'un
+# çizdiğini göremiyor.
+KRAMPON_KUTUSU = 24.0
+# (x, y, genişlik, yükseklik, köşe yarıçapı)
+KRAMPON_DIKDORTGENLERI = (
+    (0.0, 8.4, 3.2, 1.5, 0.75),    # arkadaki hareket çizgisi (uzun)
+    (0.4, 11.8, 2.2, 1.5, 0.75),   # arkadaki hareket çizgisi (kısa)
+    (3.6, 17.0, 18.0, 1.8, 0.9),   # taban
+    (5.6, 18.7, 1.6, 1.0, 0.3),    # dişler
+    (9.8, 18.7, 1.6, 1.0, 0.3),
+    (14.0, 18.7, 1.6, 1.0, 0.3),
+    (18.2, 18.7, 1.6, 1.0, 0.3),
+)
+KRAMPON_GOVDESI = (
+    (4.4, 10.4), (6.6, 9.4), (8.6, 9.8), (10.2, 12.2), (12.2, 13.4),
+    (17.6, 14.6), (20.6, 15.9), (21.2, 17.0), (4.4, 17.0),
+)
+
+# Küçük boyutlarda kenarlar tırtıklı çıkıyor; dört kat büyük çizip
+# küçültmek Pillow'da kenar yumuşatmanın alışılmış yolu.
+KRAMPON_ORNEKLEME = 4
+
+
+def _krampon_sinirlari() -> tuple[float, float, float, float]:
+    """
+    Şeklin gerçekte kapladığı kutu (sol, üst, sağ, alt).
+
+    24x24'lük SVG kutusunun tamamı kullanılmıyor: krampon kutunun alt
+    yarısında duruyor (y ≈ 8.4-19.7) ve enine yayılıyor (x ≈ 0-21.6).
+    Kutunun tamamını kare olarak ölçekleyip daireye ortalayınca şekil
+    aşağıda kalıyor, üstte de kocaman bir boşluk oluşuyordu.
+    """
+    xler: list[float] = []
+    yler: list[float] = []
+    for x, y, g, yuk, _ in KRAMPON_DIKDORTGENLERI:
+        xler += [x, x + g]
+        yler += [y, y + yuk]
+    xler += [n[0] for n in KRAMPON_GOVDESI]
+    yler += [n[1] for n in KRAMPON_GOVDESI]
+    return min(xler), min(yler), max(xler), max(yler)
+
+
+KRAMPON_SINIR = _krampon_sinirlari()
+
+
+@lru_cache(maxsize=16)
+def _krampon_gorseli(genislik: int, renk: tuple):
+    """
+    Krampon işaretini saydam zeminli bir RGBA görsel olarak üretir.
+
+    `genislik` hedef piksel genişliği; yükseklik şeklin kendi oranından
+    geliyor (yaklaşık 2:1, yani basık ve geniş).
+    """
+    from PIL import Image, ImageDraw
+
+    sol_s, ust_s, sag_s, alt_s = KRAMPON_SINIR
+    sekil_g = sag_s - sol_s
+    sekil_y = alt_s - ust_s
+
+    genislik = max(6, genislik)
+    yukseklik = max(3, round(genislik * sekil_y / sekil_g))
+
+    olcek = (genislik * KRAMPON_ORNEKLEME) / sekil_g
+    buyuk_g = round(genislik * KRAMPON_ORNEKLEME)
+    buyuk_y = round(yukseklik * KRAMPON_ORNEKLEME)
+
+    kat = Image.new("RGBA", (buyuk_g, buyuk_y), (0, 0, 0, 0))
+    ciz = ImageDraw.Draw(kat)
+
+    def nokta(x, y):
+        return ((x - sol_s) * olcek, (y - ust_s) * olcek)
+
+    for x, y, g, yuk, r in KRAMPON_DIKDORTGENLERI:
+        sol, ust = nokta(x, y)
+        sag, alt = nokta(x + g, y + yuk)
+        # Yarıçap kutunun yarısını aşamaz; aşarsa Pillow hata veriyor.
+        yaricap = min(r * olcek, (sag - sol) / 2, (alt - ust) / 2)
+        ciz.rounded_rectangle((sol, ust, sag, alt), radius=yaricap, fill=renk)
+
+    ciz.polygon([nokta(x, y) for x, y in KRAMPON_GOVDESI], fill=renk)
+
+    return kat.resize((genislik, yukseklik), Image.LANCZOS)
+
+
 def _kart_ciz(ciz, sol, ust, genislik, yukseklik, tur: str) -> None:
     """Sarı / kırmızı / ikinci sarıdan kırmızı kart dikdörtgeni."""
     birinci, ikinci = KART_RENKLERI[tur]
@@ -423,20 +544,32 @@ def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, i
         _ortala(ciz, harfler, harf_font, mx, my - (alt - ust) / 2 - ust, yazi_renk)
 
     # --- Köşe işaretleri -------------------------------------------------
-    kose = yaricap * 0.72  # köşelerin merkeze uzaklığı (45 derece)
-    sapma = kose * 0.7071
+    #
+    # İşaretler diskin DIŞINA, kenarına oturur; sitede de öyle. Ölçüler
+    # oradan alındı: 48 piksellik avatarda gol işareti
+    # `inset-block-start: -5px; inset-inline-end: -9px` ile duruyor, yani
+    # merkezi avatar merkezinden yatayda ~1.08, dikeyde ~0.92 yarıçap
+    # uzakta. Köşegen uzaklık ~1.41 yarıçap: tam diskin kenarında.
+    #
+    # Burada bir dönem `sapma = yaricap * 0.72 * 0.7071` yazıyordu, yani
+    # merkeze 0.72 yarıçap uzaklık. Diskin yarıçapı 1.0 olduğu için bütün
+    # işaretler profil fotoğrafının İÇİNE düşüyordu: sitede fotoğrafın
+    # kenarına oturan gol, asist, kart ve yıldız, indirilen görselde
+    # fotoğrafın üstüne binmiş görünüyordu.
+    yatay_sapma = yaricap * 1.08
+    dikey_sapma = yaricap * 0.92
     isaret_font = metin_fontu(round(olcu.rozet_boyutu * 0.86))
 
     if oyuncu.get("kart"):
         kart_g = round(yaricap * 0.42)
         kart_y = round(kart_g * 1.4)
-        _kart_ciz(ciz, mx - sapma - kart_g / 2, my - sapma - kart_y / 2,
+        _kart_ciz(ciz, mx - yatay_sapma - kart_g / 2, my - dikey_sapma - kart_y / 2,
                   kart_g, kart_y, oyuncu["kart"])
 
     gol = oyuncu.get("gol") or 0
     if gol:
         top_r = yaricap * 0.30
-        gx, gy = mx + sapma, my - sapma
+        gx, gy = mx + yatay_sapma, my - dikey_sapma
         _top_ciz(ciz, gx, gy, top_r)
         if gol > 1:
             _sayili_isaret(ciz, gx + top_r * 1.1, gy - top_r * 0.9, gol,
@@ -444,17 +577,28 @@ def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, i
 
     asist = oyuncu.get("asist") or 0
     if asist:
-        # Asist: koyu mavi disk (sitedeki krampon işaretinin karşılığı).
-        ax, ay = mx + sapma, my + sapma
-        a_r = yaricap * 0.28
+        # Asist: koyu mavi disk + pas atan krampon. Sitedeki işaretin aynısı
+        # (bkz. templates/matches/dizilim.html içindeki gömülü SVG).
+        #
+        # Krampon bir dönem hiç çizilmiyordu: disk boş bir mavi daire olarak
+        # kalıyordu ve görselde "işaret yüklenmemiş" gibi duruyordu. Gol
+        # topla, kart dikdörtgenle, maçın adamı yıldızla anlatılırken asist
+        # tek başına anlamsız bir noktaydı.
+        ax, ay = mx + yatay_sapma, my + dikey_sapma
+        a_r = yaricap * 0.32
         ciz.ellipse((ax - a_r, ay - a_r, ax + a_r, ay + a_r),
                     fill=(32, 68, 100), outline=(230, 238, 244), width=2)
+        # Krampon basık ve geniş; daireye genişlikten sığdırılıyor.
+        krampon = _krampon_gorseli(round(a_r * 1.35), (246, 243, 234))
+        gorsel.paste(krampon, (round(ax - krampon.width / 2),
+                               round(ay - krampon.height / 2)), krampon)
         if asist > 1:
             _sayili_isaret(ciz, ax + a_r * 1.1, ay + a_r * 0.9, asist,
                            isaret_font, (32, 68, 100))
 
     if oyuncu.get("macin_adami"):
-        _yildiz_ciz(ciz, mx - sapma, my + sapma, yaricap * 0.40, (226, 185, 59))
+        _yildiz_ciz(ciz, mx - yatay_sapma, my + dikey_sapma, yaricap * 0.40,
+                    (226, 185, 59))
 
     # --- Puan + ad tek şeritte -------------------------------------------
     #
@@ -521,7 +665,12 @@ def _konum(oyuncu: dict, kutu: tuple[int, int, int, int], dikey: bool) -> tuple[
     sol, ust, sag, alt = kutu
     genislik, yukseklik = sag - sol, alt - ust
     # Kartlar kenardan taşmasın diye güvenli alan.
-    pay = 0.06
+    #
+    # 0.06'dan büyütüldü: köşe işaretleri artık diskin içinde değil dışında
+    # duruyor, dolayısıyla kart merkezden daha geniş bir yer kaplıyor. Eski
+    # payla, sahanın en kenarına yerleştirilmiş bir oyuncunun gol topu ya da
+    # kramponu çim çizgisinin dışında kalıyordu.
+    pay = 0.075
     ic = lambda o: pay + (o / 100) * (1 - 2 * pay)  # noqa: E731
 
     if dikey:
@@ -538,7 +687,8 @@ def _konum(oyuncu: dict, kutu: tuple[int, int, int, int], dikey: bool) -> tuple[
 # ---------------------------------------------------------------------------
 # Başlık ve özet
 # ---------------------------------------------------------------------------
-def _baslik_ciz(ciz, mac, takimlar: list, olcu: Yerlesim, dikey: bool) -> None:
+def _baslik_ciz(ciz, mac, takimlar: list, olcu: Yerlesim, dikey: bool,
+                palet: Palet) -> None:
     sol = olcu.kenar
     sag = olcu.genislik - olcu.kenar
     y = olcu.kenar
@@ -555,21 +705,22 @@ def _baslik_ciz(ciz, mac, takimlar: list, olcu: Yerlesim, dikey: bool) -> None:
 
     if dikey:
         _ortala(ciz, _kisalt(ciz, mac.grup.ad, grup_font, sag - sol), grup_font,
-                olcu.genislik / 2, y, MUREKKEP)
-        _ortala(ciz, tarih, tarih_font, olcu.genislik / 2, y + 70, MUREKKEP_YUMUSAK)
-        _skor_ciz(ciz, mac, takimlar, olcu.genislik / 2, y + 118, dikey=True)
+                olcu.genislik / 2, y, palet.murekkep)
+        _ortala(ciz, tarih, tarih_font, olcu.genislik / 2, y + 70,
+                palet.murekkep_yumusak)
+        _skor_ciz(ciz, mac, takimlar, olcu.genislik / 2, y + 118, True, palet)
     else:
         ciz.text((sol, y), _kisalt(ciz, mac.grup.ad, grup_font, (sag - sol) * 0.55),
-                 font=grup_font, fill=MUREKKEP)
-        ciz.text((sol, y + 62), tarih, font=tarih_font, fill=MUREKKEP_YUMUSAK)
-        _skor_ciz(ciz, mac, takimlar, sag, y + 10, dikey=False)
+                 font=grup_font, fill=palet.murekkep)
+        ciz.text((sol, y + 62), tarih, font=tarih_font, fill=palet.murekkep_yumusak)
+        _skor_ciz(ciz, mac, takimlar, sag, y + 10, False, palet)
 
     # İnce ayraç çizgi: defter havası.
     cizgi_y = olcu.kenar + olcu.baslik_yuksekligi - 16
-    ciz.line((sol, cizgi_y, sag, cizgi_y), fill=CETVEL, width=2)
+    ciz.line((sol, cizgi_y, sag, cizgi_y), fill=palet.cetvel, width=2)
 
 
-def _skor_ciz(ciz, mac, takimlar: list, x, y, dikey: bool) -> None:
+def _skor_ciz(ciz, mac, takimlar: list, x, y, dikey: bool, palet: Palet) -> None:
     """Skor ve gerekiyorsa forma golü notu."""
     if not mac.skor_girildi_mi:
         return
@@ -579,11 +730,11 @@ def _skor_ciz(ciz, mac, takimlar: list, x, y, dikey: bool) -> None:
     yazi = f"{mac.skor_a} - {mac.skor_b}"
 
     if dikey:
-        _ortala(ciz, yazi, skor_font, x, y, MUREKKEP)
+        _ortala(ciz, yazi, skor_font, x, y, palet.murekkep)
         alt_y = y + 78
     else:
         genislik = _metin_genisligi(ciz, yazi, skor_font)
-        ciz.text((x - genislik, y), yazi, font=skor_font, fill=MUREKKEP)
+        ciz.text((x - genislik, y), yazi, font=skor_font, fill=palet.murekkep)
         alt_y = y + 72
 
     # Forma golü yalnızca maçı belirlediğinde yazılıyor.
@@ -591,13 +742,13 @@ def _skor_ciz(ciz, mac, takimlar: list, x, y, dikey: bool) -> None:
         adlar = dict(mac.Takim.choices)
         notu = f"Forma golü: {adlar[mac.forma_golu]}"
         if dikey:
-            _ortala(ciz, notu, not_font, x, alt_y, HARDAL)
+            _ortala(ciz, notu, not_font, x, alt_y, palet.hardal)
         else:
             ciz.text((x - _metin_genisligi(ciz, notu, not_font), alt_y),
-                     notu, font=not_font, fill=HARDAL)
+                     notu, font=not_font, fill=palet.hardal)
 
 
-def _ozet_ciz(ciz, mac, takimlar: list, olcu: Yerlesim) -> None:
+def _ozet_ciz(ciz, mac, takimlar: list, olcu: Yerlesim, palet: Palet) -> None:
     """Takım adları, ortalama ve toplam."""
     sol = olcu.kenar
     sag = olcu.genislik - olcu.kenar
@@ -616,58 +767,65 @@ def _ozet_ciz(ciz, mac, takimlar: list, olcu: Yerlesim) -> None:
         if takim["kazandi"]:
             baslik += " · Kazandı"
         _ortala(ciz, baslik, ad_font, merkez, ust,
-                MUREKKEP if takim["kazandi"] else MUREKKEP_YUMUSAK)
+                palet.murekkep if takim["kazandi"] else palet.murekkep_yumusak)
 
         if takim.get("ortalama_puan") is not None:
             _ortala(ciz, "Ortalama", etiket_font, merkez - sutun * 0.18, ust + 46,
-                    MUREKKEP_SOLUK)
+                    palet.murekkep_soluk)
             _ortala(ciz, f"{takim['ortalama_puan']:g}", sayi_font,
-                    merkez - sutun * 0.18, ust + 68, MUREKKEP)
+                    merkez - sutun * 0.18, ust + 68, palet.murekkep)
             _ortala(ciz, "Toplam", etiket_font, merkez + sutun * 0.18, ust + 46,
-                    MUREKKEP_SOLUK)
+                    palet.murekkep_soluk)
             _ortala(ciz, f"{takim['toplam_puan']:g}", sayi_font,
-                    merkez + sutun * 0.18, ust + 68, MUREKKEP)
+                    merkez + sutun * 0.18, ust + 68, palet.murekkep)
 
     # Ortadaki ayraç
     ciz.line((sol + sutun, ust - 4, sol + sutun, ust + olcu.ozet_yuksekligi - 30),
-             fill=CETVEL, width=2)
+             fill=palet.cetvel, width=2)
 
 
-def _alt_bilgi_ciz(ciz, olcu: Yerlesim) -> None:
+def _alt_bilgi_ciz(ciz, olcu: Yerlesim, palet: Palet) -> None:
     font = metin_fontu(22)
     y = olcu.yukseklik - olcu.kenar - 22
-    ciz.text((olcu.kenar, y), "halisahadefteri.site", font=font, fill=MUREKKEP_SOLUK)
+    ciz.text((olcu.kenar, y), "halisahadefteri.site", font=font,
+             fill=palet.murekkep_soluk)
 
 
 # ---------------------------------------------------------------------------
 # Giriş noktası
 # ---------------------------------------------------------------------------
-def dizilim_gorseli(mac, takimlar: list, yon: str = YATAY) -> bytes:
+def dizilim_gorseli(mac, takimlar: list, yon: str = YATAY,
+                    tema: str = ACIK) -> bytes:
     """
     Dizilimi PNG olarak çizer ve baytlarını döner.
 
     `takimlar`, `dizilim_verisi()` çıktısıdır; puan gizleme çağıran tarafta
     uygulanmış olarak gelir.
+
+    `tema` sayfa kabuğunun rengini belirler: koyu temada gezinen biri koyu
+    zeminli bir görsel indiriyor. Sahanın kendisi değişmiyor, sitede de
+    çim her iki temada aynı yeşil.
     """
     from PIL import Image, ImageDraw
 
     if yon not in YONLER:
         yon = YATAY
 
+    palet = PALETLER.get(tema, PALETLER[ACIK])
     olcu = _yerlesim(yon)
     dikey = yon == DIKEY
 
-    gorsel = Image.new("RGB", (olcu.genislik, olcu.yukseklik), KAGIT)
+    gorsel = Image.new("RGB", (olcu.genislik, olcu.yukseklik), palet.kagit)
     ciz = ImageDraw.Draw(gorsel, "RGBA")
 
     # Kâğıt dokusu yerine ince bir çerçeve: defter sayfası hissi.
     ciz.rectangle(
         (10, 10, olcu.genislik - 11, olcu.yukseklik - 11),
-        outline=CETVEL,
+        outline=palet.cetvel,
         width=2,
     )
 
-    _baslik_ciz(ciz, mac, takimlar, olcu, dikey)
+    _baslik_ciz(ciz, mac, takimlar, olcu, dikey, palet)
 
     kutu = olcu.saha_kutusu
     _saha_ciz(gorsel, kutu, dikey)
@@ -687,8 +845,8 @@ def dizilim_gorseli(mac, takimlar: list, yon: str = YATAY) -> bytes:
     for merkez, oyuncu, kod in kartlar:
         _oyuncu_ciz(gorsel, ciz, oyuncu, kod, merkez, olcu)
 
-    _ozet_ciz(ciz, mac, takimlar, olcu)
-    _alt_bilgi_ciz(ciz, olcu)
+    _ozet_ciz(ciz, mac, takimlar, olcu, palet)
+    _alt_bilgi_ciz(ciz, olcu, palet)
 
     tampon = io.BytesIO()
     gorsel.save(tampon, format="PNG", optimize=True)

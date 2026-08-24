@@ -69,7 +69,7 @@ bilgi "Sistem paketleri kuruluyor"
 export DEBIAN_FRONTEND=noninteractive
 
 # Paket listesi güncellenemezse devam etmenin anlamı yok.
-apt-get update || hata "apt-get update başarısız. Yukarıdaki çıktıyı Claude'a yapıştırın."
+apt-get update || hata "apt-get update başarısız. Yukarıdaki çıktıya bakın."
 
 # Paketleri gruplar hâlinde kuruyoruz. Tek uzun komut çalıştırıp "-qq" ile
 # susturmak, hata çıktığında hangi paketin sorun olduğunu gizliyordu;
@@ -82,8 +82,8 @@ paket_kur() {
         hata "Paket kurulumu başarısız: ${etiket}
 Paketler: $*
 
-Yukarıdaki apt çıktısının TAMAMINI Claude'a yapıştırın; hangi paketin
-çakıştığı orada yazıyor.
+Yukarıdaki apt çıktısının TAMAMINI okuyun; hangi paketin çakıştığı
+orada yazıyor.
 
 Sık işe yarayan iki komut:
     sudo apt-get -f install

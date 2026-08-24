@@ -1,37 +1,75 @@
-{% extends "base.html" %}
+{% load static %}<!doctype html>
+<html lang="tr" data-tema="{{ tema }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Bağlantı yok · {{ site_adi }}</title>
+    <link rel="stylesheet" href="{% static 'css/defter.css' %}">
+    <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+    <meta name="theme-color" content="#1f4d38" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14201a" media="(prefers-color-scheme: dark)">
+  </head>
 
-{% comment %}
-Çevrimdışı sayfası. Servis çalışanı bunu önbelleğe alıyor ve ağ tamamen
-yokken gösteriyor. Bu yüzden içinde KULLANICIYA AİT HİÇBİR ŞEY olamaz:
-sayfa cihazda saklanıyor ve telefonu eline alan herkes görebilir.
-{% endcomment %}
+  {% comment %}
+  Çevrimdışı sayfası. Servis çalışanı bunu kurulum anında indirip cihazda
+  SAKLIYOR ve ağ yokken gösteriyor.
 
-{% block baslik %}Bağlantı yok · {{ site_adi }}{% endblock %}
+  Bu yüzden sayfa base.html'i GENİŞLETMİYOR. Genişlettiği sürümde üst çubuk,
+  tema formu ve çıkış formu da geliyordu; servis çalışanı sayfayı oturum
+  çereziyle indirdiği için diske düşen kopyada o anki kullanıcının CSRF
+  jetonu, kullanıcı kimliği ve okunmamış bildirim sayısı da vardı. Çıkış
+  yapılınca bile önbellekten silinmiyordu.
 
-{% block icerik %}
-  <div class="form-dar">
-    <div class="defter-basligi">
-      <div>
-        <p class="uststart">Çevrimdışı</p>
-        <h1>İnternet bağlantısı yok</h1>
+  Kural: bu dosyada kullanıcıya ait hiçbir şey, hiçbir form ve hiçbir
+  CSRF jetonu bulunamaz. apps/core/tests.py bunu denetliyor.
+
+  Not: sayfa çerezsiz indirildiği için tema tercihi de okunmuyor; çevrimdışı
+  sayfası her zaman açık temada çıkıyor. Bilinçli bir ödünç: ağın olmadığı
+  tek bir bilgi sayfası için kişisel veriyi cihaza yazmaya değmez.
+  {% endcomment %}
+
+  <body class="cevrimdisi-govde">
+    <main class="govde" id="ana-icerik">
+      <div class="kap">
+        <div class="form-dar">
+          <div class="defter-basligi">
+            <div>
+              <p class="uststart">Çevrimdışı</p>
+              <h1>İnternet bağlantısı yok</h1>
+            </div>
+          </div>
+
+          <p>
+            Halısaha Defteri'ne şu anda ulaşılamıyor. Bağlantın geri geldiğinde
+            kaldığın yerden devam edebilirsin.
+          </p>
+
+          <p class="kucuk solgun">
+            Maçlar, kadrolar ve sohbet yalnızca çevrimiçiyken görüntülenir.
+            Bunlar cihazında saklanmaz; telefonu başkası eline alsa bile
+            grubunun bilgilerine erişemez.
+          </p>
+
+          {% comment %}
+          "Yeniden dene" JavaScript'siz çalışıyor: action'ı boş bir GET formu
+          bulunduğu adresi yeniden istiyor, servis çalışanı da o isteği önce
+          ağa götürüyor. Bağlantı geldiyse gerçek sayfa geliyor.
+
+          Eskiden bu bir düğmeydi ve app.js'e bağlıydı. Üretimde statik
+          dosya adları karma taşıdığı için app.js içindeki
+          "import ./e2ee.js" karmasız adrese düşüyor, o adres önbellekte
+          bulunmuyor ve çevrimdışıyken modül yüklemesi çöküyordu: yani
+          düğme tam da işe yarayacağı anda ölüydü. Sayfanın hiç betiği
+          olmaması bu sınıftaki bütün hataları ortadan kaldırıyor.
+          {% endcomment %}
+          <form method="get">
+            <button class="dugme dugme-birincil" type="submit">
+              Yeniden dene
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
-
-    <p>
-      Halısaha Defteri'ne şu anda ulaşılamıyor. Bağlantın geri geldiğinde
-      kaldığın yerden devam edebilirsin.
-    </p>
-
-    <p class="kucuk solgun">
-      Maçlar, kadrolar ve sohbet yalnızca çevrimiçiyken görüntülenir.
-      Bunlar cihazında saklanmaz; telefonu başkası eline alsa bile grubunun
-      bilgilerine erişemez.
-    </p>
-
-    <p>
-      <button class="dugme dugme-birincil" type="button" data-yenile>
-        Yeniden dene
-      </button>
-    </p>
-  </div>
-{% endblock %}
+    </main>
+  </body>
+</html>

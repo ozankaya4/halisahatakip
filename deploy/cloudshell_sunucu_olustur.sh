@@ -72,7 +72,7 @@ if [[ ! -f "${SSH_ACIK_ANAHTAR}" ]]; then
         uyari "Bu ortam ed25519'a izin vermiyor (FIPS kipi). RSA 4096 kullanılıyor."
         rm -f "${GIZLI_ANAHTAR}" "${SSH_ACIK_ANAHTAR}"
         ssh-keygen -t rsa -b 4096 -f "${GIZLI_ANAHTAR}" -N "" -C "halisaha" >/dev/null \
-            || hata "Anahtar oluşturulamadı. Çıktıyı Claude'a yapıştırın."
+            || hata "Anahtar oluşturulamadı. Yukarıdaki çıktıya bakın."
         bilgi "Anahtar oluşturuldu (RSA 4096)."
     fi
     echo "    gizli: ${GIZLI_ANAHTAR}"
@@ -206,7 +206,7 @@ while :; do
                 continue
             fi
             echo "${CIKTI}" >&2
-            hata "Beklenmeyen hata. Yukarıdaki mesajı Claude'a yapıştırın."
+            hata "Beklenmeyen hata. Yukarıdaki mesajın tamamını saklayın."
         fi
     done
 
@@ -241,8 +241,8 @@ if [[ -z "${INSTANCE_ID}" ]]; then
   3) Son çare, AMD. Her zaman müsait ama zayıf: 1 GB RAM, 1/8 çekirdek:
        SHAPE=VM.Standard.E2.1.Micro OCPU=1 BELLEK_GB=1 \\
          bash cloudshell_sunucu_olustur.sh
-     Bu durumda Claude'a haber verin: PostgreSQL yerine SQLite, takas
-     alanı ve hafifletilmiş Argon2 ayarları gerekiyor (yoksa girişler
+     Bu durumda kurulumda değişiklik gerekiyor: PostgreSQL yerine SQLite,
+     takas alanı ve hafifletilmiş Argon2 ayarları (yoksa girişler
      yavaşlar)."
 fi
 

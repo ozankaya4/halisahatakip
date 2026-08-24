@@ -98,8 +98,17 @@ biri, başkasının e-posta adresiyle sağlayıcıda hesap açıp o hesabı devr
 - **CSP:** Satır içi script yok, harici kaynak yok (`default-src 'none'`).
   Yazı tipleri kendi sunucumuzdan gelir; Google Fonts'a bağlanılmaz.
 - **Güvenlik başlıkları:** HSTS, nosniff, `X-Frame-Options: DENY`,
-  `Referrer-Policy`, COOP. `manage.py check --deploy` üretim ayarlarıyla
-  **sıfır uyarı** veriyor.
+  `Referrer-Policy`, COOP.
+- **Dağıtım denetimleri:** `manage.py check --deploy`, Django'nun kendi
+  kontrollerine ek olarak uygulamanın iki varsayımını da doğruluyor
+  (`apps/core/checks.py`):
+  - `halisaha.W001` — üretimde e-posta doğrulaması kapalı mı? Kapalıysa
+    herkes sahibi olmadığı bir adresle kayıt olabilir.
+  - `halisaha.W002` — hız sınırlama önbelleği süreç başına mı? Öyleyse
+    sınırlar gunicorn işçi sayısı kadar gevşer.
+
+  Bu ikisi bilerek uyarı veriyor: ikisi de yalnızca `.env` ve dağıtım
+  yapılandırmasıyla kapatılabiliyor, kodla değil.
 - **Çerezler:** HttpOnly, SameSite=Lax, HTTPS'te Secure.
 - **SQL enjeksiyonu / XSS:** Django ORM ve otomatik şablon kaçışı; çözülen
   sohbet mesajları DOM'a `textContent` ile yazılır, hiçbir yerde `innerHTML` yok.
@@ -107,6 +116,11 @@ biri, başkasının e-posta adresiyle sağlayıcıda hesap açıp o hesabı devr
   `url_has_allowed_host_and_scheme` ile ya da yalnızca göreli yol kabul edilerek
   korunur.
 - **Sayım saldırıları:** Gruplar URL'de sıralı kimlik yerine UUID kullanır.
+- **Cihazda kalan veri:** Servis çalışanı yalnızca herkese açık statik
+  dosyaları saklar; çevrimdışı sayfası kullanıcı kabuğu taşımayan ayrı bir
+  şablondur ve çerezsiz indirilir, böylece cihazdaki kopyada oturuma ait
+  hiçbir şey (CSRF jetonu dâhil) bulunmaz. Çözülmüş sohbet anahtarları
+  IndexedDB'de durur ve giriş yapan kişi değiştiğinde silinir.
 
 ### Dosya yükleme
 
@@ -153,7 +167,8 @@ değiştiremez.
   Sunucuda onu çözecek hiçbir bilgi yok. Parolayı bir parola yöneticisine kaydedin.
 - Gruba yeni katılan biri, katılmadan önceki mesajları okuyamaz.
 - Nihai yönetici dâhil hiç kimse sunucudan mesaj okuyamaz. (Yönetim panelinde
-  yalnızca meta veri ve kötüye kullanım ihbarı için "silindi" işareti vardır.)
+  yalnızca meta veri ve kötüye kullanım ihbarı için "silindi" işareti vardır;
+  anahtar kayıtları salt okunur.)
 - Bir üye gruptan çıkarıldığında anahtar döner: **bundan sonraki** mesajları
   okuyamaz. Daha önce indirdiği mesajları teknik olarak geri alamayız.
 - Grup anahtarını bilen bir üye, teoride başka bir üyenin adına mesaj
@@ -228,7 +243,7 @@ Böylece yetki kontrolünü Django yapar, dosyayı nginx gönderir.
 
 ## Testler
 
-**Django tarafı (47 test):**
+**Django tarafı:**
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py test
@@ -307,6 +322,10 @@ Türkçe için `latin-ext` alt kümesi dâhil edildi (ğ, ş, İ, Ğ, Ş).
 - `.env` dosyası `.gitignore`'da — GitHub'a gitmez. Yine de içinde düz metin
   parola tutmamanız önerilir; hesap oluşturulduktan sonra
   `SUPERADMIN_PASSWORD` satırını boşaltabilirsiniz.
-- Geliştirmede e-posta doğrulaması isteğe bağlı ve e-postalar konsola yazılır.
-  `DEBUG=False` olduğunda doğrulama **zorunlu** hâle gelir — bu yüzden üretime
-  geçmeden SMTP ayarlarını yapın, yoksa yeni kullanıcılar giriş yapamaz.
+- E-posta doğrulaması `DEBUG`'a bağlı **değildir**; tek belirleyici `.env`
+  içindeki `EMAIL_VERIFICATION` satırıdır ve varsayılanı `none`. Bir dönem bu
+  satırda "DEBUG=False olunca zorunlu hâle gelir" yazıyordu; kodda öyle bir bağ
+  hiç olmadı. Üretime geçerken `EMAIL_VERIFICATION=mandatory` yazın ve **önce**
+  çalışan bir SMTP kurun, yoksa hiç kimse kayıt olamaz. `none` bırakılırsa
+  herkes sahibi olmadığı bir adresle kayıt olup anında giriş yapabilir.
+  `python manage.py check --deploy` bu durumda `halisaha.W001` uyarısı verir.

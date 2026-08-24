@@ -2083,6 +2083,298 @@ class DizilimGorseliTesti(_TakimliMacKurulumu):
         self.assertNotEqual(formasiz, formali)
 
 
+
+class DizilimGorseliIsaretleriTesti(TestCase):
+    """
+    Görseldeki köşe işaretleri: yer ve çizim.
+
+    Alfa testinde bulunan iki hata buradan korunuyor:
+      * İşaretler profil fotoğrafının İÇİNE düşüyordu (sitede dışına oturuyor).
+      * Asist işareti bomboş bir mavi daireydi; krampon hiç çizilmiyordu.
+
+    Testler tek bir oyuncu kartını boş bir tuvale çizip pikselleri
+    inceliyor. Tam görseli üretip karşılaştırmak, hatanın hangi işaretten
+    geldiğini söylemiyordu.
+    """
+
+    ZEMIN = (0, 100, 0)  # tuval: hiçbir işaret rengiyle karışmayan yeşil
+    MERKEZ = (200, 200)
+
+    def setUp(self):
+        self.kullanici = kullanici("isaret@example.com", "Ali Vural")
+
+    def _olcu(self):
+        from apps.matches.gorsel import _yerlesim
+
+        return _yerlesim("dikey")
+
+    def _ciz(self, **degisenler):
+        """Tek oyuncu kartı çizer; (görsel, ölçü) döner."""
+        from PIL import Image, ImageDraw
+
+        from apps.matches.gorsel import _oyuncu_ciz
+
+        oyuncu = {
+            "kullanici": self.kullanici,
+            "puan": 7.0,
+            "puan_sinifi": "puan-mavi",
+            "macin_adami": False,
+            "gol": 0,
+            "asist": 0,
+            "kart": "",
+            "kart_yazisi": "",
+        }
+        oyuncu.update(degisenler)
+
+        olcu = self._olcu()
+        gorsel = Image.new("RGB", (400, 400), self.ZEMIN)
+        ciz = ImageDraw.Draw(gorsel, "RGBA")
+        # "b" takımı: diski koyu, dolayısıyla üstüne düşen açık renkli bir
+        # işaret piksel olarak ayırt edilebiliyor.
+        _oyuncu_ciz(gorsel, ciz, oyuncu, "b", self.MERKEZ, olcu)
+        return gorsel, olcu
+
+    def _degisen_pikseller(self, **degisenler):
+        """İşaret eklenince değişen piksellerin koordinatları."""
+        temiz, olcu = self._ciz()
+        isaretli, _ = self._ciz(**degisenler)
+
+        farklar = []
+        for x in range(400):
+            for y in range(400):
+                if temiz.getpixel((x, y)) != isaretli.getpixel((x, y)):
+                    farklar.append((x, y))
+        return farklar, olcu
+
+    def _uzaklik(self, nokta):
+        mx, my = self.MERKEZ
+        return ((nokta[0] - mx) ** 2 + (nokta[1] - my) ** 2) ** 0.5
+
+    # -- İşaretin yeri ----------------------------------------------------
+    def test_gol_isareti_diskin_disinda(self):
+        """
+        Gol topu profil fotoğrafının üstüne binmemeli.
+
+        Alfa testinde bulunan hata: köşe işaretleri merkeze 0.72 yarıçap
+        uzaklıkta çiziliyordu. Diskin yarıçapı 1.0 olduğu için hepsi
+        fotoğrafın İÇİNDE kalıyordu; sitede ise fotoğrafın kenarına
+        oturuyorlar.
+        """
+        farklar, olcu = self._degisen_pikseller(gol=1)
+        self.assertTrue(farklar, "gol işareti hiç çizilmemiş")
+
+        yaricap = olcu.kart_yaricap
+        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
+        self.assertEqual(
+            iceride, [],
+            f"gol işaretinin {len(iceride)} pikseli fotoğrafın içinde kalıyor",
+        )
+
+    def test_asist_isareti_diskin_disinda(self):
+        farklar, olcu = self._degisen_pikseller(asist=1)
+        self.assertTrue(farklar, "asist işareti hiç çizilmemiş")
+
+        yaricap = olcu.kart_yaricap
+        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
+        self.assertEqual(iceride, [], "asist işareti fotoğrafın içinde kalıyor")
+
+    def test_kart_isareti_diskin_disinda(self):
+        farklar, olcu = self._degisen_pikseller(kart="sari")
+        self.assertTrue(farklar, "kart hiç çizilmemiş")
+
+        yaricap = olcu.kart_yaricap
+        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
+        self.assertEqual(iceride, [], "kart fotoğrafın içinde kalıyor")
+
+    def test_macin_adami_yildizi_diskin_disinda(self):
+        farklar, olcu = self._degisen_pikseller(macin_adami=True)
+        self.assertTrue(farklar, "yıldız hiç çizilmemiş")
+
+        yaricap = olcu.kart_yaricap
+        iceride = [n for n in farklar if self._uzaklik(n) < yaricap * 0.75]
+        self.assertEqual(iceride, [], "yıldız fotoğrafın içinde kalıyor")
+
+    def test_isaretler_sitedeki_koselerde(self):
+        """
+        Yerleşim sitedeki dizilim tahtasıyla aynı olmalı:
+            sol üst  kart        sağ üst  gol
+            sol alt  yıldız      sağ alt  asist
+
+        Aynı maça iki yerden bakınca farklı okunmamalı.
+        """
+        mx, my = self.MERKEZ
+        beklenen = {
+            "kart": (-1, -1),
+            "gol": (+1, -1),
+            "macin_adami": (-1, +1),
+            "asist": (+1, +1),
+        }
+        for alan, (x_yon, y_yon) in beklenen.items():
+            with self.subTest(isaret=alan):
+                deger = "sari" if alan == "kart" else (True if alan == "macin_adami" else 1)
+                farklar, _ = self._degisen_pikseller(**{alan: deger})
+                orta_x = sum(n[0] for n in farklar) / len(farklar)
+                orta_y = sum(n[1] for n in farklar) / len(farklar)
+                self.assertEqual(
+                    (1 if orta_x > mx else -1, 1 if orta_y > my else -1),
+                    (x_yon, y_yon),
+                    f"{alan} beklenen köşede değil",
+                )
+
+    # -- Asist kramponu ---------------------------------------------------
+    def test_asist_dairesinin_icinde_krampon_var(self):
+        """
+        Asist işareti boş bir daire olmamalı.
+
+        Alfa testinde bulunan hata: gol topla, kart dikdörtgenle, maçın
+        adamı yıldızla anlatılırken asist yalnızca düz mavi bir noktaydı ve
+        "işaret yüklenmemiş" gibi duruyordu. Sitede burada pas atan bir
+        krampon var (gömülü SVG); görselde de aynısı çiziliyor.
+        """
+        from apps.matches.gorsel import _krampon_gorseli
+
+        gorsel, olcu = self._ciz(asist=1)
+
+        yaricap = olcu.kart_yaricap
+        ax = self.MERKEZ[0] + yaricap * 1.08
+        ay = self.MERKEZ[1] + yaricap * 0.92
+        a_r = yaricap * 0.32
+
+        # Dairenin içi (kenarlık hariç): krampon açık renkli, zemin koyu mavi.
+        acik = 0
+        for x in range(round(ax - a_r * 0.8), round(ax + a_r * 0.8) + 1):
+            for y in range(round(ay - a_r * 0.8), round(ay + a_r * 0.8) + 1):
+                r, g, b = gorsel.getpixel((x, y))
+                if r > 170 and g > 170 and b > 170:
+                    acik += 1
+
+        self.assertGreater(
+            acik, 8,
+            "asist dairesi boş görünüyor; krampon çizilmemiş",
+        )
+
+        # Krampon görseli de kendi başına boş olmamalı.
+        krampon = _krampon_gorseli(24, (246, 243, 234))
+        dolu = sum(1 for piksel in krampon.getdata() if piksel[3] > 0)
+        self.assertGreater(dolu, 40, "krampon görseli neredeyse boş")
+
+    def test_krampon_kutusuna_sigdiriliyor(self):
+        """
+        Krampon, SVG kutusunun tamamına değil kendi sınırlarına göre
+        ölçekleniyor.
+
+        24x24'lük kutunun yalnızca alt yarısı dolu. Kutuyu kare olarak
+        ölçekleyip daireye ortalayınca şekil aşağıda kalıyor, üstte
+        kocaman bir boşluk oluşuyordu.
+        """
+        from apps.matches.gorsel import _krampon_gorseli
+
+        krampon = _krampon_gorseli(40, (255, 255, 255))
+        # Şekil basık ve geniş: yükseklik genişliğin yarısı kadar.
+        self.assertLess(krampon.height, krampon.width)
+
+        # Üst ve alt kenarda da boya olmalı; şekil kutuya oturmuş demektir.
+        ust_satir = [krampon.getpixel((x, 0))[3] for x in range(krampon.width)]
+        alt_satir = [
+            krampon.getpixel((x, krampon.height - 1))[3]
+            for x in range(krampon.width)
+        ]
+        self.assertTrue(any(a > 0 for a in ust_satir), "üstte boşluk kalmış")
+        self.assertTrue(any(a > 0 for a in alt_satir), "altta boşluk kalmış")
+
+
+class DizilimGorseliTemaTesti(_TakimliMacKurulumu):
+    """
+    Görselin teması, kişinin sitede kullandığı temayı izliyor.
+
+    Koyu temada gezinirken açık zeminli bir görsel inince, indirilen şey
+    bakılan şeye benzemiyordu. Saha her iki temada aynı yeşil kalıyor;
+    sitede de `.saha` için koyu tema kuralı yok.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mac.skor_a, self.mac.skor_b = 2, 1
+        self.mac.save()
+        for sira, katilim in enumerate(self.mac.oynayan_katilimlar()):
+            katilim.poz_x = 20 if katilim.takim == "a" else 80
+            katilim.poz_y = 10 + sira * 8
+            katilim.save()
+        self.adres = reverse("matches:dizilim_gorseli", args=[self.mac.pk])
+        self.client.force_login(self.oyuncular[0])
+
+    def _gorsel(self, **sorgu):
+        import io
+
+        from PIL import Image
+
+        yanit = self.client.get(self.adres, sorgu)
+        self.assertEqual(yanit.status_code, 200)
+        return Image.open(io.BytesIO(yanit.content)).convert("RGB")
+
+    def _zemin(self, gorsel):
+        """Sol üst köşedeki kâğıt rengi (çerçevenin dışı)."""
+        return gorsel.getpixel((4, 4))
+
+    def test_acik_tema_kagit_zemin(self):
+        r, g, b = self._zemin(self._gorsel(tema="acik"))
+        self.assertGreater(min(r, g, b), 200, "açık temada zemin kâğıt olmalı")
+
+    def test_koyu_tema_koyu_zemin(self):
+        r, g, b = self._zemin(self._gorsel(tema="koyu"))
+        self.assertLess(max(r, g, b), 60, "koyu temada zemin koyu olmalı")
+
+    def test_tema_cerezden_okunuyor(self):
+        """
+        Kullanıcı ayrıca bir şey seçmeden, sitede kullandığı tema geçerli.
+
+        Tema tercihi sunucu tarafında çerezden uygulanıyor
+        (bkz. apps/core/context_processors.py); görsel de aynı yerden
+        okuyor ki iki yer ayrışmasın.
+        """
+        from apps.core.context_processors import TEMA_COOKIE
+
+        self.client.cookies[TEMA_COOKIE] = "koyu"
+        r, g, b = self._zemin(self._gorsel())
+        self.assertLess(max(r, g, b), 60, "çerezdeki koyu tema uygulanmadı")
+
+        self.client.cookies[TEMA_COOKIE] = "acik"
+        r, g, b = self._zemin(self._gorsel())
+        self.assertGreater(min(r, g, b), 200, "çerezdeki açık tema uygulanmadı")
+
+    def test_gecersiz_tema_aciga_dusuyor(self):
+        self.client.cookies["hst_tema"] = "mor"
+        r, g, b = self._zemin(self._gorsel(tema="parlak"))
+        self.assertGreater(min(r, g, b), 200)
+
+    def test_saha_iki_temada_da_ayni_yesil(self):
+        """
+        Çim temadan bağımsız. Sitede de öyle: `.saha` için koyu tema kuralı
+        yok, değişen yalnızca sayfa kabuğu.
+        """
+        acik = self._gorsel(tema="acik")
+        koyu = self._gorsel(tema="koyu")
+
+        # Sahanın sol üst köşesinden içeri doğru bir nokta.
+        from apps.matches.gorsel import _yerlesim
+
+        olcu = _yerlesim("yatay")
+        sol, ust, _, _ = olcu.saha_kutusu
+        nokta = (sol + 12, ust + 12)
+
+        self.assertEqual(acik.getpixel(nokta), koyu.getpixel(nokta))
+        # Ve gerçekten yeşil olmalı.
+        r, g, b = acik.getpixel(nokta)
+        self.assertGreater(g, r)
+        self.assertGreater(g, b)
+
+    def test_koyu_tema_her_iki_yonde_de_calisiyor(self):
+        for yon in ("yatay", "dikey"):
+            with self.subTest(yon=yon):
+                r, g, b = self._zemin(self._gorsel(yon=yon, tema="koyu"))
+                self.assertLess(max(r, g, b), 60)
+
+
 class TakimVeSkorTesti(_TakimliMacKurulumu):
     def test_skor_girilmeden_kazanan_yok(self):
         self.assertFalse(self.mac.skor_girildi_mi)
@@ -3706,12 +3998,41 @@ class VekilArkasindaIstemciIPTesti(TestCase):
         self.assertEqual(ip, "203.0.113.10")
 
     @override_settings(BEHIND_PROXY=True)
-    def test_eklemeli_baslikta_en_soldaki_alinir(self):
-        """Başlık bir gün eklemeli hâle gelirse gerçek istemci en solda olur."""
+    def test_eklemeli_baslikta_en_sagdaki_alinir(self):
+        """
+        Eklemeli biçimde gerçek istemci EN SAĞDA olur.
+
+        Bu test bir dönem bunun tersini doğruluyordu: "başlık bir gün
+        eklemeli hâle gelirse gerçek istemci en solda olur" deyip en soldaki
+        değeri bekliyordu. nginx'in eklemeli biçimi
+        ($proxy_add_x_forwarded_for) istemcinin gönderdiği değerin ARDINA
+        kendi gördüğü adresi ekliyor:
+
+            X-Forwarded-For: <istemcinin uydurduğu>, <nginx'in gördüğü>
+
+        Yani en soldaki değer saldırganın yazdığı şey. Eski hâliyle kod da
+        test de, korunmaya çalışılan durumda saldırganın seçtiği adresi
+        doğru sayıyordu: allauth'un giriş hız sınırı her istekte başka bir
+        "IP" göstererek atlanabilir, başka birinin adresi kilitletilebilirdi.
+        """
         ip = self.adaptor.get_client_ip(
-            self._istek(HTTP_X_FORWARDED_FOR="203.0.113.11, 10.0.0.1")
+            self._istek(HTTP_X_FORWARDED_FOR="1.2.3.4, 203.0.113.11")
         )
         self.assertEqual(ip, "203.0.113.11")
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_iki_hiz_sinirlama_yolu_ayni_adresi_goruyor(self):
+        """
+        allauth ile apps/core/ratelimit.py aynı IP'yi bulmalı.
+
+        Ayrı ayrı yazıldıkları için bir dönem biri soldan, diğeri sağdan
+        okuyordu. Aynı isteğe iki farklı adres demeleri, sınırlardan birinin
+        yanlış sayması demek.
+        """
+        from apps.core.ratelimit import istemci_ip
+
+        istek = self._istek(HTTP_X_FORWARDED_FOR="1.2.3.4, 203.0.113.11")
+        self.assertEqual(self.adaptor.get_client_ip(istek), istemci_ip(istek))
 
     @override_settings(BEHIND_PROXY=False)
     def test_vekil_yokken_iletilen_baslik_kullanilmaz(self):
@@ -3957,3 +4278,388 @@ class ProfilTesti(TestCase):
         )
         self.ozan.profil.refresh_from_db()
         self.assertIsNone(self.ozan.profil.forma_no)
+
+
+class GuvenlikIncelemesiTesti(TestCase):
+    """
+    Ağustos 2026 güvenlik incelemesinde bulunan sorunlar.
+
+    Her test bir bulguya karşılık geliyor; ayrıntılar
+    deploy/play/test-bulgulari.md dosyasının "E. Security review" bölümünde.
+    """
+
+    # -- E1: çevrimdışı sayfası --------------------------------------------
+    def test_cevrimdisi_sayfasi_girisliyken_de_kisisel_veri_icermiyor(self):
+        """
+        Asıl bulgu buydu.
+
+        Servis çalışanı çevrimdışı sayfasını KURULUM anında indirip cihazda
+        saklıyor ve kurulum, kullanıcı giriş yapmışken oluyor. cache.add()
+        varsayılan olarak çerez gönderdiği için sunucu sayfayı o kullanıcı
+        için render ediyordu: diske düşen kopyada CSRF jetonu, kullanıcının
+        kimliği, okunmamış bildirim sayısı ve çıkış formu vardı. Çıkış
+        yapmak önbelleği temizlemiyor, kopya cihazda kalıyordu.
+
+        Eski test yalnızca giriş yapılmamış hâli kontrol ediyordu, bu yüzden
+        sorunu göremiyordu. Kritik olan istek tam da bu: çerezli istek.
+        """
+        oyuncu = kullanici("cevrimdisi@example.com", "Test Oyuncu")
+        self.client.force_login(oyuncu)
+
+        govde = self.client.get(reverse("core:cevrimdisi")).content.decode("utf-8")
+
+        self.assertNotIn("csrfmiddlewaretoken", govde, "CSRF jetonu cihazda saklanıyor")
+        self.assertNotIn(f"/profil/{oyuncu.pk}/", govde, "Kullanıcı kimliği sızıyor")
+        self.assertNotIn("account_logout", govde)
+        self.assertNotIn("Çıkış", govde)
+        # Sayfanın kendisi çalışmaya devam etmeli.
+        self.assertIn("İnternet bağlantısı yok", govde)
+
+    def test_cevrimdisi_sablonu_base_genisletmiyor(self):
+        """
+        Kural şablonun kendisinde de dursun.
+
+        base.html içinde tema formu ve çıkış formu var, ikisi de CSRF jetonu
+        basıyor. Sayfa base'i genişlettiği sürece çerezsiz indirmek tek
+        başına yetmez, çünkü sayfa bir gün yine çerezli indirilebilir.
+        """
+        yol = settings.BASE_DIR / "templates" / "core" / "cevrimdisi.html"
+        kaynak = yol.read_text(encoding="utf-8")
+        self.assertNotIn("{% extends", kaynak)
+        self.assertNotIn("csrf_token", kaynak)
+
+    def test_servis_calisani_cevrimdisi_sayfasini_cerezsiz_indiriyor(self):
+        govde = self.client.get("/sw.js").content.decode("utf-8")
+        self.assertIn("credentials", govde)
+        self.assertIn("omit", govde)
+
+    def test_cevrimdisi_sayfasinin_hic_betigi_yok(self):
+        """
+        Çevrimdışı sayfası JavaScript'e bağlı olmamalı.
+
+        Üretimde statik dosya adları karma taşıyor. app.js içindeki
+        "import ./e2ee.js" karmasız adrese düşüyor, o adres önbellekte
+        bulunmuyor ve çevrimdışıyken modül yüklemesi çöküyordu: sayfadaki
+        tek etkileşim olan "Yeniden dene" düğmesi tam da işe yarayacağı
+        anda ölüydü. Sayfa artık betiksiz; yenileme, action'ı boş bir GET
+        formuyla yapılıyor.
+        """
+        govde = self.client.get(reverse("core:cevrimdisi")).content.decode("utf-8")
+        self.assertNotIn("<script", govde)
+        self.assertIn("Yeniden dene", govde)
+
+    # -- E2: çıkışta şifreleme deposu --------------------------------------
+    def test_sayfa_sifreleme_deposunun_sahibini_bildiriyor(self):
+        """
+        Çözülmüş sohbet anahtarları IndexedDB içinde kalıcı duruyordu ve
+        çıkış yapmak onları silmiyordu. Tek temizleme yolu sohbet
+        sayfasındaki "Bu tarayıcıda kilitle" düğmesiydi; çıkış yapan birinin
+        ona basmak için hiçbir sebebi yok.
+
+        Artık her sayfa gövdesi deponun kime ait olması gerektiğini
+        söylüyor, app.js uyuşmazlıkta depoyu siliyor.
+        """
+        oyuncu = kullanici("depo@example.com", "Depo Testi")
+
+        misafir = self.client.get(reverse("core:home")).content.decode("utf-8")
+        self.assertIn('data-oturum="kapali"', misafir)
+
+        self.client.force_login(oyuncu)
+        girisli = self.client.get(reverse("core:dashboard")).content.decode("utf-8")
+        self.assertIn(f'data-kullanici-id="{oyuncu.pk}"', girisli)
+        self.assertNotIn('data-oturum="kapali"', girisli)
+
+    def test_depo_sabitleri_iki_dosyada_ayni(self):
+        """
+        Denetim app.js'de, deponun kendisi e2ee.js'de.
+
+        app.js her sayfada yükleniyor; yalnızca bu denetim için sohbet
+        modülünü de her sayfaya çektirmek gereksiz bir istek olurdu. Bedeli,
+        veritabanı sabitlerinin iki dosyada durması. Ayrı düşerlerse app.js
+        yanlış veritabanını temizler ya da e2ee.js nesne deposunu hiç
+        bulamaz; ikisi de sessiz bozulma.
+        """
+        import re
+
+        kok = settings.BASE_DIR / "static" / "js"
+        e2ee = (kok / "e2ee.js").read_text(encoding="utf-8")
+        uygulama = (kok / "app.js").read_text(encoding="utf-8")
+
+        def deger(kaynak, ad):
+            eslesme = re.search(rf"const {ad} = (.+?);", kaynak)
+            self.assertIsNotNone(eslesme, f"{ad} bulunamadı")
+            return eslesme.group(1)
+
+        for e2ee_adi, app_adi in [
+            ("DB_ADI", "E2EE_DB_ADI"),
+            ("DEPO_ADI", "E2EE_DEPO_ADI"),
+            ("DB_SURUM", "E2EE_DB_SURUM"),
+            ("SAHIP_ANAHTARI", "E2EE_SAHIP_ANAHTARI"),
+        ]:
+            with self.subTest(sabit=e2ee_adi):
+                self.assertEqual(deger(e2ee, e2ee_adi), deger(uygulama, app_adi))
+
+    def test_app_js_sohbet_modulunu_her_sayfaya_cekmiyor(self):
+        """Denetim uğruna kripto modülü her sayfaya inmemeli."""
+        uygulama = (settings.BASE_DIR / "static" / "js" / "app.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("import ", uygulama)
+        self.assertIn("sifrelemeDeposunuDenetle", uygulama)
+
+    # -- E6: bildirim hedefi ------------------------------------------------
+    def test_bildirim_hedefi_disari_yonlendiremez(self):
+        """
+        okundu_isaretle() doğrudan guvenli_url adresine yönlendiriyor.
+
+        Yalnızca eğik çizgiyle başlamayı aramak yetmiyordu: tarayıcılar ters
+        bölüyü eğik çizgi gibi okuduğu için ters bölüyle başlayan adres
+        protokole göreli bir adrese dönüşüyor. Satır sonu taşıyan adres de
+        Location başlığına başlık enjekte edebilirdi.
+        """
+        from apps.notifications.models import Bildirim
+
+        for yol in ["/panel/", "/gruplar/", "/"]:
+            with self.subTest(yol=yol):
+                self.assertEqual(Bildirim(hedef_url=yol).guvenli_url, yol)
+
+        reddedilecek = [
+            "//baska.site/",
+            "/" + chr(92) + "baska.site/",
+            "https://baska.site/",
+            "javascript:alert(1)",
+            "/panel/" + chr(10) + "Set-Cookie: a=b",
+            "/panel/" + chr(13),
+            "/panel/" + chr(127),
+            "",
+        ]
+        for yol in reddedilecek:
+            with self.subTest(yol=repr(yol)):
+                self.assertEqual(Bildirim(hedef_url=yol).guvenli_url, "")
+
+    # -- E3 / E4: üretim ayarı denetimleri ---------------------------------
+    @override_settings(DEBUG=False, ACCOUNT_EMAIL_VERIFICATION="none")
+    def test_uretimde_kapali_eposta_dogrulamasi_uyari_veriyor(self):
+        from apps.core.checks import eposta_dogrulamasi_acik_mi
+
+        uyarilar = eposta_dogrulamasi_acik_mi(None)
+        self.assertEqual([u.id for u in uyarilar], ["halisaha.W001"])
+
+    @override_settings(DEBUG=False, ACCOUNT_EMAIL_VERIFICATION="mandatory")
+    def test_dogrulama_zorunluyken_uyari_yok(self):
+        from apps.core.checks import eposta_dogrulamasi_acik_mi
+
+        self.assertEqual(eposta_dogrulamasi_acik_mi(None), [])
+
+    @override_settings(DEBUG=True, ACCOUNT_EMAIL_VERIFICATION="none")
+    def test_gelistirmede_dogrulama_uyarisi_cikmiyor(self):
+        from apps.core.checks import eposta_dogrulamasi_acik_mi
+
+        self.assertEqual(eposta_dogrulamasi_acik_mi(None), [])
+
+    @override_settings(
+        DEBUG=False,
+        CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
+    )
+    def test_surec_basina_onbellek_uyari_veriyor(self):
+        """
+        Hız sınırları Django önbelleğini kullanıyor, varsayılan LocMemCache
+        ise süreç başına ayrı bir sözlük. deploy/gunicorn.conf.py beş işçi
+        başlatıyor, yani 5/5m/ip yazan giriş sınırı pratikte 25/5m/ip
+        oluyor. README bunu anlatıyordu ama ayarın yapıldığını kimse
+        denetlemiyordu.
+        """
+        from apps.core.checks import hiz_siniri_onbellegi_paylasimli_mi
+
+        uyarilar = hiz_siniri_onbellegi_paylasimli_mi(None)
+        self.assertEqual([u.id for u in uyarilar], ["halisaha.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        CACHES={
+            "default": {
+                "BACKEND": "django.core.cache.backends.redis.RedisCache",
+                "LOCATION": "redis://127.0.0.1:6379",
+            }
+        },
+    )
+    def test_paylasimli_onbellekte_uyari_yok(self):
+        from apps.core.checks import hiz_siniri_onbellegi_paylasimli_mi
+
+        self.assertEqual(hiz_siniri_onbellegi_paylasimli_mi(None), [])
+
+    def test_denetimler_yalnizca_deploy_ile_calisiyor(self):
+        from django.core.checks import registry
+
+        deploy_ile = {
+            f.__name__
+            for f in registry.registry.get_checks(include_deployment_checks=True)
+        }
+        self.assertIn("eposta_dogrulamasi_acik_mi", deploy_ile)
+        self.assertIn("hiz_siniri_onbellegi_paylasimli_mi", deploy_ile)
+
+        gunluk = {f.__name__ for f in registry.registry.get_checks()}
+        self.assertNotIn("eposta_dogrulamasi_acik_mi", gunluk)
+
+
+class AcikBulgularTesti(TestCase):
+    """
+    Henüz KAPATILMAMIŞ bulgular.
+
+    Buradaki testler bir düzeltmeyi değil, bilinen bir açığın bugünkü
+    davranışını sabitliyor. Amaçları iki tane:
+
+      1. Bulgunun gerçekten var olduğunu kanıtlamak (belge iddiada
+         bulunmuyor, test gösteriyor).
+      2. Davranış değişirse haber vermek. Biri açığı kapattığında test
+         kırılır ve bu dosyayla belgenin birlikte güncellenmesi gerekir.
+
+    Bir test kırıldığında yapılacak şey onu düzeltmek değil,
+    deploy/play/test-bulgulari.md içindeki ilgili satırı "kapatıldı"ya
+    çevirmek.
+    """
+
+    def setUp(self):
+        self.yonetici = kullanici("yonetici@example.com", "Grup Yöneticisi")
+        self.oyuncular = [kullanici(f"a{i}@example.com", f"Oyuncu {i}") for i in range(4)]
+        self.grup = Grup.objects.create(ad="İnceleme Ekibi", kurucu=self.yonetici)
+        Uyelik.objects.create(
+            grup=self.grup,
+            kullanici=self.yonetici,
+            rol=Uyelik.Rol.YONETICI,
+            durum=Uyelik.Durum.ONAYLI,
+        )
+        for k in self.oyuncular:
+            Uyelik.objects.create(
+                grup=self.grup,
+                kullanici=k,
+                rol=Uyelik.Rol.UYE,
+                durum=Uyelik.Durum.ONAYLI,
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() - timezone.timedelta(hours=6),
+            olusturan=self.yonetici,
+        )
+        for k in [self.yonetici, *self.oyuncular]:
+            Katilim.objects.create(
+                mac=self.mac, kullanici=k, yanit=Katilim.Yanit.GELIYORUM, katildi=True
+            )
+
+    def test_acik_e8_yonetici_oy_vermeden_puanlari_gorebiliyor(self):
+        """
+        AÇIK BULGU E8 — yönetici ayrıcalığı puan kapısını atlıyor.
+
+        B1 ve B2'de kapatılan şey şuydu: kimse kendi oyunu vermeden
+        başkalarının ortalamasına bakıp ona göre oy veremesin.
+        puan_gorunurlugu() grup yöneticisini bu kuraldan muaf tutuyor, ama
+        yönetici de sahaya çıkan ve puanlanan bir oyuncu. Yani hiç oy
+        vermeden herkesin ortalamasını görüp ondan sonra oy verebiliyor —
+        tam olarak engellenmek istenen davranış.
+
+        Yöneticiliğin kendisi az bulunur bir şey değil: 24 kişilik bir
+        grupta yönetici sayısına sınır yok ve rol tek tıkla veriliyor.
+        """
+        from apps.ratings.gorunurluk import puan_gorunurlugu
+
+        # Diğerleri birbirini puanlasın, yönetici hiç oy vermesin.
+        for veren in self.oyuncular:
+            for hedef in self.oyuncular:
+                if veren.pk != hedef.pk:
+                    Puan.objects.create(
+                        mac=self.mac, puanlayan=veren, puanlanan=hedef, deger=7
+                    )
+
+        sade_uye = puan_gorunurlugu(self.mac, self.oyuncular[0])
+        self.assertFalse(
+            sade_uye.gorebilir,
+            "Sade üye yöneticiyi puanlamadığı için görememeli",
+        )
+
+        yonetici_durumu = puan_gorunurlugu(self.mac, self.yonetici)
+        self.assertTrue(
+            yonetici_durumu.gorebilir,
+            "AÇIK BULGU KAPATILMIŞ: yönetici artık oy vermeden göremiyor. "
+            "test-bulgulari.md içindeki E8 satırını kapatıldı olarak güncelle.",
+        )
+        self.assertTrue(yonetici_durumu.yonetici_ayricaligi)
+        self.assertEqual(
+            Puan.objects.filter(mac=self.mac, puanlayan=self.yonetici).count(),
+            0,
+            "Yönetici tek bir oy bile vermemişti",
+        )
+
+    def test_acik_e9_davet_jetonu_url_yolunda_tasiniyor(self):
+        """
+        AÇIK BULGU E9 — ham davet jetonu erişim günlüklerine düşüyor.
+
+        Model, jetonu bilerek saklamıyor: veritabanında yalnızca SHA-256
+        özeti var, gerekçesi de "veritabanı sızsa bile çalışan davet
+        bağlantısı üretilemez". Ama bağlantının kendisi jetonu URL YOLUNDA
+        taşıyor ve bu yol iki ayrı yere düz metin olarak yazılıyor:
+
+          * nginx erişim günlüğü (location / bloğunda access_log kapalı değil)
+          * gunicorn access_log_format içindeki %(r)s alanı
+
+        Jeton varsayılan olarak 7 gün ve 25 kullanım geçerli. Yani günlük
+        okuyabilen biri (log toplayıcı, yedek, destek erişimi) çalışan davet
+        bağlantısı elde ediyor — özet saklamanın engellemek istediği şeyin
+        aynısı, başka bir kapıdan.
+        """
+        davet, ham_jeton = DavetBagi.olustur(
+            grup=self.grup, olusturan=self.yonetici, gun=7, max_kullanim=25
+        )
+
+        # Özet saklanıyor, ham jeton saklanmıyor: burası doğru çalışıyor.
+        self.assertNotEqual(davet.jeton_ozet, ham_jeton)
+        self.assertEqual(davet.jeton_ozet, jeton_ozeti(ham_jeton))
+
+        adres = reverse("groups:davet_ile_katil", kwargs={"jeton": ham_jeton})
+        self.assertIn(
+            ham_jeton,
+            adres,
+            "AÇIK BULGU KAPATILMIŞ: jeton artık URL yolunda değil. "
+            "test-bulgulari.md içindeki E9 satırını kapatıldı olarak güncelle.",
+        )
+
+    def test_acik_e7_sohbet_acik_anahtari_dogrulamiyor(self):
+        """
+        AÇIK BULGU E7 — sohbette açık anahtar doğrulaması yok.
+
+        İstemci, grup anahtarını sarmalarken sunucunun gönderdiği açık
+        anahtarı olduğu gibi kullanıyor (static/js/sohbet.js). Doğrulama
+        için gereken parmak izi alanı modelde var, sunucu API'sinde
+        dönüyor, yönetim panelinde görünüyor — ama sohbet arayüzü onu hiç
+        okumuyor, göstermiyor ve daha önce görülen anahtarla
+        karşılaştırmıyor.
+
+        Sonuç: veritabanına yazabilen biri bir üyenin açık anahtarını
+        kendisininkiyle değiştirirse, sonraki üye grup anahtarını ona
+        sarmalayıp yüklüyor ve o andan sonraki mesajları okuyabiliyor.
+        Arayüzde hiçbir şey değişmiyor. README ise "nihai yönetici dâhil
+        hiç kimse sunucudan mesaj okuyamaz" diyor.
+        """
+        from apps.chat.models import AnahtarCifti
+
+        kaynak = (settings.BASE_DIR / "static" / "js" / "sohbet.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn(
+            "parmak",
+            kaynak.lower(),
+            "AÇIK BULGU KAPATILMIŞ: sohbet arayüzü parmak izine bakıyor. "
+            "test-bulgulari.md içindeki E7 satırını kapatıldı olarak güncelle.",
+        )
+
+        # Sunucu parmak izini kendisi hesaplamıyor, istemciden geleni saklıyor.
+        AnahtarCifti.objects.create(
+            kullanici=self.yonetici,
+            acik_anahtar='{"kty": "RSA", "n": "AAAA", "e": "AQAB"}',
+            sifreli_ozel_anahtar="AAAA",
+            tuz="AAAA",
+            iv="AAAA",
+            yineleme=600000,
+            parmak_izi="tamamen uydurma bir deger",
+        )
+        kayit = AnahtarCifti.objects.get(kullanici=self.yonetici)
+        self.assertEqual(kayit.parmak_izi, "tamamen uydurma bir deger")

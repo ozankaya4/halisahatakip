@@ -49,11 +49,31 @@ class Bildirim(models.Model):
 
     @property
     def guvenli_url(self) -> str:
-        """Şablonda kullanılan hedef. Dış bağlantılar sessizce yok sayılır."""
+        r"""
+        Şablonda kullanılan hedef. Dış bağlantılar sessizce yok sayılır.
+
+        Yalnızca "/" ile başlamak yetmiyor:
+
+          //baska.site   → protokole göreli adres; dışarı çıkar
+          /\baska.site   → tarayıcılar ters bölüyü "/" gibi okuduğu için
+                           yukarıdakiyle aynı kapıya çıkar
+          satır sonu     → Location başlığına başlık enjeksiyonu
+
+        Bugün hedef_url kullanıcıdan gelmiyor: bütün çağrı yerleri
+        reverse() ile üretiyor. Yani sömürülebilir bir yol yok. Ama bu
+        özellik kodda "açık yönlendirmeye karşı koruma" diye anılıyor ve
+        okundu_isaretle() doğrudan buradan redirect ediyor; korumanın
+        gerçekten koruması gerekiyor.
+        """
         yol = self.hedef_url or ""
-        if yol.startswith("/") and not yol.startswith("//"):
-            return yol
-        return ""
+        if not yol.startswith("/"):
+            return ""
+        if yol.startswith("//") or yol.startswith("/\\"):
+            return ""
+        # Denetim karakteri (satır sonu, sekme, NUL, DEL) taşıyan adres geçmez.
+        if any(karakter < " " or karakter == "\x7f" for karakter in yol):
+            return ""
+        return yol
 
 
 def bildir(alici, tur: str, baslik: str, mesaj: str = "", hedef_url: str = "") -> Bildirim | None:

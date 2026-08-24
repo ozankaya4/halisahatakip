@@ -586,9 +586,16 @@ def dizilim_gorseli(request, mac_id: int):
     `?yon=yatay` (varsayılan) ya da `?yon=dikey`. Dikey, telefon hikâyesi
     ölçüsünde (1080x1920) ve eksenleri değişmiş olarak çiziliyor.
 
+    Tema, kişinin sitede kullandığı temadan geliyor: koyu temada gezinen
+    biri koyu zeminli bir görsel indiriyor. Ekranda koyu tema kullanırken
+    açık zeminli bir görsel inince, indirilen şey bakılan şeye benzemiyordu.
+    `?tema=acik|koyu` ile açıkça da istenebilir.
+
     Puan görünürlüğü sayfayla aynı kurala tabi: puanlamasını tamamlamamış
     kişinin görselinde de puan, ortalama ve maçın adamı çıkmıyor.
     """
+    from apps.core.context_processors import GECERLI_TEMALAR, TEMA_COOKIE
+
     from .gorsel import YONLER, dizilim_gorseli as ciz, dosya_adi
 
     mac = _mac_getir(request, mac_id)
@@ -597,12 +604,16 @@ def dizilim_gorseli(request, mac_id: int):
     if yon not in YONLER:
         yon = "yatay"
 
+    tema = request.GET.get("tema") or request.COOKIES.get(TEMA_COOKIE, "acik")
+    if tema not in GECERLI_TEMALAR:
+        tema = "acik"
+
     adam_idleri = {a["kullanici"].pk for a in macin_adami(mac)}
     takimlar = dizilim_verisi(mac, adam_idleri)
     if not puan_gorunurlugu(mac, request.user).gorebilir:
         takimlar = puanlari_gizle(takimlar)
 
-    icerik = ciz(mac, takimlar, yon)
+    icerik = ciz(mac, takimlar, yon, tema)
 
     yanit = HttpResponse(icerik, content_type="image/png")
     yanit["Content-Disposition"] = f'attachment; filename="{dosya_adi(mac, yon)}"'

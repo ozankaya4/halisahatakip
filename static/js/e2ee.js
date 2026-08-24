@@ -104,17 +104,16 @@ export async function depoyuTemizle() {
 const ozelAnahtarAdi = (kullaniciId) => `ozel:${kullaniciId}`;
 const grupAnahtarAdi = (grupId, surum) => `grup:${grupId}:${surum}`;
 
-export async function ozelAnahtariAl(kullaniciId) {
-  return depodanOku(ozelAnahtarAdi(kullaniciId));
-}
-
-export async function grupAnahtariniAl(grupId, surum) {
-  return depodanOku(grupAnahtarAdi(grupId, surum));
-}
-
-export async function grupAnahtariniSakla(grupId, surum, anahtar) {
-  return depoyaYaz(grupAnahtarAdi(grupId, surum), anahtar);
-}
+// Depodaki anahtarların kime ait olduğu.
+//
+// Bu kaydı static/js/app.js yazıyor ve denetliyor: depodaki anahtarlar o an
+// giriş yapmış kişiye ait değilse depo siliniyor. Denetim orada duruyor
+// çünkü her sayfada çalışması gerekiyor; yalnızca bunun için sohbet
+// modülünü her sayfaya çektirmek gereksiz bir istek olurdu.
+//
+// DB_ADI, DEPO_ADI ve DB_SURUM sabitleri app.js ile birebir aynı olmak
+// ZORUNDA. apps/core/tests.py ikisini karşılaştırıyor.
+export const SAHIP_ANAHTARI = "sahip";
 
 /* -------------------------------------------------------------------------
  * Kimlik anahtarı

@@ -6,3 +6,7 @@ class CoreConfig(AppConfig):
     name = "apps.core"
     label = "core"
     verbose_name = "Çekirdek"
+
+    def ready(self):
+        # Üretim ayarı denetimleri; "manage.py check --deploy" ile çalışır.
+        from . import checks  # noqa: F401

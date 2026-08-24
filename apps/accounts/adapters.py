@@ -39,16 +39,33 @@ class AccountAdapter(DefaultAccountAdapter):
         ve gerçek adres bulunuyor; istemci kendi başlığını uydurup buraya
         istediğini yazdıramaz. Aynı sebeple settings.py'de
         AXES_IPWARE_PROXY_COUNT = None.
+
+        Başlıkta birden çok değer varsa EN SAĞDAKİ alınır.
+
+        Burada bir dönem en SOLDAKİ alınıyordu ve gerekçesi olarak "başlık
+        bir gün eklemeli hâle gelirse gerçek istemci en solda olur" yazıyordu.
+        Bu ters. nginx'in eklemeli biçimi ($proxy_add_x_forwarded_for)
+        istemcinin gönderdiği değerin ARDINA kendi gördüğü adresi ekliyor:
+
+            X-Forwarded-For: <istemcinin uydurduğu>, <nginx'in gördüğü>
+
+        Yani eklemeli biçimde en soldaki değer saldırganın yazdığı şey, en
+        sağdaki ise gerçek adres. Eski kod tam da korunmaya çalışılan durumda
+        saldırganın seçtiği adresi kullanırdı: allauth'un giriş hız sınırını
+        her istekte başka bir "IP" göstererek atlamak ya da başka birinin
+        adresini kilitletmek mümkün olurdu.
+
+        Üzerine yazan biçimde tek değer olduğu için sağdan okumak bugünkü
+        davranışı değiştirmiyor; yalnızca yapılandırma değişirse güvenli
+        tarafta kalıyoruz. apps/core/ratelimit.py de aynı kuralı uyguluyor,
+        böylece iki hız sınırlama yolu aynı adresi görüyor.
         """
         if getattr(settings, "BEHIND_PROXY", False):
             iletilen = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
             if iletilen:
-                # Üzerine yazıldığı için tek değer bekliyoruz; yine de ilkini
-                # alıyoruz ki başlık bir gün eklemeli hâle gelirse en soldaki
-                # (gerçek istemci) kullanılsın.
-                ilk = iletilen.split(",")[0].strip()
-                if ilk:
-                    return ilk
+                parcalar = [p.strip() for p in iletilen.split(",") if p.strip()]
+                if parcalar:
+                    return parcalar[-1]
             gercek = (request.META.get("HTTP_X_REAL_IP") or "").strip()
             if gercek:
                 return gercek

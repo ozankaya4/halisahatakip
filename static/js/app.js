@@ -13,29 +13,98 @@ document.addEventListener("DOMContentLoaded", () => {
   yenilemeyiBagla();
   buyutecBagla();
   servisCalisaniniKaydet();
+  sifrelemeDeposunuDenetle();
 });
 
-/** Çevrimdışı sayfasındaki "Yeniden dene" düğmesi. */
-function yenilemeyiBagla() {
-  document.querySelectorAll("[data-yenile]").forEach((dugme) => {
-    dugme.addEventListener("click", () => window.location.reload());
-  });
-}
-
 /**
- * Ana ekrana eklenebilmesi için servis çalışanını kaydeder.
+ * Şifreleme deposunun sahibini her sayfa açılışında denetler.
  *
- * Kök yoldan (/sw.js) kaydediliyor: bir servis çalışanı yalnızca bulunduğu
- * klasör ve altını yönetebilir, /static/js/ altından tüm siteyi kapsayamazdı.
+ * Çözülmüş sohbet anahtarları IndexedDB içinde kalıcı duruyor ve çıkış
+ * yapmak onları silmiyordu. Tek temizleme yolu sohbet sayfasındaki "Bu
+ * tarayıcıda kilitle" düğmesiydi; çıkış yapan birinin ona basmak için
+ * hiçbir sebebi yok. Paylaşılan bir telefonda bu, çıkmış bir kullanıcının
+ * açılmış RSA özel anahtarının ve grup AES anahtarlarının cihazda kalması
+ * demekti.
+ *
+ * Tek kural var: depodaki anahtarlar o an giriş yapmış kişiye ait değilse
+ * depo silinir. Çıkış, hesap değiştirme ve oturumun düşmesi aynı yoldan
+ * temizleniyor.
+ *
+ * Kimliğin BİLİNMEDİĞİ sayfalarda hiçbir şey yapılmıyor: ağın gitmesi
+ * anahtarların silinmesi için sebep değil.
+ *
+ * Depo sabitleri e2ee.js ile aynı olmak ZORUNDA; apps/core/tests.py ikisini
+ * karşılaştırıyor. Buraya kopyalanmalarının sebebi, app.js her sayfada
+ * yükleniyor olması: yalnızca bu denetim için sohbet modülünü de her sayfaya
+ * çektirmek gereksiz bir istek demekti.
  */
-function servisCalisaniniKaydet() {
-  if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-      // Kayıt başarısız olursa uygulama normal site olarak çalışmaya devam
-      // eder; kullanıcıya hata göstermeye gerek yok.
-    });
-  });
+const E2EE_DB_ADI = "halisaha-e2ee";
+const E2EE_DEPO_ADI = "anahtarlar";
+const E2EE_SAHIP_ANAHTARI = "sahip";
+const E2EE_DB_SURUM = 1;
+
+function sifrelemeDeposunuDenetle() {
+  const govde = document.body;
+  if (!govde || !window.indexedDB) return;
+
+  const ham = govde.dataset.kullaniciId;
+  let kimlik;
+  if (ham) kimlik = String(ham);
+  else if (govde.dataset.oturum === "kapali") kimlik = null;
+  else return; // kimlik bilinmiyor (örn. cihazdan açılan çevrimdışı sayfası)
+
+  let istek;
+  try {
+    // Sürüm ve onupgradeneeded, e2ee.js ile BİREBİR aynı olmak zorunda.
+    // Sürümsüz açılsaydı veritabanı sürüm 1 olarak ama nesne deposu
+    // olmadan yaratılırdı; e2ee.js sonra sürüm 1'i açtığında yükseltme
+    // tetiklenmez, depo hiç oluşmaz ve sohbet açılmaz olurdu.
+    istek = indexedDB.open(E2EE_DB_ADI, E2EE_DB_SURUM);
+  } catch {
+    return; // gizli sekme ya da depolama izni yok
+  }
+
+  istek.onupgradeneeded = () => {
+    const db = istek.result;
+    if (!db.objectStoreNames.contains(E2EE_DEPO_ADI)) {
+      db.createObjectStore(E2EE_DEPO_ADI);
+    }
+  };
+  istek.onerror = () => {};
+  istek.onsuccess = () => {
+    const db = istek.result;
+    if (!db.objectStoreNames.contains(E2EE_DEPO_ADI)) {
+      db.close();
+      return;
+    }
+    let okuma;
+    try {
+      okuma = db.transaction(E2EE_DEPO_ADI, "readonly")
+        .objectStore(E2EE_DEPO_ADI)
+        .get(E2EE_SAHIP_ANAHTARI);
+    } catch {
+      db.close();
+      return;
+    }
+    okuma.onerror = () => db.close();
+    okuma.onsuccess = () => {
+      const mevcut = okuma.result ?? null;
+      if (mevcut === kimlik) {
+        db.close();
+        return;
+      }
+      try {
+        const islem = db.transaction(E2EE_DEPO_ADI, "readwrite");
+        const depo = islem.objectStore(E2EE_DEPO_ADI);
+        depo.clear();
+        if (kimlik !== null) depo.put(kimlik, E2EE_SAHIP_ANAHTARI);
+        islem.oncomplete = () => db.close();
+        islem.onerror = () => db.close();
+      } catch {
+        db.close();
+      }
+    };
+  };
 }
 
 function yuzdeleriUygula() {

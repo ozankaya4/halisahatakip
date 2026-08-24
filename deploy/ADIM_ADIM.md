@@ -326,9 +326,9 @@ edin. Başka bir bölgedeyse oradan Frankfurt'a geçin veya yeni hesap olusturun
 > 4. Son çare **Change shape** → **AMD** sekmesi →
 >    **VM.Standard.E2.1.Micro** (1 GB RAM, her zaman müsait)
 >
-> AMD'yi seçerseniz Claude'a haber verin: 1 GB RAM'de PostgreSQL yerine
-> SQLite kullanmak, takas alanı eklemek ve Argon2 parola karma
-> ayarlarını hafifletmek gerekiyor (yoksa girişler yavaşlar).
+> AMD'yi seçerseniz kurulumda birkaç değişiklik gerekiyor: 1 GB RAM'de
+> PostgreSQL yerine SQLite kullanın, takas alanı ekleyin ve Argon2 parola
+> karma ayarlarını hafifletin (yoksa girişler yavaşlar).
 
 ## B6. Ağ ayarları
 

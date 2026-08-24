@@ -100,7 +100,7 @@ SSH_VAR=$(echo "${YENI}" | jq '[.[] | select(
 
 if [[ "${SSH_VAR}" -eq 0 ]]; then
     hata "Yeni kural listesinde SSH (22) yok. Uygulanırsa sunucuya
-bağlanamazsınız. İşlem durduruldu; bu mesajı Claude'a yapıştırın."
+bağlanamazsınız. İşlem durduruldu; kural listesini elle kontrol edin."
 fi
 
 bilgi "Kural sayısı ${ONCE} -> ${SONRA} olacak (SSH kuralı korunuyor)"
