@@ -485,8 +485,14 @@ def _top_ciz(ciz, merkez_x, merkez_y, yaricap) -> None:
                     fill=(24, 30, 26))
 
 
-def _sayili_isaret(ciz, merkez_x, merkez_y, sayi: int, font, zemin) -> None:
-    """Rakamlı küçük rozet (2+ gol / asist için)."""
+def _sayili_isaret(ciz, merkez_x, merkez_y, sayi: int, font, zemin) -> float:
+    """
+    Rakamlı küçük rozet (2+ gol / asist için).
+
+    Yarıçapı döndürüyor: ad şeridi, altına düşen işaretlerin nereye kadar
+    indiğini bilmek zorunda. Yarıçap yazı tipinin ölçüsünden çıktığı için
+    çağıran tarafta yeniden hesaplanması iki yerin ayrışması demek olurdu.
+    """
     yazisi = str(sayi)
     _, ust, _, alt = ciz.textbbox((0, 0), yazisi, font=font)
     yukseklik = alt - ust
@@ -498,6 +504,7 @@ def _sayili_isaret(ciz, merkez_x, merkez_y, sayi: int, font, zemin) -> None:
         width=2,
     )
     _ortala(ciz, yazisi, font, merkez_x, merkez_y - yukseklik / 2 - ust, BEYAZ)
+    return yaricap
 
 
 def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, int],
@@ -575,6 +582,13 @@ def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, i
             _sayili_isaret(ciz, gx + top_r * 1.1, gy - top_r * 0.9, gol,
                            isaret_font, (24, 30, 26))
 
+    # Alt köşe işaretleri diskin altına taşıyor. Ad şeridi bunların altına
+    # inmek zorunda, yoksa yıldızın ucu ve asist rozeti şeridin üstüne
+    # biniyor. Yalnızca ÇİZİLEN işaretler sayılıyor: hiçbir alt işareti
+    # olmayan oyuncuda şerit eskisi gibi diske yakın duruyor, yani kartlar
+    # gereksiz yere uzamıyor.
+    alt_sinir = my + yaricap
+
     asist = oyuncu.get("asist") or 0
     if asist:
         # Asist: koyu mavi disk + pas atan krampon. Sitedeki işaretin aynısı
@@ -592,13 +606,18 @@ def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, i
         krampon = _krampon_gorseli(round(a_r * 1.35), (246, 243, 234))
         gorsel.paste(krampon, (round(ax - krampon.width / 2),
                                round(ay - krampon.height / 2)), krampon)
+        alt_sinir = max(alt_sinir, ay + a_r)
         if asist > 1:
-            _sayili_isaret(ciz, ax + a_r * 1.1, ay + a_r * 0.9, asist,
-                           isaret_font, (32, 68, 100))
+            sayac_y = ay + a_r * 0.9
+            sayac_r = _sayili_isaret(ciz, ax + a_r * 1.1, sayac_y, asist,
+                                     isaret_font, (32, 68, 100))
+            alt_sinir = max(alt_sinir, sayac_y + sayac_r)
 
     if oyuncu.get("macin_adami"):
-        _yildiz_ciz(ciz, mx - yatay_sapma, my + dikey_sapma, yaricap * 0.40,
+        yildiz_r = yaricap * 0.40
+        _yildiz_ciz(ciz, mx - yatay_sapma, my + dikey_sapma, yildiz_r,
                     (226, 185, 59))
+        alt_sinir = max(alt_sinir, my + dikey_sapma + yildiz_r)
 
     # --- Puan + ad tek şeritte -------------------------------------------
     #
@@ -620,7 +639,10 @@ def _oyuncu_ciz(gorsel, ciz, oyuncu: dict, takim_kodu: str, merkez: tuple[int, i
     ara = 7 if puan_yazisi else 0
     serit_g = kenar_bosluk * 2 + puan_g + ara + ad_g
     serit_yuk = max(olcu.ad_boyutu, olcu.rozet_boyutu) + 14
-    serit_ust = my + yaricap + 7
+    # Şerit, diskin ve altına düşen işaretlerin hangisi daha aşağıdaysa
+    # onun altından başlıyor. İşaretler diskin dışına alındığında yıldızın
+    # alt ucu ve asist rozeti şeridin üst köşelerine biniyordu.
+    serit_ust = max(my + yaricap, alt_sinir) + 7
     serit_sol = mx - serit_g / 2
 
     ciz.rounded_rectangle(

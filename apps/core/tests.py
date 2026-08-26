@@ -2274,6 +2274,86 @@ class DizilimGorseliIsaretleriTesti(TestCase):
         dolu = sum(1 for piksel in krampon.getdata() if piksel[3] > 0)
         self.assertGreater(dolu, 40, "krampon görseli neredeyse boş")
 
+    # -- Ad şeridi ---------------------------------------------------------
+    def _serit_ustu(self, gorsel, olcu):
+        """
+        Ad şeridinin en üst pikselinin y değeri. Bulunamazsa None.
+
+        Merkez sütunu taranıyor: yıldız solda, asist sağda duruyor, yani
+        diskin altıyla şeridin arası bu sütunda temiz çim.
+
+        Tarama diskin alt kenarının 5 piksel altından başlıyor. "b" takımının
+        diski koyu (32, 34, 30) ve altında 3 piksellik bir gölge var; daha
+        yukarıdan başlayınca şerit yerine bunlar yakalanıyordu.
+        """
+        mx, my = self.MERKEZ
+        for y in range(my + olcu.kart_yaricap + 5, 400):
+            r, g, b = gorsel.getpixel((mx, y))
+            # Şerit (16, 26, 20, 220) yeşil zemine binince ~(14, 36, 17).
+            if (r, g, b) != self.ZEMIN and r < 30 and g < 60 and b < 30:
+                return y
+        return None
+
+    def test_ad_seridi_alt_isaretlerin_altinda(self):
+        """
+        Ad şeridi yıldıza ve asist rozetine binmemeli.
+
+        İşaretler diskin dışına alınınca yıldızın alt ucu ve asist rozeti
+        şeridin üst köşelerine değmeye başlamıştı. Şerit artık diskin değil,
+        altına düşen işaretlerin en aşağısının altından başlıyor.
+        """
+        for yon in self.YONLER:
+            with self.subTest(yon=yon):
+                gorsel, olcu = self._ciz(yon, macin_adami=True, asist=2)
+                serit = self._serit_ustu(gorsel, olcu)
+                self.assertIsNotNone(serit, "ad şeridi bulunamadı")
+
+                yaricap = olcu.kart_yaricap
+                # Yıldızın en alt noktası: merkez + dikey sapma + yarıçapı.
+                yildiz_alti = self.MERKEZ[1] + yaricap * 0.92 + yaricap * 0.40
+                self.assertGreaterEqual(
+                    serit, yildiz_alti,
+                    f"{yon}: ad şeridi yıldızın üstüne biniyor",
+                )
+
+    def test_alt_isareti_olmayan_kart_uzamiyor(self):
+        """
+        Şerit yalnızca gerektiğinde aşağı iniyor.
+
+        Bütün kartları uzatmak, birbirine yakın duran oyuncularda alttakinin
+        diskiyle üsttekinin adının çakışması demekti; şerit tam da bu yüzden
+        bir dönem tek satıra indirilmişti. Alt köşesinde işareti olmayan
+        oyuncuda şerit eskisi gibi diske yakın durmalı.
+        """
+        for yon in self.YONLER:
+            with self.subTest(yon=yon):
+                sade, olcu = self._ciz(yon)
+                yogun, _ = self._ciz(yon, macin_adami=True, asist=2)
+
+                sade_y = self._serit_ustu(sade, olcu)
+                yogun_y = self._serit_ustu(yogun, olcu)
+                self.assertIsNotNone(sade_y)
+                self.assertIsNotNone(yogun_y)
+
+                self.assertLess(
+                    sade_y, yogun_y,
+                    "işaretsiz kart da gereksiz yere uzamış",
+                )
+                # Diskin hemen altında kalmalı, birkaç pikselden fazla değil.
+                self.assertLessEqual(
+                    sade_y - (self.MERKEZ[1] + olcu.kart_yaricap), 12
+                )
+
+    def test_ust_isaretler_seridi_asagi_itmiyor(self):
+        """Gol ve kart üstte; şeridin yerini değiştirmemeleri gerekiyor."""
+        for yon in self.YONLER:
+            with self.subTest(yon=yon):
+                sade, olcu = self._ciz(yon)
+                ustlu, _ = self._ciz(yon, gol=3, kart="ikinci-sari")
+                self.assertEqual(
+                    self._serit_ustu(sade, olcu), self._serit_ustu(ustlu, olcu)
+                )
+
     def test_krampon_kutusuna_sigdiriliyor(self):
         """
         Krampon, SVG kutusunun tamamına değil kendi sınırlarına göre
