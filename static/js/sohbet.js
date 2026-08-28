@@ -28,7 +28,11 @@ import {
 } from "./e2ee.js";
 import { jsonIstek } from "./istek.js";
 
+// Yoklama aralığı: taban, her boş turda çarpan, ve tavan.
+// Konuşma sürerken 6 saniye; kimse yazmazken bir dakikaya kadar açılıyor.
 const YOKLAMA_ARALIGI = 6000;
+const YOKLAMA_CARPANI = 1.6;
+const YOKLAMA_AZAMI = 60000;
 
 const kok = document.getElementById("sohbet");
 if (kok) baslat(kok).catch((hata) => console.error(hata));
@@ -45,6 +49,8 @@ async function baslat(kok) {
     // Üye kimliği -> anahtar denetimi (bkz. uyeleriDenetle)
     denetimler: new Map(),
     uyeler: [],
+    // Bir sonraki yoklamaya kalan süre; sessizlikte açılıyor.
+    aralik: YOKLAMA_ARALIGI,
   };
 
   const bolumler = {
@@ -136,12 +142,54 @@ async function devam(durum, bolumler, akis, bilgi, anahtarUyarisi, izListesi) {
   kilitlemeyiBagla();
 
   await mesajlariYukle(durum, akis, false);
-  durum.yoklama = setInterval(
-    () => mesajlariYukle(durum, akis, true).catch(() => {}),
-    YOKLAMA_ARALIGI,
-  );
+  yoklamayiBaslat(durum, akis);
+}
+
+/**
+ * Yeni mesaj yoklaması — sessizlikte yavaşlar, hareket olunca hızlanır.
+ *
+ * Eskiden sabit 6 saniyede bir soruluyordu: dakikada on istek, açık her
+ * sekme için, sohbet ölü olsa bile. Yirmi dört kişilik bir grupta maç akşamı
+ * bu, beş senkron gunicorn işçisine gereksiz bir yük.
+ *
+ * Kural basit: her boş yanıttan sonra aralık biraz açılıyor, mesaj gelir
+ * gelmez tabana dönüyor. Konuşma sürerken 6 saniye, kimse yazmazken bir
+ * dakika. Sekme arkaya alındığında yoklama tamamen duruyor; tarayıcılar
+ * zaten arka plan zamanlayıcılarını kısıyor, biz de boşuna istek atmayalım.
+ */
+function yoklamayiBaslat(durum, akis) {
+  const zamanla = () => {
+    clearTimeout(durum.yoklama);
+    if (document.hidden) return; // arkadayken hiç sorma
+    durum.yoklama = setTimeout(tur, durum.aralik);
+  };
+
+  const tur = async () => {
+    try {
+      const geldi = await mesajlariYukle(durum, akis, true);
+      // Mesaj geldiyse konuşma canlı: tabana in. Yoksa aralığı aç.
+      durum.aralik = geldi
+        ? YOKLAMA_ARALIGI
+        : Math.min(durum.aralik * YOKLAMA_CARPANI, YOKLAMA_AZAMI);
+    } catch {
+      // Ağ hatası: ısrar etmenin anlamı yok, aralığı aç.
+      durum.aralik = Math.min(durum.aralik * YOKLAMA_CARPANI, YOKLAMA_AZAMI);
+    }
+    zamanla();
+  };
+
+  zamanla();
+
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) mesajlariYukle(durum, akis, true).catch(() => {});
+    if (document.hidden) {
+      clearTimeout(durum.yoklama);
+      return;
+    }
+    // Geri dönüldü: hemen bir kez sor ve tabandan devam et.
+    durum.aralik = YOKLAMA_ARALIGI;
+    mesajlariYukle(durum, akis, true)
+      .catch(() => {})
+      .finally(zamanla);
   });
 }
 
@@ -384,7 +432,8 @@ async function mesajlariYukle(durum, akis, artan) {
     ? `/sohbet/api/${durum.grupId}/mesajlar/?sonra=${durum.sonId}`
     : `/sohbet/api/${durum.grupId}/mesajlar/`;
   const veri = await jsonIstek(url);
-  if (!veri.mesajlar.length) return;
+  // Yoklama hızını ayarlayan taraf bu değere bakıyor: mesaj geldi mi?
+  if (!veri.mesajlar.length) return false;
 
   const dipteydi =
     akis.scrollHeight - akis.scrollTop - akis.clientHeight < 80;
@@ -397,6 +446,7 @@ async function mesajlariYukle(durum, akis, artan) {
   const bos = document.getElementById("akis-bos");
   if (bos) bos.hidden = true;
   if (!artan || dipteydi) akis.scrollTop = akis.scrollHeight;
+  return true;
 }
 
 async function baloncukYap(durum, mesaj) {
@@ -570,6 +620,8 @@ function gondermeyiBagla(durum, akis) {
       alan.value = "";
       alan.style.height = "auto";
       uyari.hidden = true;
+      // Yazan biri var: yoklamayı tabana çek, karşı taraf da hızlı görsün.
+      durum.aralik = YOKLAMA_ARALIGI;
       if (yanit.mesaj.id > durum.sonId) {
         durum.sonId = yanit.mesaj.id;
         akis.appendChild(await baloncukYap(durum, yanit.mesaj));

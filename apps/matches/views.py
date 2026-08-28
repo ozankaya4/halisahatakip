@@ -6,11 +6,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.ratelimit import sinir_asildi
 from apps.groups.models import Uyelik
@@ -740,3 +740,85 @@ def _istatistik_tutarli_mi(mac: Mac, katilimlar: list) -> str:
                 f"{sinir} olabilir{forma_notu}. Her golün en fazla bir asisti olabilir."
             )
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Çevrimdışı için sıradaki maç
+# ---------------------------------------------------------------------------
+@login_required
+@require_GET
+def sonraki_mac_ozeti(request):
+    """
+    Cihazda saklanmak üzere SIRADAKİ maçın özeti.
+
+    Sahanın önünde, telefonunda çekmezken insanın istediği tek şey bu:
+    saat kaçta, hangi sahada, kim geliyor, kim hangi takımda.
+
+    NE DÖNÜYOR, NE DÖNMÜYOR — bu ayrım bilinçli. Servis çalışanının
+    tasarım kuralı "kullanıcıya ait hiçbir şey cihazda kalmaz" idi, çünkü
+    telefon elden ele geziyor. O kuralı toptan kaldırmak yerine daraltıyoruz:
+
+      döner    : tarih, saat, saha, süre, kadro adları, takım dağılımı
+      dönmez   : puanlar, maçın adamı, sohbet, fotoğraflar, geçmiş maçlar,
+                 grup listesi, başka hiçbir maç
+
+    Yani cihazda kalan en kötü şey "perşembe 21:00'de şu sahada şu on kişi
+    oynuyor" oluyor. Puan ve sohbet asla diske inmiyor.
+
+    Kaydetme VARSAYILAN OLARAK KAPALI; kullanıcı panelden açıyor
+    (bkz. static/js/cevrimdisi.js). Kapalıyken bu uca hiç istek gitmiyor.
+    """
+    from apps.groups.models import Uyelik
+
+    grup_idleri = Uyelik.objects.filter(
+        kullanici=request.user, durum=Uyelik.Durum.ONAYLI
+    ).values_list("grup_id", flat=True)
+
+    mac = (
+        Mac.objects.filter(
+            grup_id__in=grup_idleri, iptal=False, baslangic__gte=timezone.now()
+        )
+        .select_related("grup")
+        .order_by("baslangic")
+        .first()
+    )
+    if mac is None:
+        return JsonResponse({"tamam": True, "mac": None})
+
+    yerel = timezone.localtime(mac.baslangic)
+    takimlar = []
+    if mac.takimlar_kurulmus_mu:
+        for kod, ad in Mac.Takim.choices:
+            takimlar.append(
+                {
+                    "ad": ad,
+                    "oyuncular": [
+                        k.kullanici.gorunen_ad for k in mac.takim_katilimlari(kod)
+                    ],
+                }
+            )
+
+    # Takım kurulmamışsa "geliyorum" diyenler; saha önünde asıl merak edilen bu.
+    gelenler = [
+        k.kullanici.gorunen_ad
+        for k in mac.oynayan_katilimlar()
+    ]
+
+    return JsonResponse(
+        {
+            "tamam": True,
+            "mac": {
+                "grup": mac.grup.ad,
+                "baslangic": mac.baslangic.isoformat(),
+                "gun": f"{yerel:%d.%m.%Y}",
+                "saat": f"{yerel:%H:%M}",
+                "konum": mac.konum,
+                "sure_dakika": mac.sure_dakika,
+                "gelenler": sorted(gelenler, key=str.lower),
+                "takimlar": takimlar,
+                "adres": reverse("matches:detay", kwargs={"mac_id": mac.pk}),
+            },
+            # İstemci bunu gösteriyor: "23.08 14:10 itibarıyla".
+            "guncellendi": timezone.now().isoformat(),
+        }
+    )

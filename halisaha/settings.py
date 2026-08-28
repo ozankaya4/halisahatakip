@@ -41,6 +41,11 @@ env = environ.Env(
     # "optional"  : doğrulama e-postası gider ama zorunlu değildir
     # "mandatory" : doğrulanmadan giriş yapılamaz (çalışan SMTP şart)
     EMAIL_VERIFICATION=(str, "none"),
+    # Web Push (VAPID). Boşken bildirim gönderimi sessizce atlanır;
+    # uygulama bildirimsiz çalışmaya devam eder.
+    #   python manage.py vapid_anahtari
+    VAPID_ACIK_ANAHTAR=(str, ""),
+    VAPID_OZEL_ANAHTAR=(str, ""),
 )
 
 environ.Env.read_env(BASE_DIR / ".env")
@@ -388,6 +393,17 @@ RATING_WINDOW_DAYS = 3
 # (Google uygulamayı kendi anahtarıyla yeniden imzalar), bu yüzden koda değil
 # ortam değişkenine yazılıyor.
 CONTACT_EMAIL = env("CONTACT_EMAIL")
+
+# --------------------------------------------------------------------------
+# Web Push
+# --------------------------------------------------------------------------
+# Anahtarlar .env'de; kaynak koda hiç girmiyor. İkisi de boşsa bildirimler
+# yalnızca uygulama içinde görünüyor, telefona itilmiyor.
+#
+# Özel anahtar DEĞİŞTİRİLMEZ: değiştirmek o ana kadarki bütün cihaz
+# aboneliklerini geçersiz kılar ve herkesin izni yeniden vermesi gerekir.
+VAPID_ACIK_ANAHTAR = env("VAPID_ACIK_ANAHTAR")
+VAPID_OZEL_ANAHTAR = env("VAPID_OZEL_ANAHTAR")
 
 ANDROID_PACKAGE_NAME = env("ANDROID_PACKAGE_NAME")
 ANDROID_SIGNING_FINGERPRINTS = [

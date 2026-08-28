@@ -2626,3 +2626,46 @@ p {
 .anahtar-uyarisi .dugme {
   margin-block-start: 0.4rem;
 }
+
+/* =========================================================================
+   Çevrimdışı: saklanan sıradaki maç
+
+   Bağlantı yokken gösteriliyor. Veri sayfanın içinde değil, cihazın kendi
+   deposunda; bu yüzden sayfa hâlâ kimseye ait hiçbir şey taşımıyor.
+   ====================================================================== */
+.cevrimdisi-mac {
+  margin-block-start: 1.5rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--cetvel);
+  text-align: start;
+}
+
+.cevrimdisi-mac h2 {
+  font-size: 1.25rem;
+  margin-block-end: 0.25rem;
+}
+
+.cevrimdisi-mac h3 {
+  font-size: 0.95rem;
+  margin-block: 0.9rem 0.35rem;
+}
+
+.cevrimdisi-mac p {
+  margin-block-end: 0.35rem;
+}
+
+.cevrimdisi-kadro {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+}
+
+.cevrimdisi-kadro li {
+  font-size: 0.9rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+}

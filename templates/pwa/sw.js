@@ -17,7 +17,7 @@
  *   diğer her şey-> hiç dokunma, doğrudan ağa gitsin
  */
 
-const SURUM = "2";
+const SURUM = "3";
 const ONBELLEK_ADI = `halisaha-statik-v${SURUM}`;
 const CEVRIMDISI = "{% url 'core:cevrimdisi' %}";
 
@@ -33,6 +33,9 @@ const ON_YUKLENECEK = [
   "{% static 'css/defter.css' %}",
   "{% static 'css/yazitipi.css' %}",
   "{% static 'js/app.js' %}",
+  // Çevrimdışı sayfası bunu çalıştırıyor: kullanıcı açtıysa saklanan
+  // sıradaki maçı gösteriyor. İçe aktarması yok, tek başına çalışıyor.
+  "{% static 'js/cevrimdisi.js' %}",
   "{% static 'fonts/fraunces-latin.woff2' %}",
   "{% static 'fonts/fraunces-latin-ext.woff2' %}",
   "{% static 'fonts/plex-sans-latin.woff2' %}",
@@ -119,4 +122,59 @@ self.addEventListener("fetch", (olay) => {
   // --- Geri kalan her şey ------------------------------------------------
   // Fotoğraflar (/dosya/...), sohbet API'si, formlar: dokunmuyoruz.
   // respondWith çağırmadığımız için tarayıcı isteği normal şekilde yapıyor.
+});
+
+/* =========================================================================
+   Telefona bildirim (Web Push)
+
+   Uygulamanın bildirimleri eksiksizdi ama çekmeliydi: kişi maçın saatinin
+   değiştiğini ancak uygulamayı bir dahaki açışında öğreniyordu. Burası o
+   bildirimi telefonun kilit ekranına çıkarıyor.
+
+   İÇERİK NOTU: sohbet bildiriminde metin YOK ve olamaz — sunucu uçtan uca
+   şifreli mesajı okuyamıyor, dolayısıyla gönderemiyor. Yalnızca "yeni mesaj
+   var" deniyor; metin, uygulama açılıp mesaj tarayıcıda çözülünce görünüyor.
+   Maç ve yoklama bildirimleri metin taşıyor, çünkü onu sunucu yazıyor.
+   ====================================================================== */
+self.addEventListener("push", (olay) => {
+  let veri = {};
+  try {
+    veri = olay.data ? olay.data.json() : {};
+  } catch {
+    veri = {};
+  }
+
+  const baslik = veri.baslik || "Halısaha Defteri";
+  olay.waitUntil(
+    self.registration.showNotification(baslik, {
+      body: veri.mesaj || "",
+      icon: "{% static 'img/ikon-192.png' %}",
+      badge: "{% static 'img/ikon-192.png' %}",
+      // Aynı türden art arda gelen bildirimler yığılmasın: sonuncusu
+      // öncekinin yerine geçsin.
+      tag: veri.etiket || "halisaha",
+      renotify: true,
+      data: { adres: veri.adres || "/panel/" },
+    }),
+  );
+});
+
+/* Bildirime dokununca: uygulama zaten açıksa o sekmeye geç, değilse aç. */
+self.addEventListener("notificationclick", (olay) => {
+  olay.notification.close();
+  const adres = (olay.notification.data && olay.notification.data.adres) || "/panel/";
+
+  olay.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((pencereler) => {
+        for (const pencere of pencereler) {
+          // Aynı köken: yeni sekme açmak yerine var olanı öne al.
+          if (new URL(pencere.url).origin === self.location.origin) {
+            return pencere.focus().then((p) => (p.navigate ? p.navigate(adres) : p));
+          }
+        }
+        return self.clients.openWindow(adres);
+      }),
+  );
 });

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block baslik %}Panel · {{ site_adi }}{% endblock %}
 
@@ -127,7 +128,58 @@
           </p>
           <p class="kucuk"><a href="{% url 'accounts:profil_duzenle' %}">Profilini düzenle</a></p>
         </section>
+
+        {% comment %}
+        Sıradaki maçı cihazda saklama. VARSAYILAN KAPALI.
+
+        Servis çalışanının kuralı "kullanıcıya ait hiçbir şey diske yazılmaz"
+        idi, çünkü telefon elden ele geziyor. Kural kalkmıyor, daralıyor:
+        yalnızca sıradaki maçın saati, sahası ve kadrosu, yalnızca kullanıcı
+        açıkça isterse. Puan, sohbet ve geçmiş asla kaydedilmiyor.
+        {% endcomment %}
+        {% comment %}
+        Telefona bildirim. Sunucuda VAPID anahtarı yoksa betik bu bloğu
+        gizliyor: çalışmayan bir düğme göstermektense hiç göstermemek daha
+        dürüst.
+        {% endcomment %}
+        <section class="kutu" data-bildirim-kutusu hidden>
+          <div class="kutu-baslik">
+            <h2>Bildirimler</h2>
+          </div>
+          <p class="kucuk" data-bildirim-durum role="status" aria-live="polite"></p>
+          <p>
+            <button class="dugme dugme-kucuk" type="button" data-bildirim-dugmesi>
+              Bildirimleri aç
+            </button>
+          </p>
+          <p class="kucuk solgun">
+            Sohbet bildirimlerinde mesajın kendisi yazmaz, yalnızca yeni mesaj
+            olduğu bildirilir: sohbet uçtan uca şifreli olduğu için sunucu
+            metni okuyamıyor.
+          </p>
+        </section>
+
+        <section class="kutu">
+          <div class="kutu-baslik">
+            <h2>Çevrimdışı</h2>
+          </div>
+          <label class="secenek">
+            <input type="checkbox" data-cevrimdisi-anahtari>
+            <span>Sıradaki maçı bu cihazda sakla</span>
+          </label>
+          <p class="kucuk solgun">
+            Sahanın önünde çekmediğinde saat, saha ve kadro elinde olsun.
+            Yalnızca sıradaki maç saklanır; puanlar, sohbet ve geçmiş maçlar
+            asla cihaza yazılmaz. Çıkış yaptığında kayıt siliniyor.
+          </p>
+          <p class="kucuk" data-cevrimdisi-durum role="status" aria-live="polite"></p>
+        </section>
       </aside>
     </div>
   {% endif %}
+{% endblock %}
+
+{% block ekstra_js %}
+  <script type="module" src="{% static 'js/cevrimdisi.js' %}"></script>
+  <script type="module" src="{% static 'js/bildirim.js' %}"></script>
 {% endblock %}

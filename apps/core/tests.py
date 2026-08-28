@@ -4433,20 +4433,31 @@ class GuvenlikIncelemesiTesti(TestCase):
         self.assertIn("credentials", govde)
         self.assertIn("omit", govde)
 
-    def test_cevrimdisi_sayfasinin_hic_betigi_yok(self):
+    def test_cevrimdisi_betigi_ice_aktarma_yapmiyor(self):
         """
-        Çevrimdışı sayfası JavaScript'e bağlı olmamalı.
+        Çevrimdışı sayfasının betiği tek başına çalışabilmeli.
 
-        Üretimde statik dosya adları karma taşıyor. app.js içindeki
-        "import ./e2ee.js" karmasız adrese düşüyor, o adres önbellekte
-        bulunmuyor ve çevrimdışıyken modül yüklemesi çöküyordu: sayfadaki
-        tek etkileşim olan "Yeniden dene" düğmesi tam da işe yarayacağı
-        anda ölüydü. Sayfa artık betiksiz; yenileme, action'ı boş bir GET
-        formuyla yapılıyor.
+        Sayfa bir dönem hiç betik taşımıyordu. Sebebi şuydu: üretimde statik
+        dosya adları karma taşıyor, app.js içindeki "import ./e2ee.js"
+        karmasız adrese düşüyor, o adres ön bellekte bulunmuyor ve
+        çevrimdışıyken modül yüklemesi çöküyordu.
+
+        Artık sayfa saklanan sıradaki maçı gösteriyor, yani betiğe ihtiyacı
+        var. Kural betiğin varlığı değil, İÇE AKTARMA YAPMAMASI: göreli bir
+        import çevrimdışıyken yine çözülemezdi.
         """
         govde = self.client.get(reverse("core:cevrimdisi")).content.decode("utf-8")
-        self.assertNotIn("<script", govde)
-        self.assertIn("Yeniden dene", govde)
+        self.assertIn("cevrimdisi.js", govde)
+
+        betik = (settings.BASE_DIR / "static" / "js" / "cevrimdisi.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("import ", betik)
+        self.assertNotIn("from \"./", betik)
+
+        # Ve servis çalışanı onu ön belleğe almalı, yoksa çevrimdışıyken yok.
+        sw = self.client.get("/sw.js").content.decode("utf-8")
+        self.assertIn("cevrimdisi.js", sw)
 
     # -- E2: çıkışta şifreleme deposu --------------------------------------
     def test_sayfa_sifreleme_deposunun_sahibini_bildiriyor(self):
@@ -5069,3 +5080,291 @@ class AnahtarDogrulamaTesti(TestCase):
         ).content.decode("utf-8")
         self.assertIn('id="parmak-izi-listesi"', govde)
         self.assertIn('id="anahtar-uyarisi"', govde)
+
+
+class TelefonaBildirimTesti(TestCase):
+    """
+    Web Push abonelikleri ve içerik kuralı.
+
+    Bildirim sistemi eksiksizdi ama çekmeliydi: kişi maçın saatinin
+    değiştiğini ancak uygulamayı bir dahaki açışında öğreniyordu.
+    """
+
+    ABONELIK = {
+        "endpoint": "https://push.example.com/abc123",
+        "keys": {"p256dh": "BSahteAcikAnahtar", "auth": "sahteAuth"},
+    }
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.client.force_login(self.ozan)
+
+    def _abone_ol(self, **degisenler):
+        veri = {**self.ABONELIK, **degisenler}
+        return self.client.post(
+            reverse("notifications:push_abone_ol"),
+            data=json.dumps(veri),
+            content_type="application/json",
+        )
+
+    # -- Abonelik ----------------------------------------------------------
+    def test_abone_olma_cihazi_kaydediyor(self):
+        from apps.notifications.models import PushAbonelik
+
+        self.assertEqual(self._abone_ol().status_code, 200)
+        abone = PushAbonelik.objects.get(kullanici=self.ozan)
+        self.assertEqual(abone.endpoint, self.ABONELIK["endpoint"])
+
+    def test_ayni_cihaz_ikinci_kez_satir_acmiyor(self):
+        """Tarayıcı aboneliği yenilediğinde yeni satır oluşmamalı."""
+        from apps.notifications.models import PushAbonelik
+
+        self._abone_ol()
+        self._abone_ol()
+        self.assertEqual(PushAbonelik.objects.filter(kullanici=self.ozan).count(), 1)
+
+    def test_ayni_kisi_birden_cok_cihaz(self):
+        from apps.notifications.models import PushAbonelik
+
+        self._abone_ol()
+        self._abone_ol(endpoint="https://push.example.com/ikinci-cihaz")
+        self.assertEqual(PushAbonelik.objects.filter(kullanici=self.ozan).count(), 2)
+
+    def test_gecersiz_abonelik_reddediliyor(self):
+        self.assertEqual(self._abone_ol(endpoint="http://guvensiz/x").status_code, 400)
+        yanit = self.client.post(
+            reverse("notifications:push_abone_ol"),
+            data="bozuk json",
+            content_type="application/json",
+        )
+        self.assertEqual(yanit.status_code, 400)
+
+    def test_abonelikten_cikma(self):
+        from apps.notifications.models import PushAbonelik
+
+        self._abone_ol()
+        yanit = self.client.post(
+            reverse("notifications:push_abonelikten_cik"),
+            data=json.dumps({"endpoint": self.ABONELIK["endpoint"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(yanit.status_code, 200)
+        self.assertFalse(PushAbonelik.objects.filter(kullanici=self.ozan).exists())
+
+    def test_baskasinin_aboneligi_silinmiyor(self):
+        from apps.notifications.models import PushAbonelik
+
+        self._abone_ol()
+        baskasi = kullanici("baska@example.com", "Başkası")
+        self.client.force_login(baskasi)
+        self.client.post(
+            reverse("notifications:push_abonelikten_cik"),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertTrue(PushAbonelik.objects.filter(kullanici=self.ozan).exists())
+
+    # -- Ayarlar ucu -------------------------------------------------------
+    @override_settings(VAPID_ACIK_ANAHTAR="", VAPID_OZEL_ANAHTAR="")
+    def test_anahtar_yokken_ozellik_kapali(self):
+        """
+        Anahtar tanımlı değilse arayüz düğmeyi hiç göstermemeli.
+
+        Çalışmayan bir düğme göstermektense hiç göstermemek daha dürüst.
+        """
+        veri = self.client.get(reverse("notifications:push_ayarlari")).json()
+        self.assertFalse(veri["acik"])
+        self.assertEqual(veri["acik_anahtar"], "")
+
+    @override_settings(VAPID_ACIK_ANAHTAR="ABC", VAPID_OZEL_ANAHTAR="XYZ")
+    def test_anahtar_varken_acik_anahtar_donuyor(self):
+        veri = self.client.get(reverse("notifications:push_ayarlari")).json()
+        self.assertTrue(veri["acik"])
+        self.assertEqual(veri["acik_anahtar"], "ABC")
+
+    # -- İÇERİK KURALI -----------------------------------------------------
+    def test_sohbet_bildiriminde_metin_yok(self):
+        """
+        En önemli kural.
+
+        Sohbet uçtan uca şifreli; sunucu mesajı okuyamıyor, dolayısıyla
+        bildirime de koyamaz. Sohbet bildirimi yalnızca "yeni mesaj var"
+        diyor. Bu tür ileride eklenirse metin taşımadığından emin olalım.
+        """
+        from apps.notifications.models import Bildirim
+        from apps.notifications.push import METIN_TASIYABILEN, _yuk
+
+        bildirim = Bildirim(
+            alici=self.ozan,
+            tur="sohbet_mesaji",  # listede YOK
+            baslik="Perşembe Ekibi",
+            mesaj="Bu metin asla gitmemeli",
+            hedef_url="/sohbet/",
+        )
+        self.assertNotIn("sohbet_mesaji", METIN_TASIYABILEN)
+        yuk = json.loads(_yuk(bildirim))
+        self.assertEqual(yuk["mesaj"], "")
+        self.assertNotIn("asla gitmemeli", json.dumps(yuk))
+
+    def test_mac_bildiriminde_metin_var(self):
+        """Maç metnini sunucu yazıyor; taşınmasında sakınca yok."""
+        from apps.notifications.models import Bildirim
+        from apps.notifications.push import _yuk
+
+        bildirim = Bildirim(
+            alici=self.ozan,
+            tur=Bildirim.Tur.MAC_GUNCELLENDI,
+            baslik="Maç güncellendi",
+            mesaj="Yeni saat 21:30",
+            hedef_url="/maclar/1/",
+        )
+        yuk = json.loads(_yuk(bildirim))
+        self.assertEqual(yuk["mesaj"], "Yeni saat 21:30")
+        self.assertEqual(yuk["adres"], "/maclar/1/")
+
+    def test_bildirim_yazmak_push_hatasindan_etkilenmiyor(self):
+        """
+        Push bir kolaylık, tek kanal değil.
+
+        Gönderim çökerse bile bildirim veritabanına yazılmalı; aksi hâlde
+        push sunucusundaki bir arıza, uygulama içi bildirimleri de
+        durdururdu.
+        """
+        from unittest.mock import patch
+
+        from apps.notifications.models import Bildirim, bildir
+
+        with patch(
+            "apps.notifications.push.bildirimi_it", side_effect=RuntimeError("çöktü")
+        ):
+            bildir(self.ozan, Bildirim.Tur.YENI_MAC, "Yeni maç", "Bilgi", "/maclar/1/")
+
+        self.assertTrue(Bildirim.objects.filter(alici=self.ozan).exists())
+
+    def test_servis_calisani_push_isliyor(self):
+        sw = self.client.get("/sw.js").content.decode("utf-8")
+        self.assertIn('addEventListener("push"', sw)
+        self.assertIn('addEventListener("notificationclick"', sw)
+
+
+class CevrimdisiMacTesti(TestCase):
+    """
+    Sıradaki maçın cihazda saklanması.
+
+    Servis çalışanının kuralı "kullanıcıya ait hiçbir şey diske yazılmaz"
+    idi. Kural kalkmıyor, daralıyor: yalnızca sıradaki maç, yalnızca
+    kullanıcı açıkça isterse.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Yılmaz")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        for k in (self.ozan, self.mert):
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k,
+                rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+            )
+        self.mac = Mac.objects.create(
+            grup=self.grup,
+            baslangic=timezone.now() + timezone.timedelta(days=2),
+            konum="Ataşehir Spor Tesisleri",
+        )
+        for k in (self.ozan, self.mert):
+            Katilim.objects.create(
+                mac=self.mac, kullanici=k,
+                yanit=Katilim.Yanit.GELIYORUM, katildi=True,
+            )
+        self.adres = reverse("matches:sonraki_mac_ozeti")
+
+    def test_siradaki_mac_donuyor(self):
+        self.client.force_login(self.ozan)
+        veri = self.client.get(self.adres).json()
+        self.assertEqual(veri["mac"]["grup"], "Perşembe Ekibi")
+        self.assertEqual(veri["mac"]["konum"], "Ataşehir Spor Tesisleri")
+        self.assertIn("Ozan Kaya", veri["mac"]["gelenler"])
+
+    def test_gecmis_mac_donmuyor(self):
+        """Yalnızca SIRADAKİ maç; geçmiş cihaza yazılmıyor."""
+        self.mac.baslangic = timezone.now() - timezone.timedelta(days=1)
+        self.mac.save()
+        self.client.force_login(self.ozan)
+        self.assertIsNone(self.client.get(self.adres).json()["mac"])
+
+    def test_iptal_edilen_mac_donmuyor(self):
+        self.mac.iptal = True
+        self.mac.save()
+        self.client.force_login(self.ozan)
+        self.assertIsNone(self.client.get(self.adres).json()["mac"])
+
+    def test_puan_ve_sohbet_asla_donmuyor(self):
+        """
+        Cihaza inen veri dar tutulmalı.
+
+        Kural şu: cihazda kalan en kötü şey "perşembe 21:00'de şu sahada şu
+        on kişi oynuyor" olmalı. Puan ve sohbet asla diske inmemeli.
+        """
+        self.mac.skor_a, self.mac.skor_b = 3, 2
+        self.mac.save()
+        Puan.objects.create(
+            mac=self.mac, puanlayan=self.mert, puanlanan=self.ozan, deger=9
+        )
+        self.client.force_login(self.ozan)
+        ham = self.client.get(self.adres).content.decode("utf-8")
+
+        for yasak in ("puan", "skor", "sohbet", "ortalama", "mesaj"):
+            self.assertNotIn(yasak, ham.lower(), f"{yasak} cihaza gönderiliyor")
+
+    def test_uyesi_olmadigin_grubun_maci_donmuyor(self):
+        yabanci = kullanici("yabanci@example.com", "Yabancı")
+        self.client.force_login(yabanci)
+        self.assertIsNone(self.client.get(self.adres).json()["mac"])
+
+    def test_giris_gerekiyor(self):
+        self.assertEqual(self.client.get(self.adres).status_code, 302)
+
+    def test_panelde_anahtar_var_ve_varsayilan_kapali(self):
+        """
+        Saklama varsayılan olarak KAPALI olmalı.
+
+        Telefon elden ele geziyor; kimsenin istemediği bir veriyi cihaza
+        yazmak, servis çalışanının bütün tasarım gerekçesine aykırı olurdu.
+        """
+        self.client.force_login(self.ozan)
+        govde = self.client.get(reverse("core:dashboard")).content.decode("utf-8")
+        self.assertIn("data-cevrimdisi-anahtari", govde)
+        # Sunucu tarafında işaretli gelmiyor; durumu yalnızca cihaz biliyor.
+        self.assertNotIn("data-cevrimdisi-anahtari checked", govde)
+        self.assertNotIn('data-cevrimdisi-anahtari="checked"', govde)
+
+
+class SohbetYoklamaTesti(TestCase):
+    """
+    Sohbet yoklaması sessizlikte yavaşlamalı.
+
+    Sabit 6 saniye, açık her sekme için dakikada on istek demekti; sohbet
+    ölü olsa bile. Yirmi dört kişilik bir grupta maç akşamı bu, beş senkron
+    işçiye gereksiz yük.
+    """
+
+    def _kaynak(self):
+        return (settings.BASE_DIR / "static" / "js" / "sohbet.js").read_text(
+            encoding="utf-8"
+        )
+
+    def test_sabit_aralik_yerine_geri_cekilme(self):
+        kaynak = self._kaynak()
+        self.assertIn("YOKLAMA_CARPANI", kaynak)
+        self.assertIn("YOKLAMA_AZAMI", kaynak)
+        # Sabit setInterval kalmamalı: aralık her turda yeniden hesaplanıyor.
+        self.assertNotIn("setInterval(", kaynak)
+        self.assertIn("setTimeout(", kaynak)
+
+    def test_arka_plandayken_yoklama_duruyor(self):
+        kaynak = self._kaynak()
+        self.assertIn("document.hidden", kaynak)
+        self.assertIn("visibilitychange", kaynak)
+
+    def test_taban_aralik_korunuyor(self):
+        """Konuşma sürerken hız düşmemeli: taban hâlâ 6 saniye."""
+        self.assertIn("YOKLAMA_ARALIGI = 6000", self._kaynak())

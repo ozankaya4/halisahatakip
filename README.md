@@ -41,6 +41,13 @@ python manage.py runserver
    puanlama yetkisini belirler.
 6. **Puanla.** Herkes birbirini 10 üzerinden puanlar.
 7. **Sohbet et.** İlk kullanımda bir şifreleme parolası belirlemeniz istenir.
+8. **Bildirimleri aç** (Panel → Bildirimler). Maç saati değiştiğinde ya da
+   yoklama açıldığında telefonunuza bildirim düşer. Sohbet bildiriminde
+   mesajın kendisi yazmaz: sohbet uçtan uca şifreli olduğu için sunucu metni
+   okuyamıyor, yalnızca "yeni mesaj var" diyebiliyor.
+9. **İstersen sıradaki maçı cihazında sakla** (Panel → Çevrimdışı). Sahanın
+   önünde çekmediğinde saat, saha ve kadro elinde olur. Varsayılan kapalı;
+   yalnızca sıradaki maç saklanır, çıkışta silinir.
 
 ### Puanlama kuralları
 
@@ -136,6 +143,29 @@ biri, başkasının e-posta adresiyle sağlayıcıda hesap açıp o hesabı devr
   şablondur ve çerezsiz indirilir, böylece cihazdaki kopyada oturuma ait
   hiçbir şey (CSRF jetonu dâhil) bulunmaz. Çözülmüş sohbet anahtarları
   IndexedDB'de durur ve giriş yapan kişi değiştiğinde silinir.
+
+### Bildirimler ve çevrimdışı
+
+**Telefona bildirim (Web Push).** Bildirimler eskiden yalnızca uygulama
+içindeydi: kişi maçın saatinin değiştiğini ancak uygulamayı bir dahaki
+açışında öğreniyordu. Artık VAPID anahtarları tanımlıysa telefona iletiliyor.
+
+- Anahtarlar `.env` içinde (`VAPID_*`), koda gömülü değil. Üretmek için
+  `python manage.py vapid_anahtari`. Anahtar yoksa özellik kendini kapatıyor
+  ve arayüzde düğme hiç görünmüyor.
+- İzin yalnızca kullanıcı düğmeye bastığında isteniyor; sayfa açılır açılmaz
+  izin istemek tarayıcıların kalıcı retle cezalandırdığı bir davranış.
+- **Sohbet bildirimi metin taşımıyor.** Sunucu şifreli mesajı okuyamıyor,
+  dolayısıyla gönderemiyor da. Maç ve yoklama bildirimleri metin taşıyor,
+  çünkü o metni sunucu yazıyor (`apps/notifications/push.py`).
+- Ölü abonelikler (uygulama silinmiş, izin geri alınmış) ilk 404/410
+  yanıtında siliniyor.
+
+**Çevrimdışı.** Servis çalışanının kuralı "kullanıcıya ait hiçbir şey diske
+yazılmaz" idi, çünkü telefon elden ele geziyor. Kural kalkmadı, daraldı:
+kullanıcı panelden açarsa yalnızca **sıradaki maçın** saati, sahası ve kadrosu
+cihazda saklanıyor. Puan, sohbet, fotoğraf ve geçmiş maçlar asla. Varsayılan
+kapalı, çıkışta siliniyor (depo sahibi denetimiyle aynı yoldan).
 
 ### Dosya yükleme
 

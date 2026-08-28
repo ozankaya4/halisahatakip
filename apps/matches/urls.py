@@ -5,6 +5,8 @@ from . import views
 app_name = "matches"
 
 urlpatterns = [
+    # Çevrimdışı için sıradaki maç özeti (bkz. static/js/cevrimdisi.js).
+    path("sonraki/", views.sonraki_mac_ozeti, name="sonraki_mac_ozeti"),
     path("grup/<uuid:genel_id>/", views.liste, name="liste"),
     path("grup/<uuid:genel_id>/yeni/", views.olustur, name="olustur"),
     path("<int:mac_id>/", views.detay, name="detay"),

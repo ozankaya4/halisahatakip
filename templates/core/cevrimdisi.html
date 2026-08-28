@@ -68,8 +68,16 @@
               Yeniden dene
             </button>
           </form>
+
+          {% comment %}
+          Kullanıcı panelden açtıysa sıradaki maç burada görünüyor. Veri
+          sayfanın İÇİNDE değil, cihazın kendi deposunda: bu HTML hâlâ
+          çerezsiz indiriliyor ve içinde kimseye ait hiçbir şey yok.
+          {% endcomment %}
+          <section class="cevrimdisi-mac" id="cevrimdisi-mac" hidden></section>
         </div>
       </div>
     </main>
+    <script type="module" src="{% static 'js/cevrimdisi.js' %}"></script>
   </body>
 </html>

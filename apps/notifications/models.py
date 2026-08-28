@@ -80,13 +80,15 @@ def bildir(alici, tur: str, baslik: str, mesaj: str = "", hedef_url: str = "") -
     """Tek bir kullanıcıya bildirim yazar. Kişinin kendi eylemi ise atlanır."""
     if alici is None or not getattr(alici, "pk", None):
         return None
-    return Bildirim.objects.create(
+    bildirim = Bildirim.objects.create(
         alici=alici,
         tur=tur,
         baslik=baslik[:120],
         mesaj=mesaj[:250],
         hedef_url=hedef_url[:250] if hedef_url.startswith("/") else "",
     )
+    _telefona_it([bildirim])
+    return bildirim
 
 
 def toplu_bildir(alicilar, tur: str, baslik: str, mesaj: str = "", hedef_url: str = "") -> int:
@@ -107,4 +109,69 @@ def toplu_bildir(alicilar, tur: str, baslik: str, mesaj: str = "", hedef_url: st
         for a in alicilar
     ]
     Bildirim.objects.bulk_create(kayitlar, batch_size=200)
+    _telefona_it(kayitlar)
     return len(kayitlar)
+
+
+def _telefona_it(bildirimler) -> None:
+    """
+    Bildirimleri cihazlara iter. Hata olursa yutuluyor.
+
+    Push bir KOLAYLIK, tek kanal değil: bildirim zaten veritabanına yazıldı
+    ve uygulama içinde görünüyor. Gönderim başarısız diye bildirim yazma
+    işlemi başarısız sayılmamalı, o yüzden buradan hiçbir istisna yukarı
+    çıkmıyor.
+    """
+    try:
+        from .push import bildirimleri_it, push_acik_mi
+
+        if push_acik_mi():
+            bildirimleri_it(bildirimler)
+    except Exception:  # pragma: no cover - savunma amaçlı
+        import logging
+
+        logging.getLogger(__name__).exception("Push gönderimi başarısız")
+
+
+class PushAbonelik(models.Model):
+    """
+    Bir cihazın Web Push aboneliği.
+
+    Uygulamanın bildirim sistemi eksiksizdi ama tamamen çekmeliydi: kişi
+    maçın 21:30'a alındığını ancak uygulamayı bir dahaki açışında görüyordu,
+    ki bu çoğu insan için zaten arabaya bindiği an. Android kabuğu
+    bildirimler açık üretilmişti; eksik olan tek şey web tarafının izin
+    isteyip abone olmasıydı.
+
+    Bir kullanıcının birden çok cihazı olabilir; her cihaz ayrı satır.
+    `endpoint` tarayıcının verdiği adres ve doğal anahtar görevi görüyor.
+
+    ⚠️ İÇERİK TAŞIMIYOR. Sohbet uçtan uca şifreli; sunucu mesajı okuyamıyor,
+    dolayısıyla bildirime koyamıyor da. Sohbet bildirimi yalnızca "yeni mesaj
+    var" diyor. Maç, yoklama ve iptal bildirimleri metin taşıyabiliyor çünkü
+    o metni zaten sunucu yazıyor.
+    """
+
+    kullanici = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_abonelikleri",
+        verbose_name="kullanıcı",
+    )
+    endpoint = models.TextField("uç adres", unique=True)
+    # Tarayıcının ürettiği şifreleme anahtarları; içerik bunlarla şifreleniyor.
+    p256dh = models.CharField("p256dh", max_length=255)
+    auth = models.CharField("auth", max_length=255)
+    # Hangi tarayıcı/cihaz olduğunu ayırt etmek için; kullanıcıya gösterilmiyor.
+    tarayici = models.CharField("tarayıcı", max_length=200, blank=True)
+    olusturulma = models.DateTimeField("eklenme", auto_now_add=True)
+    son_kullanim = models.DateTimeField("son başarılı gönderim", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "push aboneliği"
+        verbose_name_plural = "push abonelikleri"
+        ordering = ["-olusturulma"]
+        indexes = [models.Index(fields=["kullanici"])]
+
+    def __str__(self) -> str:
+        return f"{self.kullanici} · {self.endpoint[:40]}…"
