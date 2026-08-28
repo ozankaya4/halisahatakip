@@ -71,6 +71,44 @@ class AnahtarCifti(ZamanDamgaliModel):
         return f"{self.kullanici} anahtarı"
 
 
+class AnahtarDegisimi(models.Model):
+    """
+    Bir kullanıcının kimlik anahtarını sıfırladığı an.
+
+    NEDEN VAR: tarayıcı artık her üyenin açık anahtarını ilk gördüğü hâliyle
+    hatırlıyor ve sonradan değişirse sarmalamayı reddediyor. Ama anahtarın
+    değişmesi çoğu zaman saldırı değil: şifreleme parolasını unutan biri
+    anahtarını sıfırlıyor ve yenisini üretiyor. Bu kayıt olmadan iki durum
+    ekranda birbirinin aynısı görünüyordu.
+
+    ⚠️ Bu bir KANIT DEĞİL, yalnızca gürültü azaltıcı. Veritabanına yazabilen
+    biri buraya da sahte bir kayıt ekleyebilir. İşi, dürüst sıfırlamaların
+    boşuna alarm vermesini önlemek; böylece gerçekten şüpheli olan uyarı
+    dikkat çekiyor. Tek gerçek doğrulama, iki kişinin parmak izlerini
+    yüz yüze karşılaştırması.
+    """
+
+    kullanici = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="anahtar_degisimleri",
+        verbose_name="kullanıcı",
+    )
+    # Bırakılan anahtarın parmak izi. Yeni anahtarınki kaydedilmiyor: sıfırlama
+    # anında henüz üretilmemiş oluyor.
+    eski_parmak_izi = models.CharField("eski parmak izi", max_length=95, blank=True)
+    olusturulma = models.DateTimeField("zaman", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "anahtar değişimi"
+        verbose_name_plural = "anahtar değişimleri"
+        ordering = ["-olusturulma"]
+        indexes = [models.Index(fields=["kullanici", "-olusturulma"])]
+
+    def __str__(self) -> str:
+        return f"{self.kullanici} · {self.olusturulma:%d.%m.%Y %H:%M}"
+
+
 class GrupAnahtari(ZamanDamgaliModel):
     """
     Bir grubun sürümlenmiş sohbet anahtarı.

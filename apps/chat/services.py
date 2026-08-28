@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from django.db import transaction
@@ -9,6 +10,25 @@ from django.db import transaction
 from .models import AnahtarPaketi, GrupAnahtari
 
 guvenlik_log = logging.getLogger("halisaha.guvenlik")
+
+
+def parmak_izi_hesapla(acik_jwk: dict) -> str:
+    """
+    Açık anahtarın parmak izi: SHA-256'nın ilk 16 baytı, dörderli gruplar.
+
+    static/js/e2ee.js içindeki parmakIziHesapla() ile BİREBİR aynı sonucu
+    vermek ZORUNDA. İkisi ayrı düşerse kullanıcı ekranda gördüğü parmak izini
+    karşı tarafınkiyle karşılaştıramaz ve doğrulama fikri çöker;
+    apps/core/tests.py bunu sabit bir vektörle sınıyor.
+
+    Girdi kasten `n` ve `e` ile sınırlı: JWK'nın tamamı üzerinden hesaplamak,
+    alan sırası ya da fazladan bir alan değiştiğinde parmak izini de
+    değiştirirdi. `n` ve `e` RSA açık anahtarının kendisi; anahtar aynıysa
+    parmak izi de aynı kalıyor.
+    """
+    veri = f"{acik_jwk['n']}.{acik_jwk['e']}".encode("utf-8")
+    onalti = hashlib.sha256(veri).hexdigest()[:32]  # ilk 16 bayt
+    return " ".join(onalti[i : i + 4] for i in range(0, 32, 4)).upper()
 
 
 def aktif_anahtar(grup) -> GrupAnahtari | None:

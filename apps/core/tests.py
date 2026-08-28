@@ -4652,7 +4652,7 @@ class GuvenlikIncelemesiTesti(TestCase):
 
 class AcikBulgularTesti(TestCase):
     """
-    Henüz KAPATILMAMIŞ bulgular.
+    Henüz kapatılmamış bulgular (E8, E9) ve kapatılan E7'nin nöbetçisi.
 
     Buradaki testler bir düzeltmeyi değil, bilinen bir açığın bugünkü
     davranışını sabitliyor. Amaçları iki tane:
@@ -4770,44 +4770,235 @@ class AcikBulgularTesti(TestCase):
             "test-bulgulari.md içindeki E9 satırını kapatıldı olarak güncelle.",
         )
 
-    def test_acik_e7_sohbet_acik_anahtari_dogrulamiyor(self):
+    def test_e7_kapandi_sohbet_acik_anahtari_dogruluyor(self):
         """
-        AÇIK BULGU E7 — sohbette açık anahtar doğrulaması yok.
+        E7 KAPATILDI — sohbet artık açık anahtarı doğruluyor.
 
-        İstemci, grup anahtarını sarmalarken sunucunun gönderdiği açık
-        anahtarı olduğu gibi kullanıyor (static/js/sohbet.js). Doğrulama
-        için gereken parmak izi alanı modelde var, sunucu API'sinde
-        dönüyor, yönetim panelinde görünüyor — ama sohbet arayüzü onu hiç
-        okumuyor, göstermiyor ve daha önce görülen anahtarla
-        karşılaştırmıyor.
+        Bu test bir dönem bunun TERSİNİ sabitliyordu: sohbet arayüzünün
+        parmak izine hiç bakmadığını ve sunucunun istemciden gelen parmak
+        izini olduğu gibi sakladığını doğruluyordu. İkisi de düzeltildi,
+        dolayısıyla test de tersine çevrildi.
 
-        Sonuç: veritabanına yazabilen biri bir üyenin açık anahtarını
-        kendisininkiyle değiştirirse, sonraki üye grup anahtarını ona
-        sarmalayıp yüklüyor ve o andan sonraki mesajları okuyabiliyor.
-        Arayüzde hiçbir şey değişmiyor. README ise "nihai yönetici dâhil
-        hiç kimse sunucudan mesaj okuyamaz" diyor.
+        Kalan sınır, kapatılamayan türden: ilk görülen anahtara güveniliyor.
+        Yeni bir cihaz, sunucunun o an verdiği anahtarı doğru kabul eder.
+        Kesinlik ancak iki kişinin parmak izlerini yüz yüze
+        karşılaştırmasıyla gelir; arayüz parmak izlerini bu yüzden
+        gösteriyor.
         """
         from apps.chat.models import AnahtarCifti
+        from apps.chat.services import parmak_izi_hesapla
 
         kaynak = (settings.BASE_DIR / "static" / "js" / "sohbet.js").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn(
-            "parmak",
-            kaynak.lower(),
-            "AÇIK BULGU KAPATILMIŞ: sohbet arayüzü parmak izine bakıyor. "
-            "test-bulgulari.md içindeki E7 satırını kapatıldı olarak güncelle.",
+        self.assertIn("acikAnahtariDenetle", kaynak)
+        self.assertIn("parmakIzleriniYaz", kaynak)
+
+        # Sunucu artık parmak izini istemciden almıyor, anahtardan hesaplıyor.
+        jwk = {"kty": "RSA", "alg": "RSA-OAEP-256", "n": "AAAA", "e": "AQAB"}
+        self.client.force_login(self.yonetici)
+        yanit = self.client.post(
+            reverse("chat:api_kendi_anahtarim"),
+            data=json.dumps({
+                "acik_anahtar": jwk,
+                "sifreli_ozel_anahtar": "QUJDRA==",
+                "tuz": "QUJDRA==",
+                "iv": "QUJDRA==",
+                "yineleme": 600000,
+                "parmak_izi": "tamamen uydurma bir deger",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(yanit.status_code, 200)
+
+        kayit = AnahtarCifti.objects.get(kullanici=self.yonetici)
+        self.assertEqual(kayit.parmak_izi, parmak_izi_hesapla(jwk))
+        self.assertNotIn("uydurma", kayit.parmak_izi)
+
+
+class AnahtarDogrulamaTesti(TestCase):
+    """
+    Sohbette açık anahtar doğrulaması (E7 bulgusunun kapatılması).
+
+    Sunucu artık parmak izini istemciden almıyor, saklanan açık anahtardan
+    hesaplıyor; tarayıcı da üyelerin anahtarlarını ilk gördüğü hâliyle
+    sabitleyip değiştiğinde grup anahtarını sarmalamayı reddediyor.
+    """
+
+    # static/js/e2ee.js içindeki aynı vektörle üretilen değer. İki dil ayrı
+    # düşerse kullanıcı ekranda gördüğü parmak izini karşı tarafınkiyle
+    # karşılaştıramaz; bu testin tamamı bunun içindir.
+    VEKTOR = {"n": "sahte-modulus-degeri-123", "e": "AQAB"}
+    BEKLENEN = "C7F5 3AAD 10C3 328D E4D2 1AF8 4AEA 102B"
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.mert = kullanici("mert@example.com", "Mert Yılmaz")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        for k in (self.ozan, self.mert):
+            Uyelik.objects.create(
+                grup=self.grup, kullanici=k,
+                rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+            )
+
+    def _anahtar_olustur(self, kisi, n):
+        from apps.chat.models import AnahtarCifti
+        from apps.chat.services import parmak_izi_hesapla
+
+        jwk = {"kty": "RSA", "alg": "RSA-OAEP-256", "n": n, "e": "AQAB"}
+        return AnahtarCifti.objects.create(
+            kullanici=kisi,
+            acik_anahtar=json.dumps(jwk, separators=(",", ":")),
+            sifreli_ozel_anahtar="QUJDRA==",
+            tuz="QUJDRA==", iv="QUJDRA==", yineleme=600000,
+            parmak_izi=parmak_izi_hesapla(jwk),
         )
 
-        # Sunucu parmak izini kendisi hesaplamıyor, istemciden geleni saklıyor.
-        AnahtarCifti.objects.create(
-            kullanici=self.yonetici,
-            acik_anahtar='{"kty": "RSA", "n": "AAAA", "e": "AQAB"}',
-            sifreli_ozel_anahtar="AAAA",
-            tuz="AAAA",
-            iv="AAAA",
-            yineleme=600000,
-            parmak_izi="tamamen uydurma bir deger",
+    # -- Parmak izi hesabı -------------------------------------------------
+    def test_parmak_izi_sabit_vektor(self):
+        from apps.chat.services import parmak_izi_hesapla
+
+        self.assertEqual(parmak_izi_hesapla(self.VEKTOR), self.BEKLENEN)
+
+    def test_parmak_izi_bicimi(self):
+        """Sekiz öbek, dörder karakter. Sesli okunacak biçim."""
+        from apps.chat.services import parmak_izi_hesapla
+
+        iz = parmak_izi_hesapla({"n": "baska-bir-modulus", "e": "AQAB"})
+        self.assertRegex(iz, r"^([0-9A-F]{4} ){7}[0-9A-F]{4}$")
+
+    def test_farkli_anahtar_farkli_parmak_izi(self):
+        from apps.chat.services import parmak_izi_hesapla
+
+        self.assertNotEqual(
+            parmak_izi_hesapla(self.VEKTOR),
+            parmak_izi_hesapla({"n": "bambaska", "e": "AQAB"}),
         )
-        kayit = AnahtarCifti.objects.get(kullanici=self.yonetici)
-        self.assertEqual(kayit.parmak_izi, "tamamen uydurma bir deger")
+
+    # -- Sunucu istemciye güvenmiyor ---------------------------------------
+    def test_sunucu_istemcinin_parmak_izini_yok_sayiyor(self):
+        """
+        Asıl düzeltme.
+
+        Eskiden gövdedeki parmak_izi olduğu gibi saklanıyordu, yani kayıt
+        kendi kendini doğruluyordu: anahtarla parmak izi birbirini tutmak
+        zorunda değildi. Artık parmak izi her zaman saklanan anahtardan
+        türüyor.
+        """
+        from apps.chat.models import AnahtarCifti
+
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(
+            reverse("chat:api_kendi_anahtarim"),
+            data=json.dumps({
+                "acik_anahtar": {
+                    "kty": "RSA", "alg": "RSA-OAEP-256",
+                    "n": self.VEKTOR["n"], "e": self.VEKTOR["e"],
+                },
+                "sifreli_ozel_anahtar": "QUJDRA==",
+                "tuz": "QUJDRA==",
+                "iv": "QUJDRA==",
+                "yineleme": 600000,
+                "parmak_izi": "TAMAMEN UYDURMA BIR DEGER",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(yanit.status_code, 200)
+
+        kayit = AnahtarCifti.objects.get(kullanici=self.ozan)
+        self.assertEqual(kayit.parmak_izi, self.BEKLENEN)
+        self.assertNotIn("UYDURMA", kayit.parmak_izi)
+
+    # -- Sıfırlama kaydı ---------------------------------------------------
+    def test_sifirlama_kayit_birakiyor(self):
+        """
+        Anahtar değişimi ile saldırıyı ayırt edebilmek için gerekli.
+
+        Kayıt olmasa, parolasını unutup anahtarını yenileyen biriyle
+        anahtarı değiştirilen biri ekranda birbirinin aynısı görünürdü.
+        """
+        from apps.chat.models import AnahtarDegisimi
+
+        eski = self._anahtar_olustur(self.ozan, "ilk-modulus")
+        eski_iz = eski.parmak_izi
+
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(reverse("chat:api_anahtar_sifirla"))
+        self.assertEqual(yanit.status_code, 200)
+
+        kayit = AnahtarDegisimi.objects.get(kullanici=self.ozan)
+        self.assertEqual(kayit.eski_parmak_izi, eski_iz)
+
+    def test_durum_ucunda_sifirlama_zamani_donuyor(self):
+        """İstemci uyarının dilini buna göre seçiyor."""
+        self._anahtar_olustur(self.ozan, "ozan-modulus")
+        self._anahtar_olustur(self.mert, "mert-modulus")
+
+        self.client.force_login(self.mert)
+        self.client.post(reverse("chat:api_anahtar_sifirla"))
+
+        self.client.force_login(self.ozan)
+        veri = self.client.get(
+            reverse("chat:api_durum", kwargs={"genel_id": self.grup.genel_id})
+        ).json()
+
+        kayitlar = {u["id"]: u for u in veri["uyeler"]}
+        self.assertIsNotNone(kayitlar[self.mert.pk]["son_sifirlama"])
+        self.assertIsNone(kayitlar[self.ozan.pk]["son_sifirlama"])
+
+    def test_durum_ucundaki_parmak_izi_anahtarla_tutuyor(self):
+        """
+        İstemci parmak izini kendisi hesaplıyor ama sunucununkini de
+        alıyor; ikisi ayrı düşerse bu tek başına bir işaret.
+        """
+        from apps.chat.services import parmak_izi_hesapla
+
+        self._anahtar_olustur(self.ozan, "ozan-modulus")
+        self.client.force_login(self.ozan)
+        veri = self.client.get(
+            reverse("chat:api_durum", kwargs={"genel_id": self.grup.genel_id})
+        ).json()
+
+        satir = next(u for u in veri["uyeler"] if u["id"] == self.ozan.pk)
+        self.assertEqual(
+            satir["parmak_izi"], parmak_izi_hesapla(satir["acik_anahtar"])
+        )
+
+    # -- İstemci tarafı kancaları ------------------------------------------
+    def test_istemci_sabitleme_islevlerini_sunuyor(self):
+        kok = settings.BASE_DIR / "static" / "js"
+        e2ee = (kok / "e2ee.js").read_text(encoding="utf-8")
+        self.assertIn("export async function acikAnahtariDenetle", e2ee)
+        self.assertIn("export async function parmakIziniSabitle", e2ee)
+        self.assertIn("pin:", e2ee)
+
+    def test_sohbet_sunucunun_parmak_izini_gostermiyor(self):
+        """
+        Ekranda GÖSTERİLEN değer her zaman yerel hesaplanan olmalı.
+
+        Sunucunun gönderdiği dizgeyi göstermek, saldırgana kendi işini not
+        ettirmek olurdu: anahtarı da parmak izini de o yazıyor.
+        """
+        sohbet = (settings.BASE_DIR / "static" / "js" / "sohbet.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("acikAnahtariDenetle", sohbet)
+        self.assertIn("uyeleriDenetle", sohbet)
+        self.assertIn("d.parmakIzi", sohbet)
+
+    def test_degisen_anahtar_sarmalamadan_cikariliyor(self):
+        """Her iki sarmalama noktasında da denetim olmalı."""
+        sohbet = (settings.BASE_DIR / "static" / "js" / "sohbet.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('!== "degisti"', sohbet)
+        self.assertIn('=== "degisti"', sohbet)
+
+    def test_sohbet_sayfasinda_parmak_izi_bolumu_var(self):
+        self._anahtar_olustur(self.ozan, "ozan-modulus")
+        self.client.force_login(self.ozan)
+        govde = self.client.get(
+            reverse("chat:sohbet", kwargs={"genel_id": self.grup.genel_id})
+        ).content.decode("utf-8")
+        self.assertIn('id="parmak-izi-listesi"', govde)
+        self.assertIn('id="anahtar-uyarisi"', govde)

@@ -161,6 +161,14 @@ AES-GCM ile şifrelenir; ek doğrulanmış veri olarak `grup:sürüm:gönderen`
 kullanılır, böylece sunucu bir mesajı başka gruba taşıyamaz veya göndereni
 değiştiremez.
 
+**Anahtar doğrulama.** Grup anahtarını kime sarmalayacağını söyleyen taraf
+sunucudur; bu yüzden tarayıcı her üyenin açık anahtarını **ilk gördüğü hâliyle**
+hatırlar. Anahtar sonradan değişirse grup anahtarı o üye için sarmalanmaz ve
+sohbette adıyla birlikte bir uyarı çıkar. Uyarı, sunucuda kayıtlı bir anahtar
+sıfırlaması varsa yumuşak (parolasını unutan biri için olağan), yoksa serttir.
+Parmak izleri sohbet sayfasında listelenir: iki kişi bu sekiz öbeği
+karşılaştırarak aralarına kimsenin girmediğini doğrulayabilir.
+
 **Bilinçli sınırlar:**
 
 - ⚠️ **Şifreleme parolanızı unutursanız mesaj geçmişiniz kurtarılamaz.**
@@ -169,6 +177,10 @@ değiştiremez.
 - Nihai yönetici dâhil hiç kimse sunucudan mesaj okuyamaz. (Yönetim panelinde
   yalnızca meta veri ve kötüye kullanım ihbarı için "silindi" işareti vardır;
   anahtar kayıtları salt okunur.)
+- Anahtar doğrulaması "ilk görüşte güven" ilkesine dayanır: yeni bir cihaz,
+  bir üyeyi ilk kez gördüğünde sunucunun verdiği anahtarı doğru kabul eder.
+  Bunu kesinliğe çeviren tek şey, parmak izlerini karşı tarafla yüz yüze
+  karşılaştırmaktır.
 - Bir üye gruptan çıkarıldığında anahtar döner: **bundan sonraki** mesajları
   okuyamaz. Daha önce indirdiği mesajları teknik olarak geri alamayız.
 - Grup anahtarını bilen bir üye, teoride başka bir üyenin adına mesaj

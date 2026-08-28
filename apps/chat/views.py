@@ -24,8 +24,20 @@ from apps.core.ratelimit import sinir_asildi
 from apps.groups.models import Grup, Uyelik
 from apps.moderation.models import Sikayet
 
-from .models import MAX_SIFRELI_UZUNLUK, AnahtarCifti, AnahtarPaketi, GrupAnahtari, Mesaj
-from .services import aktif_anahtar, eksik_paket_uyeleri, sonraki_surum
+from .models import (
+    MAX_SIFRELI_UZUNLUK,
+    AnahtarCifti,
+    AnahtarDegisimi,
+    AnahtarPaketi,
+    GrupAnahtari,
+    Mesaj,
+)
+from .services import (
+    aktif_anahtar,
+    eksik_paket_uyeleri,
+    parmak_izi_hesapla,
+    sonraki_surum,
+)
 
 guvenlik_log = logging.getLogger("halisaha.guvenlik")
 
@@ -164,8 +176,17 @@ def api_kendi_anahtarim(request):
         if yineleme < PBKDF2_EN_AZ_YINELEME:
             raise ValueError("PBKDF2 yineleme sayısı çok düşük.")
 
-        parmak_izi = str(veri.get("parmak_izi", ""))[:95]
-    except (ValueError, TypeError) as hata:
+        # Parmak izi İSTEMCİDEN ALINMIYOR, burada hesaplanıyor.
+        #
+        # Eskiden gövdedeki "parmak_izi" alanı olduğu gibi saklanıyordu. Bu,
+        # kaydın kendi kendini doğrulaması demekti: anahtarla parmak izi
+        # birbirini tutmak zorunda değildi, dolayısıyla yönetim panelinde
+        # görünen parmak izi yalnızca satırı yazanın iddiasıydı.
+        #
+        # Artık parmak izi her zaman saklanan JWK'dan türüyor; ikisi
+        # yapısal olarak birbirine bağlı.
+        parmak_izi = parmak_izi_hesapla(acik)
+    except (KeyError, ValueError, TypeError) as hata:
         return _hata(str(hata))
 
     try:
@@ -197,6 +218,18 @@ def api_anahtar_sifirla(request):
         return _hata("Çok fazla deneme. Bir süre sonra tekrar dene.", 429)
 
     with transaction.atomic():
+        # Bırakılan anahtarın parmak izini, silmeden ÖNCE not al.
+        #
+        # Diğer üyelerin tarayıcısı bu kişinin anahtarını hatırlıyor ve
+        # değiştiğini görünce sarmalamayı reddedecek. Bu kayıt olmasa, dürüst
+        # bir sıfırlama ile anahtar değiştirme saldırısı ekranda birbirinin
+        # aynısı görünürdü.
+        eski = AnahtarCifti.objects.filter(kullanici=request.user).first()
+        AnahtarDegisimi.objects.create(
+            kullanici=request.user,
+            eski_parmak_izi=eski.parmak_izi if eski else "",
+        )
+
         AnahtarPaketi.objects.filter(uye=request.user).delete()
         AnahtarCifti.objects.filter(kullanici=request.user).delete()
         # Bu kişinin üyesi olduğu grupların anahtarları da döndürülmeli:
@@ -226,6 +259,15 @@ def api_durum(request, genel_id):
     grup = _grubu_getir(request, genel_id)
     anahtar = aktif_anahtar(grup)
 
+    # Son sıfırlamalar: istemci, değişen bir anahtarın arkasında dürüst bir
+    # sıfırlama olup olmadığını buradan öğreniyor.
+    son_sifirlamalar = {}
+    for kayit in AnahtarDegisimi.objects.filter(
+        kullanici__uyelikler__grup=grup,
+        kullanici__uyelikler__durum=Uyelik.Durum.ONAYLI,
+    ).order_by("kullanici_id", "-olusturulma"):
+        son_sifirlamalar.setdefault(kayit.kullanici_id, kayit.olusturulma.isoformat())
+
     uyeler = []
     for uyelik in grup.onayli_uyelikler:
         kayit = AnahtarCifti.objects.filter(kullanici=uyelik.kullanici).first()
@@ -234,7 +276,12 @@ def api_durum(request, genel_id):
                 "id": uyelik.kullanici_id,
                 "ad": uyelik.kullanici.gorunen_ad,
                 "acik_anahtar": json.loads(kayit.acik_anahtar) if kayit else None,
+                # Sunucunun sakladığı parmak izi. İstemci bunu GÖSTERMİYOR;
+                # açık anahtardan kendisi hesaplayıp karşılaştırıyor. Burada
+                # dönmesinin tek sebebi, ikisi ayrı düştüğünde bunu fark
+                # edebilmek.
                 "parmak_izi": kayit.parmak_izi if kayit else "",
+                "son_sifirlama": son_sifirlamalar.get(uyelik.kullanici_id),
             }
         )
 

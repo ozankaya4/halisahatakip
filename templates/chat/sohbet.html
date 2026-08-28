@@ -84,6 +84,13 @@
     <div id="sohbet-bolumu" hidden>
       <p class="serit serit-uyari" id="sohbet-bilgi" hidden></p>
 
+      {% comment %}
+      Anahtarı değişen üyeler için uyarı. İçeriğini static/js/sohbet.js
+      dolduruyor; sunucu buraya hiçbir şey yazmıyor çünkü karar tarayıcıda
+      saklanan sabitlemeye göre veriliyor.
+      {% endcomment %}
+      <div class="serit serit-hata" id="anahtar-uyarisi" hidden></div>
+
       <div class="sohbet-pencere">
         <ul class="mesaj-akisi" id="mesaj-akisi" aria-live="polite" aria-label="Mesajlar">
         </ul>
@@ -98,6 +105,22 @@
         </form>
         <p class="islem-durumu" hidden></p>
       </div>
+
+      {% comment %}
+      Parmak izleri. Sunucunun anahtar değiştirdiğini anlamanın TEK kesin
+      yolu, iki kişinin bu değerleri birbirine sorması. Uygulama anahtar
+      değişimini yakalıyor ama ilk gördüğü anahtara güvenmek zorunda;
+      o ilk güveni ancak insanlar doğrulayabilir.
+      {% endcomment %}
+      <details class="parmak-izleri">
+        <summary>Üyeler ve parmak izleri</summary>
+        <p class="kucuk solgun">
+          Aşağıdaki sekiz öbeği karşındakiyle karşılaştır. Aynıysa
+          konuşmanıza kimse karışmamış demektir. Farklıysa o kişiyle
+          konuşmadan sohbete devam etme.
+        </p>
+        <ul class="parmak-izi-listesi" id="parmak-izi-listesi"></ul>
+      </details>
 
       <div class="satir-ayrik">
         <p class="kucuk solgun">

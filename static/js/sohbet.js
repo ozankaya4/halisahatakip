@@ -12,6 +12,8 @@
  */
 
 import {
+  acikAnahtariDenetle,
+  parmakIziniSabitle,
   grupAnahtariUret,
   grupAnahtariniAl,
   grupAnahtariniCoz,
@@ -40,6 +42,9 @@ async function baslat(kok) {
     aktifSurum: null,
     sonId: 0,
     yoklama: null,
+    // Üye kimliği -> anahtar denetimi (bkz. uyeleriDenetle)
+    denetimler: new Map(),
+    uyeler: [],
   };
 
   const bolumler = {
@@ -50,6 +55,8 @@ async function baslat(kok) {
   };
   const akis = document.getElementById("mesaj-akisi");
   const bilgi = document.getElementById("sohbet-bilgi");
+  const anahtarUyarisi = document.getElementById("anahtar-uyarisi");
+  const izListesi = document.getElementById("parmak-izi-listesi");
 
   bildirmeyiBagla(durum, akis);
 
@@ -62,11 +69,13 @@ async function baslat(kok) {
   durum.ozelAnahtar = await ozelAnahtariAl(durum.kullaniciId);
   if (!durum.ozelAnahtar) {
     gosterSadece(bolumler, "kilit");
-    kilitFormunuBagla(durum, bolumler, () => devam(durum, bolumler, akis, bilgi));
+    kilitFormunuBagla(durum, bolumler, () =>
+      devam(durum, bolumler, akis, bilgi, anahtarUyarisi, izListesi),
+    );
     return;
   }
 
-  await devam(durum, bolumler, akis, bilgi);
+  await devam(durum, bolumler, akis, bilgi, anahtarUyarisi, izListesi);
 }
 
 function gosterSadece(bolumler, ad) {
@@ -106,7 +115,7 @@ function kilitFormunuBagla(durum, bolumler, sonra) {
   });
 }
 
-async function devam(durum, bolumler, akis, bilgi) {
+async function devam(durum, bolumler, akis, bilgi, anahtarUyarisi, izListesi) {
   try {
     const hazir = await anahtarlariHazirla(durum, bilgi);
     if (!hazir) {
@@ -121,6 +130,8 @@ async function devam(durum, bolumler, akis, bilgi) {
   }
 
   gosterSadece(bolumler, "sohbet");
+  uyariYaz(durum, anahtarUyarisi);
+  parmakIzleriniYaz(durum, izListesi);
   gondermeyiBagla(durum, akis);
   kilitlemeyiBagla();
 
@@ -141,6 +152,11 @@ async function devam(durum, bolumler, akis, bilgi) {
 async function anahtarlariHazirla(durum, bilgi) {
   const veri = await jsonIstek(`/sohbet/api/${durum.grupId}/durum/`);
 
+  // Sunucunun verdiği her açık anahtarı, daha önce gördüğümüzle karşılaştır.
+  // Sarmalama kararı bundan sonra bu denetimin sonucuna göre veriliyor.
+  durum.denetimler = await uyeleriDenetle(veri.uyeler || []);
+  durum.uyeler = veri.uyeler || [];
+
   // Elimizdeki tüm sürümleri aç: geçmiş, anahtar döndükten sonra da okunsun.
   for (const paket of veri.paketlerim || []) {
     if (durum.anahtarlar.has(paket.surum)) continue;
@@ -158,7 +174,15 @@ async function anahtarlariHazirla(durum, bilgi) {
 
   // Aktif anahtar yoksa üret ve herkes için sarmala.
   if (!veri.anahtar) {
-    const uygunUyeler = (veri.uyeler || []).filter((u) => u.acik_anahtar);
+    // Anahtarı değişmiş üye ATLANIYOR: grup anahtarı ona sarmalanmıyor.
+    // Kendimiz her hâlükârda listede kalıyoruz, yoksa ürettiğimiz anahtarı
+    // biz de açamayız.
+    const uygunUyeler = (veri.uyeler || []).filter(
+      (u) =>
+        u.acik_anahtar &&
+        (u.id === durum.kullaniciId ||
+          durum.denetimler.get(u.id)?.durum !== "degisti"),
+    );
     if (!uygunUyeler.some((u) => u.id === durum.kullaniciId)) {
       throw new Error("Anahtarın sunucuda görünmüyor. Sayfayı yenilemeyi dene.");
     }
@@ -208,6 +232,9 @@ async function anahtarlariHazirla(durum, bilgi) {
     for (const uye of eksik) {
       const acik = acikHarita.get(uye.id);
       if (!acik) continue;
+      // Anahtarı değişmiş üyeyi ATLA, ama diğerlerini yüklemeye devam et.
+      // Tek şüpheli üye yüzünden bütün grubun sohbeti durmamalı.
+      if (durum.denetimler.get(uye.id)?.durum === "degisti") continue;
       paketler.push({
         uye_id: uye.id,
         sarmalanmis: await grupAnahtariniSarmala(grupAnahtari, acik),
@@ -227,6 +254,119 @@ async function anahtarlariHazirla(durum, bilgi) {
 
   bilgiYaz(bilgi, veri);
   return true;
+}
+
+/**
+ * Her üyenin açık anahtarını sabitlemeye karşı denetler.
+ *
+ * Dönen harita: üyeId -> {durum, parmakIzi, sabit, sunucununDedigi}
+ * Anahtarı olmayan üye haritaya girmiyor; denetlenecek bir şey yok.
+ */
+async function uyeleriDenetle(uyeler) {
+  const sonuc = new Map();
+  for (const uye of uyeler) {
+    if (!uye.acik_anahtar) continue;
+    const denetim = await acikAnahtariDenetle(uye.id, uye.acik_anahtar);
+    sonuc.set(uye.id, { ...denetim, sunucununDedigi: uye.parmak_izi || "" });
+  }
+  return sonuc;
+}
+
+/**
+ * Anahtarı değişmiş üyeler için uyarı şeridi.
+ *
+ * Sunucunun bildirdiği sıfırlama kaydı varsa dili yumuşak: parolasını unutan
+ * biri anahtarını sıfırladığında bu olağan. Kayıt YOKSA dil sert, çünkü
+ * sebepsiz değişen anahtar tam olarak saldırının şekli.
+ */
+function uyariYaz(durum, kutu) {
+  if (!kutu) return;
+  kutu.replaceChildren();
+
+  const degisenler = durum.uyeler.filter(
+    (u) => durum.denetimler.get(u.id)?.durum === "degisti",
+  );
+  if (!degisenler.length) {
+    kutu.hidden = true;
+    return;
+  }
+  kutu.hidden = false;
+
+  for (const uye of degisenler) {
+    const d = durum.denetimler.get(uye.id);
+    const satir = document.createElement("div");
+    satir.className = "anahtar-uyarisi";
+
+    const baslik = document.createElement("p");
+    const kalin = document.createElement("strong");
+    kalin.textContent = `${uye.ad} adlı üyenin şifreleme anahtarı değişti.`;
+    baslik.append(kalin);
+    satir.append(baslik);
+
+    const aciklama = document.createElement("p");
+    aciklama.className = "kucuk";
+    if (uye.son_sifirlama) {
+      const t = new Date(uye.son_sifirlama);
+      aciklama.textContent =
+        `Sunucuya göre ${t.toLocaleDateString("tr-TR")} tarihinde anahtarını ` +
+        "sıfırlamış. Şifreleme parolasını unutan biri için bu olağan. Yine de " +
+        "kabul etmeden önce yeni parmak izini kendisine sorman en doğrusu.";
+    } else {
+      aciklama.textContent =
+        "Bu değişikliğin arkasında kayıtlı bir sıfırlama YOK. Anahtarı " +
+        "kendisi yenilemediyse, mesajları okumaya çalışan biri olabilir. " +
+        "Kabul etmeden önce mutlaka kendisiyle konuş.";
+    }
+    satir.append(aciklama);
+
+    const izler = document.createElement("p");
+    izler.className = "kucuk parmak-izi";
+    izler.textContent = `Yeni parmak izi: ${d.parmakIzi}`;
+    satir.append(izler);
+
+    const dugme = document.createElement("button");
+    dugme.type = "button";
+    dugme.className = "dugme dugme-kucuk";
+    dugme.textContent = "Kendisiyle doğruladım, yeni anahtarı kabul et";
+    dugme.addEventListener("click", async () => {
+      dugme.disabled = true;
+      await parmakIziniSabitle(uye.id, d.parmakIzi);
+      window.location.reload();
+    });
+    satir.append(dugme);
+
+    kutu.append(satir);
+  }
+}
+
+/** Üyeler ve parmak izleri listesi — yüz yüze doğrulama için. */
+function parmakIzleriniYaz(durum, liste) {
+  if (!liste) return;
+  liste.replaceChildren();
+
+  for (const uye of durum.uyeler) {
+    const d = durum.denetimler.get(uye.id);
+    const satir = document.createElement("li");
+
+    const ad = document.createElement("span");
+    ad.className = "parmak-izi-ad";
+    ad.textContent = uye.id === durum.kullaniciId ? `${uye.ad} (sen)` : uye.ad;
+    satir.append(ad);
+
+    const iz = document.createElement("code");
+    iz.className = "parmak-izi";
+    // HER ZAMAN yerel hesaplanan değer; sunucunun gönderdiği değil.
+    iz.textContent = d ? d.parmakIzi : "anahtarı yok";
+    satir.append(iz);
+
+    if (d && d.durum === "degisti") {
+      const rozet = document.createElement("span");
+      rozet.className = "rozet rozet-kiremit";
+      rozet.textContent = "değişti";
+      satir.append(rozet);
+    }
+    liste.append(satir);
+  }
 }
 
 function bilgiYaz(bilgi, veri) {

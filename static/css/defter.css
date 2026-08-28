@@ -2555,3 +2555,74 @@ p {
     background: #fff;
   }
 }
+
+/* =========================================================================
+   Anahtar doğrulama (sohbet)
+
+   Parmak izi, açık anahtarın kısa özeti. İki kişi bunu karşılaştırarak
+   aralarına kimsenin girmediğini doğrulayabiliyor; uygulama anahtar
+   değişimini yakalıyor ama ilk gördüğü anahtara güvenmek zorunda.
+   ====================================================================== */
+.parmak-izleri {
+  border-top: 1px solid var(--cetvel);
+  padding-block-start: 0.75rem;
+  margin-block-start: 0.75rem;
+}
+
+.parmak-izleri summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.parmak-izleri > p {
+  margin-block: 0.5rem 0.75rem;
+}
+
+.parmak-izi-listesi {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.parmak-izi-listesi li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-block: 0.35rem;
+  border-block-end: 1px dotted var(--cetvel);
+}
+
+.parmak-izi-ad {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 9rem;
+}
+
+/* Parmak izi sesli okunuyor: rakam ve harfler eşit genişlikte olmalı,
+   yoksa öbekleri gözle takip etmek zorlaşıyor. */
+.parmak-izi {
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+/* Anahtarı değişen üye için uyarı bloğu. */
+.anahtar-uyarisi + .anahtar-uyarisi {
+  border-block-start: 1px solid var(--cetvel);
+  margin-block-start: 0.75rem;
+  padding-block-start: 0.75rem;
+}
+
+.anahtar-uyarisi p {
+  margin-block-end: 0.4rem;
+}
+
+.anahtar-uyarisi .dugme {
+  margin-block-start: 0.4rem;
+}

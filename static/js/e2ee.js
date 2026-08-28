@@ -116,6 +116,62 @@ const grupAnahtarAdi = (grupId, surum) => `grup:${grupId}:${surum}`;
 export const SAHIP_ANAHTARI = "sahip";
 
 /* -------------------------------------------------------------------------
+ * Anahtar sabitleme (ilk görüşte güven)
+ *
+ * Tarayıcı, her üyenin açık anahtarını İLK GÖRDÜĞÜ hâliyle burada
+ * hatırlıyor. Sonraki açılışlarda sunucunun verdiği anahtar bununla
+ * karşılaştırılıyor; tutmuyorsa grup anahtarı o üye için sarmalanmıyor.
+ *
+ * Neden gerekli: sunucu, grup anahtarının kime sarmalanacağını söyleyen
+ * taraf. Veritabanına yazabilen biri bir üyenin açık anahtarını kendisininki
+ * ile değiştirirse, sonraki üye grup anahtarını saldırgana sarmalayıp
+ * yüklüyordu ve ekranda hiçbir şey değişmiyordu.
+ *
+ * Sınırı açıkça bilinsin: bu, kimliğin kriptografik ispatı DEĞİL. İlk
+ * görülen anahtara güveniliyor, yani yeni bir cihaz sunucunun o an verdiğini
+ * doğru kabul ediyor. Kesinlik ancak iki kişinin parmak izlerini yüz yüze
+ * karşılaştırmasıyla gelir; arayüz parmak izlerini bu yüzden gösteriyor.
+ *
+ * Sabitlemeler kullanıcı kimliğine göre tutuluyor, gruba göre değil: aynı
+ * kişinin anahtarı bütün gruplarda aynı.
+ * ---------------------------------------------------------------------- */
+const sabitAdi = (uyeId) => `pin:${uyeId}`;
+
+/** Bu üye için hatırlanan parmak izi; yoksa null. */
+export async function sabitlenmisParmakIzi(uyeId) {
+  const kayit = await depodanOku(sabitAdi(uyeId));
+  return kayit && typeof kayit === "object" ? kayit.parmakIzi : null;
+}
+
+/** Üyenin parmak izini hatırlar (ilk görüş ya da kullanıcı onayı sonrası). */
+export async function parmakIziniSabitle(uyeId, parmakIzi) {
+  return depoyaYaz(sabitAdi(uyeId), {
+    parmakIzi,
+    ilkGorulme: new Date().toISOString(),
+  });
+}
+
+/**
+ * Sunucunun verdiği açık anahtarı sabitlemeye karşı denetler.
+ *
+ * Döner: {durum, parmakIzi, sabit}
+ *   "ilk"      ilk kez görülüyor, sabitlendi  -> sarmalanabilir
+ *   "eslesti"  hatırlananla aynı              -> sarmalanabilir
+ *   "degisti"  FARKLI                         -> sarmalanMAmalı
+ */
+export async function acikAnahtariDenetle(uyeId, acikJwk) {
+  const parmakIzi = await parmakIziHesapla(acikJwk);
+  const sabit = await sabitlenmisParmakIzi(uyeId);
+
+  if (sabit === null) {
+    await parmakIziniSabitle(uyeId, parmakIzi);
+    return { durum: "ilk", parmakIzi, sabit: parmakIzi };
+  }
+  if (sabit === parmakIzi) return { durum: "eslesti", parmakIzi, sabit };
+  return { durum: "degisti", parmakIzi, sabit };
+}
+
+/* -------------------------------------------------------------------------
  * Kimlik anahtarı
  * ---------------------------------------------------------------------- */
 export async function anahtarCiftiUret() {

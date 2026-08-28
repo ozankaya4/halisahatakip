@@ -162,6 +162,22 @@ const pi3 = await parmakIziHesapla(baskasi.acik_anahtar);
 kontrol("parmak izi kararlı", pi1 === pi2);
 kontrol("farklı anahtar farklı parmak izi", pi1 !== pi3);
 
+console.log("\n== Sabit parmak izi vektörü ==");
+// Sunucu (apps/chat/services.py::parmak_izi_hesapla) aynı girdi için aynı
+// değeri üretmek ZORUNDA. İkisi ayrı düşerse kullanıcı ekranda gördüğü
+// parmak izini karşı tarafınkiyle karşılaştıramaz ve doğrulama fikri çöker.
+// Python tarafı aynı vektörü apps/core/tests.py içinde sınıyor.
+const SABIT_VEKTOR = { n: "sahte-modulus-degeri-123", e: "AQAB" };
+const BEKLENEN = "C7F5 3AAD 10C3 328D E4D2 1AF8 4AEA 102B";
+kontrol(
+  "parmak izi sabit vektörü tutuyor (Python ile aynı)",
+  (await parmakIziHesapla(SABIT_VEKTOR)) === BEKLENEN,
+);
+kontrol(
+  "parmak izi biçimi: 8 öbek, dörder karakter",
+  /^([0-9A-F]{4} ){7}[0-9A-F]{4}$/.test(pi1),
+);
+
 console.log(`\n${"=".repeat(46)}`);
 console.log(`Başarılı: ${basarili}   Başarısız: ${basarisiz}`);
 process.exit(basarisiz === 0 ? 0 : 1);
