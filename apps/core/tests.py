@@ -5368,3 +5368,20 @@ class SohbetYoklamaTesti(TestCase):
     def test_taban_aralik_korunuyor(self):
         """Konuşma sürerken hız düşmemeli: taban hâlâ 6 saniye."""
         self.assertIn("YOKLAMA_ARALIGI = 6000", self._kaynak())
+
+
+class ManageYardimMetniTesti(TestCase):
+    """
+    manage.py'nin "Django bulunamadı" mesajı işletim sistemine uymalı.
+
+    Mesaj bir dönem her yerde Windows yolunu yazıyordu. Sunucuda Django
+    bulunamayınca insanı `.venv\Scripts\activate` diyerek Linux'ta var
+    olmayan bir dosyaya yolluyordu; asıl komut `.venv/bin/` altında.
+    """
+
+    def test_her_iki_yol_da_var(self):
+        kaynak = (settings.BASE_DIR / "manage.py").read_text(encoding="utf-8")
+        self.assertIn(".venv/bin/python", kaynak)
+        self.assertIn("os.name", kaynak)
+        # Windows yolu tek başına, koşulsuz kalmamalı.
+        self.assertIn("source .venv/bin/activate", kaynak)
