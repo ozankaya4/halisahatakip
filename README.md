@@ -163,6 +163,20 @@ açışında öğreniyordu. Artık VAPID anahtarları tanımlıysa telefona ilet
 - Ölü abonelikler (uygulama silinmiş, izin geri alınmış) ilk 404/410
   yanıtında siliniyor.
 
+**Paylaş menüsünden fotoğraf.** Telefonun galerisinden
+"Paylaş → Halısaha Defteri" demek yetiyor; uygulama açılıp yalnızca hangi maça
+ait olduğunu soruyor. Gelen dosyalar bekleme listesine düşerken zaten yükleme
+hattından geçiyor (doğrulama, WEBP'ye yeniden kodlama, EXIF temizliği), maça
+bağlama işi ise CSRF korumalı normal formdan yapılıyor. Paylaşım adresinin
+kendisi CSRF muafı olmak zorunda (istek tarayıcının paylaş menüsünden geliyor),
+bu yüzden orada hiçbir şey bir maça bağlanmıyor.
+
+**Zayıf bağlantıda yoklama.** Sahanın önünde çekmezken "Geliyorum" demek
+başarısız oluyordu. Yanıt artık cihazda bekliyor ve bağlantı gelince
+gönderiliyor. CSRF jetonu kuyruğa YAZILMIYOR: oturuma bağlı olduğu için
+beklemiş bir jeton reddedilirdi. Gönderim anında çerezden okunuyor, çerez
+yoksa (çıkış yapılmış) kuyruk atılıyor.
+
 **Çevrimdışı.** Servis çalışanının kuralı "kullanıcıya ait hiçbir şey diske
 yazılmaz" idi, çünkü telefon elden ele geziyor. Kural kalkmadı, daraldı:
 kullanıcı panelden açarsa yalnızca **sıradaki maçın** saati, sahası ve kadrosu

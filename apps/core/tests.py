@@ -3799,8 +3799,11 @@ class AnaEkranUygulamasiTesti(TestCase):
         veri = json.loads(self.client.get(reverse("core:manifest")).content)
         self.assertEqual(veri["name"], "Halısaha Defteri")
         self.assertEqual(veri["short_name"], "Halısaha Defteri")
-        # Uygulama panele açılmalı, tanıtım sayfasına değil.
-        self.assertEqual(veri["start_url"], "/panel/")
+        # Uygulama panele açılmalı, tanıtım sayfasına değil. Adres ayrıca
+        # kurulu açılışı tarayıcı ziyaretinden ayıran bir işaret taşıyor;
+        # bu olmadan "kaç kişi gerçekten kurdu" sorusu cevapsız kalıyordu.
+        self.assertTrue(veri["start_url"].startswith("/panel/"))
+        self.assertIn("kaynak=pwa", veri["start_url"])
         self.assertEqual(veri["display"], "standalone")
 
         boyutlar = {i["sizes"] for i in veri["icons"]}
@@ -5605,3 +5608,268 @@ class YuklemePikselButcesiTesti(TestCase):
         )
         self.assertEqual(yanit.status_code, 302)
         self.assertEqual(MacFotografi.objects.filter(mac=mac).count(), 2)
+
+
+class KuruluUygulamaTesti(TestCase):
+    """
+    Kurulu uygulama iyileştirmeleri: manifest, paylaşım, çevrimdışı tema.
+    """
+
+    def _manifest(self):
+        return json.loads(self.client.get(reverse("core:manifest")).content)
+
+    # -- Kurulum kartı -----------------------------------------------------
+    def test_manifestte_ekran_goruntuleri_var(self):
+        """
+        Ekran görüntüsü olmadan kurulum kartı başlık ve simgeden ibaret.
+
+        Chrome ve Play kurulum istemini bunlarla zenginleştiriyor.
+        """
+        ekranlar = self._manifest()["screenshots"]
+        self.assertGreaterEqual(len(ekranlar), 3)
+        for ekran in ekranlar:
+            with self.subTest(ekran=ekran["src"]):
+                self.assertIn("sizes", ekran)
+                self.assertIn("type", ekran)
+                self.assertEqual(ekran["form_factor"], "narrow")
+                self.assertTrue(ekran["label"])
+
+    def test_ekran_goruntusu_dosyalari_diskte_var(self):
+        """Manifest, olmayan bir dosyayı göstermemeli."""
+        kok = settings.BASE_DIR / "static"
+        for ekran in self._manifest()["screenshots"]:
+            yol = kok / ekran["src"].replace("/static/", "", 1)
+            with self.subTest(dosya=yol.name):
+                self.assertTrue(yol.is_file(), f"{yol.name} yok")
+
+    def test_kurulu_acilis_isaretli(self):
+        """
+        Kurulu uygulamadan gelen açılış, tarayıcı ziyaretinden ayırt
+        edilebilmeli; yoksa "kaç kişi kurdu" sorusu cevapsız kalıyor.
+        """
+        start = self._manifest()["start_url"]
+        self.assertTrue(start.startswith("/panel/"))
+        self.assertIn("kaynak=pwa", start)
+
+    def test_isaretli_adres_calisiyor(self):
+        """İşaret sunucuda hiçbir şeyi bozmamalı."""
+        self.client.force_login(kullanici("a@example.com", "Ozan"))
+        yanit = self.client.get("/panel/", {"kaynak": "pwa"})
+        self.assertEqual(yanit.status_code, 200)
+
+    # -- Paylaşım hedefi ---------------------------------------------------
+    def test_manifestte_paylasim_hedefi_var(self):
+        pay = self._manifest()["share_target"]
+        self.assertEqual(pay["action"], reverse("matches:paylasilan_al"))
+        # Dosya paylaşımı GET ile yapılamıyor.
+        self.assertEqual(pay["method"], "POST")
+        self.assertEqual(pay["enctype"], "multipart/form-data")
+        self.assertEqual(pay["params"]["files"][0]["name"], "dosyalar")
+
+    # -- Çevrimdışı tema ---------------------------------------------------
+    def test_cevrimdisi_sayfasi_tema_dayatmiyor(self):
+        """
+        Sayfa çerezsiz indiriliyor, yani sunucudan gelen tema her zaman
+        "acik" olurdu. Öznitelik hiç basılmayınca CSS sistem temasına uyuyor.
+        """
+        govde = self.client.get(reverse("core:cevrimdisi")).content.decode("utf-8")
+        self.assertNotIn("data-tema=", govde)
+
+    def test_css_sistem_temasina_yedek_iceriyor(self):
+        css = (settings.BASE_DIR / "static" / "css" / "defter.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("prefers-color-scheme: dark", css)
+        # Yedek yalnızca tema seçilmemişken devreye girmeli; sunucunun
+        # verdiği açık kararı ezmemeli.
+        self.assertIn(":root:not([data-tema])", css)
+
+    def test_normal_sayfalar_hala_temayi_basiyor(self):
+        """Sunucu tarafı tema kaldırılmadı; yalnızca çevrimdışı sayfası muaf."""
+        self.client.force_login(kullanici("b@example.com", "Mert"))
+        govde = self.client.get(reverse("core:dashboard")).content.decode("utf-8")
+        self.assertIn('data-tema="', govde)
+
+    # -- Yoklama kuyruğu ---------------------------------------------------
+    def test_yoklama_formu_betige_bagli(self):
+        ozan = kullanici("c@example.com", "Ozan Kaya")
+        grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=ozan)
+        Uyelik.objects.create(
+            grup=grup, kullanici=ozan, rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI
+        )
+        mac = Mac.objects.create(
+            grup=grup, baslangic=timezone.now() + timezone.timedelta(days=1)
+        )
+        self.client.force_login(ozan)
+        govde = self.client.get(
+            reverse("matches:detay", args=[mac.pk])
+        ).content.decode("utf-8")
+        self.assertIn("data-yoklama-formu", govde)
+        self.assertIn("yoklama.js", govde)
+
+    def test_yoklama_betigi_csrf_jetonunu_saklamiyor(self):
+        """
+        Buradaki asıl incelik.
+
+        Beklemiş bir isteği SAKLANMIŞ jetonla göndermek çalışmaz: jeton
+        oturuma bağlı, kullanıcı arada çıkış yapıp girerse eski jeton
+        reddedilir ve yanıt sessizce kaybolur. Jeton kuyruğa yazılmamalı,
+        gönderim anında çerezden okunmalı.
+        """
+        betik = (settings.BASE_DIR / "static" / "js" / "yoklama.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("csrfJetonu()", betik)
+        # Kuyruğa yazılan kayıt yalnızca adres, yanıt ve zaman taşımalı.
+        self.assertIn("{ adres: form.action, yanit: secim, zaman: Date.now() }", betik)
+        self.assertNotIn("jeton: ", betik)
+        # Oturum yoksa kuyruk atılmalı; başkasının adına yanıt gitmemeli.
+        self.assertIn("kuyrugaYaz([])", betik)
+
+    def test_yoklama_betigi_ice_aktarma_yapmiyor(self):
+        betik = (settings.BASE_DIR / "static" / "js" / "yoklama.js").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("import ", betik)
+
+
+class PaylasilanFotografTesti(TestCase):
+    """
+    Android paylaş menüsünden gelen fotoğraflar.
+
+    Maç fotoğrafı eklemek şöyleydi: kaydet, uygulamayı aç, maçı bul, yükleme
+    alanını bul, dosyayı yeniden seç.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.uye = kullanici("uye@example.com", "Sade Üye")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.uye,
+            rol=Uyelik.Rol.UYE, durum=Uyelik.Durum.ONAYLI,
+        )
+        self.mac = Mac.objects.create(
+            grup=self.grup, baslangic=timezone.now() - timezone.timedelta(hours=2)
+        )
+
+    def _dosya(self, en=400, boy=300):
+        tampon = io.BytesIO()
+        Image.new("RGB", (en, boy), (30, 90, 60)).save(tampon, format="JPEG")
+        return SimpleUploadedFile("f.jpg", tampon.getvalue(), content_type="image/jpeg")
+
+    def test_paylasim_bekleyen_kayit_olusturuyor(self):
+        from apps.matches.models import PaylasilanFotograf
+
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(
+            reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya(), self._dosya()]}
+        )
+        self.assertRedirects(yanit, reverse("matches:paylasilan_sec"))
+        self.assertEqual(
+            PaylasilanFotograf.objects.filter(kullanici=self.ozan).count(), 2
+        )
+
+    def test_paylasilan_dosya_yeniden_kodlaniyor(self):
+        """
+        Bekleyen kayıt bile ham kullanıcı dosyası taşımamalı: doğrulanmış,
+        WEBP'ye çevrilmiş, EXIF'i silinmiş olmalı.
+        """
+        from apps.matches.models import PaylasilanFotograf
+
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+        kayit = PaylasilanFotograf.objects.get(kullanici=self.ozan)
+        self.assertTrue(kayit.dosya.name.endswith(".webp"))
+
+    def test_maca_baglama_calisiyor(self):
+        from apps.matches.models import MacFotografi, PaylasilanFotograf
+
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+
+        yanit = self.client.post(
+            reverse("matches:paylasilan_sec"), {"mac": self.mac.pk}
+        )
+        self.assertRedirects(yanit, reverse("matches:detay", args=[self.mac.pk]))
+        self.assertEqual(MacFotografi.objects.filter(mac=self.mac).count(), 1)
+        # Bekleyen kayıt temizlenmeli.
+        self.assertFalse(PaylasilanFotograf.objects.filter(kullanici=self.ozan).exists())
+
+    def test_yonetici_olmayan_maca_baglayamiyor(self):
+        """Fotoğraf yükleme yetkisi yöneticide; paylaşım bunu atlatmamalı."""
+        self.client.force_login(self.uye)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+        yanit = self.client.post(
+            reverse("matches:paylasilan_sec"), {"mac": self.mac.pk}
+        )
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_secim_sayfasi_yalnizca_yonetilen_maclari_listeliyor(self):
+        self.client.force_login(self.uye)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+        govde = self.client.get(
+            reverse("matches:paylasilan_sec")
+        ).content.decode("utf-8")
+        self.assertNotIn(f'value="{self.mac.pk}"', govde)
+
+    def test_baskasinin_paylasimi_gorunmuyor(self):
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+
+        from apps.matches.models import PaylasilanFotograf
+
+        kayit = PaylasilanFotograf.objects.get(kullanici=self.ozan)
+        self.client.force_login(self.uye)
+        yanit = self.client.get(
+            reverse("matches:paylasilan_dosya", kwargs={"dosya_id": kayit.dosya_id})
+        )
+        self.assertEqual(yanit.status_code, 404)
+
+    def test_onizleme_sahibine_aciliyor(self):
+        from apps.matches.models import PaylasilanFotograf
+
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+        kayit = PaylasilanFotograf.objects.get(kullanici=self.ozan)
+        yanit = self.client.get(
+            reverse("matches:paylasilan_dosya", kwargs={"dosya_id": kayit.dosya_id})
+        )
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(yanit["Content-Type"], "image/webp")
+
+    def test_eskiler_temizleniyor(self):
+        """
+        Paylaşıp maç seçmeden vazgeçen biri geride dosya bırakıyor. Ayrı bir
+        zamanlanmış görev yerine, kişi bir dahaki paylaşımında kendi
+        artıklarını topluyor.
+        """
+        from apps.matches.models import PaylasilanFotograf
+
+        self.client.force_login(self.ozan)
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+
+        eski = PaylasilanFotograf.objects.get(kullanici=self.ozan)
+        PaylasilanFotograf.objects.filter(pk=eski.pk).update(
+            olusturulma=timezone.now() - timezone.timedelta(days=2)
+        )
+
+        self.client.post(reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]})
+        kalan = PaylasilanFotograf.objects.filter(kullanici=self.ozan)
+        self.assertEqual(kalan.count(), 1)
+        self.assertNotEqual(kalan.first().pk, eski.pk)
+
+    def test_giris_gerekiyor(self):
+        yanit = self.client.post(
+            reverse("matches:paylasilan_al"), {"dosyalar": [self._dosya()]}
+        )
+        self.assertEqual(yanit.status_code, 302)
+
+    def test_dosyasiz_paylasim_panele_donuyor(self):
+        self.client.force_login(self.ozan)
+        yanit = self.client.post(reverse("matches:paylasilan_al"), {})
+        self.assertRedirects(yanit, reverse("core:dashboard"))

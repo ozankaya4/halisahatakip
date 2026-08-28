@@ -6,7 +6,15 @@
   "lang": "tr",
   "dir": "ltr",
 
-  "start_url": "/panel/",
+  {% comment %}
+  Kurulu uygulamadan gelen açılışlar işaretli.
+
+  Eskiden sadece "/panel/" yazıyordu ve kurulu uygulamadan gelen açılışı
+  tarayıcı ziyaretinden ayırmanın hiçbir yolu yoktu; "kaç kişi gerçekten
+  kurdu" sorusu cevapsız kalıyordu. Parametre sunucuda hiçbir davranışı
+  değiştirmiyor, yalnızca erişim günlüğünde görünüyor.
+  {% endcomment %}
+  "start_url": "/panel/?kaynak=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
@@ -39,6 +47,79 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+
+  {% comment %}
+  Kurulum kartındaki ekran görüntüleri.
+
+  Chrome ve Play, kurulum istemini bunlarla zenginleştiriyor; yoksa kart
+  yalnızca bir başlık ve simgeden ibaret kalıyor. Görüntüler Play listesi
+  için zaten çekilmişti (deploy/play/telefon/), buradakiler onların WEBP'ye
+  çevrilmiş hâli: 420 KB'lık PNG yerine ~50 KB.
+
+  form_factor "narrow": telefon. Geniş ekran için ayrı görüntü yok, o yüzden
+  "wide" hiç bildirilmiyor; olmayan bir şeyi bildirmektense hiç
+  bildirmemek daha doğru.
+  {% endcomment %}
+  {% comment %}
+  Paylaş menüsünden fotoğraf almak.
+
+  Maç fotoğrafı eklemek şöyleydi: fotoğrafı galeriye kaydet, uygulamayı aç,
+  maçı bul, yükle düğmesini bul, dosyayı yeniden seç. Bu girdi Android'in
+  paylaş menüsüne uygulamayı ekliyor; oyuncu doğrudan "Halısaha Defteri"
+  diyebiliyor ve yalnızca hangi maç olduğunu seçiyor.
+
+  method POST + enctype multipart/form-data ŞART: dosya paylaşımı GET ile
+  yapılamıyor. Adres CSRF muafiyeti gerektiriyor (istek tarayıcının paylaş
+  menüsünden geliyor, sayfamızdan değil), o yüzden görünüm hiçbir şey
+  KAYDETMİYOR; yalnızca dosyaları alıp maç seçtiren bir sayfa
+  gösteriyor. Asıl yükleme, CSRF korumalı normal formdan geçiyor.
+  {% endcomment %}
+  "share_target": {
+    "action": "/maclar/paylasilan/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "baslik",
+      "text": "metin",
+      "files": [
+        {
+          "name": "dosyalar",
+          "accept": ["image/jpeg", "image/png", "image/webp", "image/heic", "image/*"]
+        }
+      ]
+    }
+  },
+
+  "screenshots": [
+    {
+      "src": "{% static 'img/ekran/ekran-1.webp' %}",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Yaklaşan maçlar ve yoklama"
+    },
+    {
+      "src": "{% static 'img/ekran/ekran-2.webp' %}",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Maç sayfası ve kadro"
+    },
+    {
+      "src": "{% static 'img/ekran/ekran-3.webp' %}",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Saha dizilimi"
+    },
+    {
+      "src": "{% static 'img/ekran/ekran-4.webp' %}",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Maç sonrası puanlama"
     }
   ],
 

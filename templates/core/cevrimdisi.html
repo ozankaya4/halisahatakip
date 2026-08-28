@@ -1,5 +1,14 @@
 {% load static %}<!doctype html>
-<html lang="tr" data-tema="{{ tema }}">
+{% comment %}
+data-tema BİLEREK BASILMIYOR.
+
+Bu sayfa cihazdaki kopyadan açılıyor ve çerezsiz indiriliyor, yani buradaki
+tema değeri her zaman "acik" olurdu; koyu tema kullanan biri çevrimdışı
+kalınca göz alan beyaz bir sayfayla karşılaşırdı. Öznitelik hiç basılmayınca
+defter.css'teki `prefers-color-scheme` yedeği devreye giriyor ve sayfa
+cihazın sistem temasına uyuyor.
+{% endcomment %}
+<html lang="tr">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

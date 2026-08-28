@@ -313,3 +313,76 @@ class MacFotografi(ZamanDamgaliModel):
         if dosya:
             dosya.delete(save=False)
         return sonuc
+
+
+def paylasilan_foto_yolu(ornek: "PaylasilanFotograf", dosya_adi: str) -> str:
+    """Dosya adı çağıran tarafça UUID'ye çevrilmiş olarak gelir."""
+    return f"paylasilan/{dosya_adi}"
+
+
+class PaylasilanFotograf(ZamanDamgaliModel):
+    """
+    Android'in paylaş menüsünden gelmiş, henüz bir maça bağlanmamış fotoğraf.
+
+    NEDEN ARA BİR KAYIT: paylaşım isteği dosyaları getiriyor ama hangi maça
+    ait olduklarını söylemiyor. Kullanıcıya maç seçtirmek için bir sayfa
+    göstermek gerekiyor ve dosyalar o yönlendirmeden sağ çıkmalı — yoksa
+    kişi dosyaları yeniden seçmek zorunda kalırdı, ki özelliğin bütün amacı
+    tam olarak bunu ortadan kaldırmaktı.
+
+    Dosyalar buraya YÜKLEME HATTINDAN GEÇMİŞ olarak geliyor: doğrulanmış,
+    WEBP'ye yeniden kodlanmış, EXIF'i silinmiş (bkz. apps/core/images.py).
+    Yani bekleyen bir kayıt bile ham kullanıcı dosyası taşımıyor.
+
+    Maça bağlandığında kayıt siliniyor; bağlanmayanlar bir gün sonra
+    temizleniyor.
+    """
+
+    kullanici = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="paylasilan_fotograflar",
+        verbose_name="kullanıcı",
+    )
+    dosya = models.ImageField("dosya", upload_to=paylasilan_foto_yolu)
+    # URL'de bu kullanılıyor; dosya yolu dışarı sızmıyor ve sıralı kimlik
+    # sayımı yapılamıyor (MacFotografi ile aynı kural).
+    dosya_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+
+    class Meta:
+        verbose_name = "paylaşılan fotoğraf"
+        verbose_name_plural = "paylaşılan fotoğraflar"
+        ordering = ["olusturulma"]
+        indexes = [models.Index(fields=["kullanici", "olusturulma"])]
+
+    def __str__(self) -> str:
+        return f"{self.kullanici} · paylaşılan"
+
+    @property
+    def url(self) -> str:
+        return reverse("matches:paylasilan_dosya", kwargs={"dosya_id": self.dosya_id})
+
+    def delete(self, *args, **kwargs):
+        # Kayıt silinince dosya diskte yetim kalmasın.
+        dosya = self.dosya
+        sonuc = super().delete(*args, **kwargs)
+        if dosya:
+            dosya.delete(save=False)
+        return sonuc
+
+    @classmethod
+    def eskileri_temizle(cls, kullanici) -> int:
+        """
+        Bir günden eski bekleyenleri siler.
+
+        Paylaşıp maç seçmeden vazgeçen biri geride dosya bırakıyor. Ayrı bir
+        zamanlanmış görev kurmak yerine, kişi bir dahaki paylaşımında kendi
+        artıklarını topluyor: bu kadar küçük bir birikim için yeterli.
+        """
+        from django.utils import timezone
+
+        sinir = timezone.now() - timezone.timedelta(days=1)
+        eskiler = list(cls.objects.filter(kullanici=kullanici, olusturulma__lt=sinir))
+        for kayit in eskiler:
+            kayit.delete()
+        return len(eskiler)

@@ -10,6 +10,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.ratelimit import sinir_asildi
@@ -822,3 +823,152 @@ def sonraki_mac_ozeti(request):
             "guncellendi": timezone.now().isoformat(),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Android paylaş menüsünden gelen fotoğraflar
+# ---------------------------------------------------------------------------
+PAYLASIM_AZAMI = 20
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def paylasilan_al(request):
+    """
+    Android'in paylaş menüsünden gelen fotoğrafları alır.
+
+    Maç fotoğrafı eklemek şöyleydi: fotoğrafı kaydet, uygulamayı aç, maçı bul,
+    yükleme alanını bul, dosyayı yeniden seç. Artık galeriden
+    "paylaş → Halısaha Defteri" demek yetiyor; geriye yalnızca hangi maç
+    olduğunu seçmek kalıyor.
+
+    CSRF MUAFİYETİ: istek tarayıcının paylaş menüsünden geliyor, bizim bir
+    sayfamızdan değil, dolayısıyla CSRF jetonu taşıyamıyor — paylaşım
+    hedeflerinin yapısal bir kısıtı. Riski daraltan üç şey var:
+
+      · Gelen dosyalar YÜKLEME HATTINDAN geçiyor: doğrulanıyor, WEBP'ye
+        yeniden kodlanıyor, EXIF'i siliniyor. Ham dosya hiçbir zaman
+        saklanmıyor.
+      · Kayıtlar yalnızca bekleme listesine düşüyor; hiçbir maça
+        bağlanmıyor, kimseye görünmüyor. Bağlama işi CSRF korumalı ayrı bir
+        formda yapılıyor.
+      · Hız sınırı var.
+
+    Yani kötü niyetli bir sitenin elde edebileceği en fazla şey, kullanıcının
+    kendi bekleme listesinde göreceği ve bağlamadığı sürece hiçbir yere
+    gitmeyen bir görsel.
+    """
+    from .models import PaylasilanFotograf
+
+    if sinir_asildi(f"paylasim:{request.user.pk}", limit=30, saniye=3600):
+        messages.error(request, "Çok fazla paylaşım gönderdin, biraz sonra dene.")
+        return redirect("core:dashboard")
+
+    # Kişi kendi artıklarını topluyor; ayrı bir zamanlanmış göreve gerek yok.
+    PaylasilanFotograf.eskileri_temizle(request.user)
+
+    dosyalar = request.FILES.getlist("dosyalar")[:PAYLASIM_AZAMI]
+    if not dosyalar:
+        messages.info(request, "Paylaşılan bir fotoğraf bulunamadı.")
+        return redirect("core:dashboard")
+
+    try:
+        temiz = FotografFormu().temiz_gorseller(dosyalar)
+    except ValidationError as hata:
+        messages.error(request, " ".join(hata.messages))
+        return redirect("core:dashboard")
+
+    with transaction.atomic():
+        for icerik in temiz:
+            kayit = PaylasilanFotograf(kullanici=request.user)
+            kayit.dosya.save(icerik.name, icerik, save=False)
+            kayit.save()
+
+    # POST'tan sonra yönlendirme: sayfa yenilenince fotoğraflar tekrar
+    # işlenmesin.
+    return redirect("matches:paylasilan_sec")
+
+
+@login_required
+def paylasilan_sec(request):
+    """
+    Bekleyen paylaşımları hangi maça ekleyeceğini sorar.
+
+    Yalnızca YÖNETİCİ olunan gruplardaki maçlar listeleniyor: fotoğraf
+    yükleme yetkisi zaten yöneticide (bkz. fotograf_yukle). Yönetici
+    olunmayan bir grubun maçını listelemek, seçilince reddedilecek bir
+    seçenek göstermek olurdu.
+    """
+    from apps.groups.models import Uyelik
+
+    from .models import PaylasilanFotograf
+
+    bekleyenler = list(PaylasilanFotograf.objects.filter(kullanici=request.user))
+
+    if request.method == "POST":
+        mac = get_object_or_404(
+            Mac.objects.select_related("grup"), pk=request.POST.get("mac")
+        )
+        if not mac.grup.yonetici_mi(request.user):
+            raise PermissionDenied("Bu maça fotoğraf ekleyemezsin.")
+
+        mevcut = mac.fotograflar.count()
+        if mevcut + len(bekleyenler) > MAC_BASINA_FOTO_SINIRI:
+            messages.error(
+                request,
+                f"Bir maça en fazla {MAC_BASINA_FOTO_SINIRI} fotoğraf "
+                f"yüklenebilir (şu an {mevcut} tane var).",
+            )
+            return redirect("matches:paylasilan_sec")
+
+        with transaction.atomic():
+            for kayit in bekleyenler:
+                foto = MacFotografi(mac=mac, yukleyen=request.user)
+                # Dosya zaten işlenmiş; yeniden kodlamaya gerek yok.
+                foto.dosya.save(
+                    kayit.dosya.name.rsplit("/", 1)[-1], kayit.dosya.file, save=False
+                )
+                foto.save()
+            for kayit in bekleyenler:
+                kayit.delete()
+
+        messages.success(request, f"{len(bekleyenler)} fotoğraf maça eklendi.")
+        return redirect("matches:detay", mac_id=mac.pk)
+
+    yonetilen = Uyelik.objects.filter(
+        kullanici=request.user,
+        durum=Uyelik.Durum.ONAYLI,
+        rol=Uyelik.Rol.YONETICI,
+    ).values_list("grup_id", flat=True)
+
+    maclar = list(
+        Mac.objects.filter(grup_id__in=yonetilen, iptal=False)
+        .select_related("grup")
+        .order_by("-baslangic")[:15]
+    )
+
+    return render(
+        request,
+        "matches/paylasilan.html",
+        {"bekleyenler": bekleyenler, "maclar": maclar},
+    )
+
+
+@login_required
+def paylasilan_dosya(request, dosya_id):
+    """
+    Bekleyen paylaşımın önizlemesi. Yalnızca sahibine açık.
+
+    Maç fotoğrafları gibi bu da web kökünden doğrudan sunulmuyor: adres
+    dosya yolu değil veritabanı kimliği taşıyor, dolayısıyla yol geçişi
+    yapısal olarak imkânsız (bkz. apps/core/views.py::_dosyayi_gonder).
+    """
+    from apps.core.views import _dosyayi_gonder
+
+    from .models import PaylasilanFotograf
+
+    kayit = get_object_or_404(
+        PaylasilanFotograf, dosya_id=dosya_id, kullanici=request.user
+    )
+    return _dosyayi_gonder(request, kayit.dosya, "paylasilan.webp")

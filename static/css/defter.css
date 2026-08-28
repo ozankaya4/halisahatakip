@@ -2669,3 +2669,61 @@ p {
   border: 1px solid var(--cetvel);
   border-radius: var(--kose);
 }
+
+/* =========================================================================
+   Tema seçilmemişken sistem tercihine uy
+
+   Tema normalde sunucuda, çerezden uygulanıyor (`data-tema`) — sayfa açılırken
+   yanlış temanın bir an görünmemesi için. Ama iki durumda o öznitelik hiç
+   basılmıyor:
+
+     · çevrimdışı sayfası, cihazda saklanan kopyadan açılıyor ve bilerek
+       çerezsiz indiriliyor, dolayısıyla tema bilgisi taşımıyor
+     · siteye ilk kez gelen ziyaretçinin henüz çerezi yok
+
+   İkisinde de sayfa açık temada çıkıyordu; koyu tema kullanan biri için
+   çevrimdışı sayfası göz alıyordu. Aşağıdaki blok yalnızca `data-tema`
+   YOKKEN devreye giriyor, yani sunucunun verdiği açık kararı hiçbir zaman
+   ezmiyor.
+   ====================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) {
+    --kagit: #14150f;
+    --kagit-ust: #1c1e17;
+    --kagit-golge: #101109;
+    --murekkep: #eae6d8;
+    --murekkep-yumusak: #a8a698;
+    --murekkep-soluk: #77766a;
+    --cetvel: #33352a;
+    --cetvel-koyu: #4a4c3c;
+
+    --yesil: #85bf9d;
+    --yesil-parlak: #a2d4b6;
+    --yesil-sis: #1b2a21;
+
+    --kiremit: #e08a63;
+    --kiremit-sis: #2c1f18;
+    --hardal: #d2ab52;
+    --hardal-sis: #2a2416;
+
+    color-scheme: dark;
+  }
+}
+
+/* Paylaş menüsünden gelen fotoğrafların önizlemesi. */
+.paylasim-onizleme {
+  list-style: none;
+  padding: 0;
+  margin-block: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.paylasim-onizleme img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--cetvel);
+  border-radius: var(--kose);
+}

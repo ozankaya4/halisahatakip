@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block baslik %}Paylaşılan fotoğraflar · {{ site_adi }}{% endblock %}
+
+{% comment %}
+Android'in paylaş menüsünden gelen fotoğraflar için maç seçme sayfası.
+
+Dosyalar buraya gelmeden önce yükleme hattından geçti: doğrulandı, WEBP'ye
+yeniden kodlandı, EXIF'i silindi. Burada yalnızca hangi maça ait oldukları
+soruluyor ve bağlama işi CSRF korumalı bu formdan geçiyor.
+{% endcomment %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Paylaşım</p>
+        <h1>Hangi maça eklensin?</h1>
+      </div>
+    </div>
+
+    {% if not bekleyenler %}
+      <div class="bos-durum">
+        <p><strong>Bekleyen fotoğraf yok.</strong></p>
+        <p class="kucuk solgun">
+          Telefonun galerisinden bir fotoğraf seçip <strong>Paylaş →
+          Halısaha Defteri</strong> dediğinde burada listelenir.
+        </p>
+        <p><a class="dugme" href="{% url 'core:dashboard' %}">Panele dön</a></p>
+      </div>
+    {% elif not maclar %}
+      <div class="kutu kutu-uyari">
+        <p>
+          <strong>{{ bekleyenler|length }} fotoğraf bekliyor</strong> ama
+          fotoğraf ekleyebileceğin bir maç yok.
+        </p>
+        <p class="kucuk">
+          Maç fotoğrafını yalnızca grup yöneticisi yükleyebiliyor. Yöneticisi
+          olduğun bir grupta maç oluşturduğunda buradan ekleyebilirsin.
+        </p>
+      </div>
+    {% else %}
+      <p class="solgun">
+        {{ bekleyenler|length }} fotoğraf paylaşıldı. Ekleneceği maçı seç.
+      </p>
+
+      <ul class="paylasim-onizleme">
+        {% for kayit in bekleyenler %}
+          <li>
+            <img src="{{ kayit.url }}" alt="" width="72" height="72"
+                 loading="lazy">
+          </li>
+        {% endfor %}
+      </ul>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <fieldset class="alan">
+          <legend>Maç</legend>
+          <div class="secenek-satiri secenek-dikey">
+            {% for mac in maclar %}
+              <label class="secenek">
+                <input type="radio" name="mac" value="{{ mac.pk }}"
+                       {% if forloop.first %}checked{% endif %}>
+                <span>
+                  {{ mac.grup.ad }} · {{ mac.baslangic|date:"j F Y, H:i" }}
+                  {% if mac.konum %}<span class="kucuk solgun">· {{ mac.konum }}</span>{% endif %}
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <div class="satir">
+          <button class="dugme dugme-birincil" type="submit">Maça ekle</button>
+          <a class="dugme dugme-sessiz" href="{% url 'core:dashboard' %}">Vazgeç</a>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+{% endblock %}
