@@ -120,8 +120,10 @@ class GrupAkisiTesti(TestCase):
         _, ham = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=5)
 
         self.client.force_login(self.mert)
+        # Jeton artık URL yolunda değil, POST gövdesinde taşınıyor.
         yanit = self.client.post(
-            reverse("groups:davet_ile_katil", args=[ham]), {"katilma_notu": "Merhaba"}
+            reverse("groups:davet_ile_katil"),
+            {"jeton": ham, "onayla": "1", "katilma_notu": "Merhaba"},
         )
         self.assertEqual(yanit.status_code, 200)
 
@@ -156,7 +158,9 @@ class GrupAkisiTesti(TestCase):
         kayit.save(update_fields=["son_kullanma"])
 
         self.client.force_login(self.mert)
-        yanit = self.client.get(reverse("groups:davet_ile_katil", args=[ham]))
+        yanit = self.client.post(
+            reverse("groups:davet_ile_katil"), {"jeton": ham}
+        )
         self.assertEqual(yanit.status_code, 404)
 
     def test_uye_yonetici_yapamaz(self):
@@ -4650,21 +4654,21 @@ class GuvenlikIncelemesiTesti(TestCase):
         self.assertIn("YENİDEN BAŞLATILMADI", betik)
 
 
-class AcikBulgularTesti(TestCase):
+class GuvenlikKararlariTesti(TestCase):
     """
-    Henüz kapatılmamış bulgular (E8, E9) ve kapatılan E7'nin nöbetçisi.
+    Güvenlik incelemesinden çıkan kalıcı kararların nöbetçisi.
 
-    Buradaki testler bir düzeltmeyi değil, bilinen bir açığın bugünkü
-    davranışını sabitliyor. Amaçları iki tane:
+    İki tür test var:
 
-      1. Bulgunun gerçekten var olduğunu kanıtlamak (belge iddiada
-         bulunmuyor, test gösteriyor).
-      2. Davranış değişirse haber vermek. Biri açığı kapattığında test
-         kırılır ve bu dosyayla belgenin birlikte güncellenmesi gerekir.
+      * KAPATILAN bulgular (E7, E9). Bunlar bir dönem açığın VARLIĞINI
+        sabitliyordu; düzeltildiklerinde tersine çevrildiler. Şimdi
+        düzeltmenin yerinde durduğunu doğruluyorlar.
+      * BİLİNÇLİ TASARIM kararları. Kodun "yanlış" görünen ama bilerek öyle
+        yazıldığı yerler. Test, birinin bunları hata sanıp "düzeltmesini"
+        engelliyor.
 
-    Bir test kırıldığında yapılacak şey onu düzeltmek değil,
-    deploy/play/test-bulgulari.md içindeki ilgili satırı "kapatıldı"ya
-    çevirmek.
+    Bir test kırıldığında ilk soru "kodu mu düzeltmeliyim" değil, "bu karar
+    değişti mi" olmalı.
     """
 
     def setUp(self):
@@ -4694,19 +4698,23 @@ class AcikBulgularTesti(TestCase):
                 mac=self.mac, kullanici=k, yanit=Katilim.Yanit.GELIYORUM, katildi=True
             )
 
-    def test_acik_e8_yonetici_oy_vermeden_puanlari_gorebiliyor(self):
+    # -- Bilinçli tasarım: yönetici puanları görebilir ----------------------
+    def test_tasarim_yonetici_puan_kapisindan_muaf(self):
         """
-        AÇIK BULGU E8 — yönetici ayrıcalığı puan kapısını atlıyor.
+        BİLİNÇLİ TASARIM — yönetici, oy vermeden de puanları görebilir.
 
-        B1 ve B2'de kapatılan şey şuydu: kimse kendi oyunu vermeden
-        başkalarının ortalamasına bakıp ona göre oy veremesin.
-        puan_gorunurlugu() grup yöneticisini bu kuraldan muaf tutuyor, ama
-        yönetici de sahaya çıkan ve puanlanan bir oyuncu. Yani hiç oy
-        vermeden herkesin ortalamasını görüp ondan sonra oy verebiliyor —
-        tam olarak engellenmek istenen davranış.
+        Puanlar normalde maçtaki herkesi puanlayana kadar gizli (bkz.
+        apps/ratings/gorunurluk.py). Grup yöneticisi bu kuraldan muaf:
+        maç sayfasında, sıralamada ve üye istatistiklerinde puanları her
+        zaman görüyor.
 
-        Yöneticiliğin kendisi az bulunur bir şey değil: 24 kişilik bir
-        grupta yönetici sayısına sınır yok ve rol tek tıkla veriliyor.
+        Bu bir açık değil, grubun tercihi. Yönetici grubu yönetebilmek için
+        ne olup bittiğini görmek zorunda: karantinaya düşen oyları
+        inceliyor, yanlış girilmiş kadroyu düzeltiyor, şikâyetlere bakıyor.
+        Kapıyı ona da kapatmak, yönetim işini körlemesine yapmak demekti.
+
+        Test bunu, biri hata sanıp "düzeltmesin" diye sabitliyor. Karar
+        değişirse önce bu testin gerekçesi değişmeli.
         """
         from apps.ratings.gorunurluk import puan_gorunurlugu
 
@@ -4721,54 +4729,113 @@ class AcikBulgularTesti(TestCase):
         sade_uye = puan_gorunurlugu(self.mac, self.oyuncular[0])
         self.assertFalse(
             sade_uye.gorebilir,
-            "Sade üye yöneticiyi puanlamadığı için görememeli",
+            "Sade üye için kapı açık kalmış; kural yalnızca yöneticiyi muaf tutmalı",
         )
 
         yonetici_durumu = puan_gorunurlugu(self.mac, self.yonetici)
         self.assertTrue(
             yonetici_durumu.gorebilir,
-            "AÇIK BULGU KAPATILMIŞ: yönetici artık oy vermeden göremiyor. "
-            "test-bulgulari.md içindeki E8 satırını kapatıldı olarak güncelle.",
+            "Yönetici muafiyeti kaldırılmış. Bu bilinçli bir tercihti; "
+            "değiştirmeden önce README'deki 'Puanlama kuralları' notunu oku.",
         )
         self.assertTrue(yonetici_durumu.yonetici_ayricaligi)
-        self.assertEqual(
-            Puan.objects.filter(mac=self.mac, puanlayan=self.yonetici).count(),
-            0,
-            "Yönetici tek bir oy bile vermemişti",
-        )
 
-    def test_acik_e9_davet_jetonu_url_yolunda_tasiniyor(self):
+    # -- E9 kapatıldı: jeton URL yolunda değil ------------------------------
+    def test_e9_kapandi_davet_jetonu_url_yolunda_degil(self):
         """
-        AÇIK BULGU E9 — ham davet jetonu erişim günlüklerine düşüyor.
+        E9 KAPATILDI — ham davet jetonu artık erişim günlüklerine düşmüyor.
 
-        Model, jetonu bilerek saklamıyor: veritabanında yalnızca SHA-256
+        Model jetonu bilerek saklamıyor: veritabanında yalnızca SHA-256
         özeti var, gerekçesi de "veritabanı sızsa bile çalışan davet
-        bağlantısı üretilemez". Ama bağlantının kendisi jetonu URL YOLUNDA
-        taşıyor ve bu yol iki ayrı yere düz metin olarak yazılıyor:
+        bağlantısı üretilemez". Ama bağlantı jetonu URL YOLUNDA taşıyordu ve
+        o yol iki ayrı yere düz metin yazılıyordu: nginx erişim günlüğü ve
+        gunicorn access_log_format içindeki istek satırı. Günlük okuyabilen
+        biri çalışan davet bağlantısı elde ediyordu.
 
-          * nginx erişim günlüğü (location / bloğunda access_log kapalı değil)
-          * gunicorn access_log_format içindeki %(r)s alanı
-
-        Jeton varsayılan olarak 7 gün ve 25 kullanım geçerli. Yani günlük
-        okuyabilen biri (log toplayıcı, yedek, destek erişimi) çalışan davet
-        bağlantısı elde ediyor — özet saklamanın engellemek istediği şeyin
-        aynısı, başka bir kapıdan.
+        Jeton artık adresin # işaretinden sonraki parçasında taşınıyor.
+        Tarayıcı bu parçayı sunucuya hiç göndermiyor; sunucuya yalnızca POST
+        gövdesinde ulaşıyor ve gövde günlüklenmiyor.
         """
         davet, ham_jeton = DavetBagi.olustur(
             grup=self.grup, olusturan=self.yonetici, gun=7, max_kullanim=25
         )
 
-        # Özet saklanıyor, ham jeton saklanmıyor: burası doğru çalışıyor.
+        # Özet saklanıyor, ham jeton saklanmıyor.
         self.assertNotEqual(davet.jeton_ozet, ham_jeton)
         self.assertEqual(davet.jeton_ozet, jeton_ozeti(ham_jeton))
 
-        adres = reverse("groups:davet_ile_katil", kwargs={"jeton": ham_jeton})
-        self.assertIn(
-            ham_jeton,
-            adres,
-            "AÇIK BULGU KAPATILMIŞ: jeton artık URL yolunda değil. "
-            "test-bulgulari.md içindeki E9 satırını kapatıldı olarak güncelle.",
+        adres = reverse("groups:davet_ile_katil")
+        self.assertNotIn(ham_jeton, adres)
+        self.assertEqual(adres, "/gruplar/katil/")
+
+    def test_e9_kapandi_uretilen_baglanti_jetonu_parcada_tasiyor(self):
+        """Yöneticiye gösterilen bağlantı da jetonu yolda taşımamalı."""
+        self.client.force_login(self.yonetici)
+        govde = self.client.post(
+            reverse("groups:davetler", kwargs={"genel_id": self.grup.genel_id}),
+            {"gun": 7, "max_kullanim": 25, "etiket": ""},
+        ).content.decode("utf-8")
+
+        import re
+
+        eslesme = re.search(r"(https?://[^\s<\"]*?/gruplar/katil/#[^\s<\"]+)", govde)
+        self.assertIsNotNone(eslesme, "Yeni davet bağlantısı sayfada bulunamadı")
+        bag = eslesme.group(1)
+
+        yol, _, parca = bag.partition("#")
+        self.assertTrue(yol.endswith("/gruplar/katil/"))
+        self.assertTrue(parca, "Jeton # işaretinden sonra gelmeli")
+        # Jetonun kendisi yolun içinde GEÇMEMELİ.
+        self.assertNotIn(parca, yol)
+
+    def test_e9_kapandi_jeton_govdeden_okunuyor(self):
+        """Katılma, jeton POST gövdesinde geldiğinde çalışmalı."""
+        _, ham = DavetBagi.olustur(
+            grup=self.grup, olusturan=self.yonetici, gun=7, max_kullanim=25
         )
+        yabanci = kullanici("yeni@example.com", "Yeni Oyuncu")
+        self.client.force_login(yabanci)
+
+        yanit = self.client.post(
+            reverse("groups:davet_ile_katil"),
+            {"jeton": ham, "onayla": "1", "katilma_notu": "Merhaba"},
+        )
+        self.assertEqual(yanit.status_code, 200)
+        self.assertEqual(
+            self.grup.uyelik(yabanci).durum, Uyelik.Durum.BEKLIYOR
+        )
+
+    def test_jetonsuz_acilis_kod_sayfasini_veriyor(self):
+        """
+        Betik jetonu yerleştirene kadar sayfa jetonsuz açılıyor.
+
+        Bu, çıkmaz sokak olmamalı: betik çalışmazsa kullanıcı kodu elle
+        yapıştırabilmeli.
+        """
+        self.client.force_login(self.oyuncular[0])
+        yanit = self.client.get(reverse("groups:davet_ile_katil"))
+        self.assertEqual(yanit.status_code, 200)
+        govde = yanit.content.decode("utf-8")
+        self.assertIn('name="jeton"', govde)
+        self.assertIn("data-davet-elle", govde)
+
+    def test_baglantiya_tiklamak_tek_basina_istek_gondermiyor(self):
+        """
+        Jeton geçerli olsa bile, önce önizleme çıkıyor.
+
+        Aksi hâlde bağlantıya tıklamak sessizce katılma isteği gönderirdi;
+        kişi hangi gruba istek attığını görmeden üyelik sırasına girerdi.
+        """
+        _, ham = DavetBagi.olustur(
+            grup=self.grup, olusturan=self.yonetici, gun=7, max_kullanim=25
+        )
+        yabanci = kullanici("bakan@example.com", "Bakan Kişi")
+        self.client.force_login(yabanci)
+
+        yanit = self.client.post(reverse("groups:davet_ile_katil"), {"jeton": ham})
+        self.assertEqual(yanit.status_code, 200)
+        self.assertContains(yanit, self.grup.ad)
+        self.assertIsNone(self.grup.uyelik(yabanci))
 
     def test_e7_kapandi_sohbet_acik_anahtari_dogruluyor(self):
         """

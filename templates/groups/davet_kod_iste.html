@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block baslik %}Davet bağlantısı · {{ site_adi }}{% endblock %}
+
+{% comment %}
+Davet bağlantısının açılış sayfası.
+
+Jeton adresin # işaretinden sonraki parçasında geliyor ve tarayıcı o parçayı
+sunucuya HİÇ göndermiyor. static/js/davet.js onu okuyup aşağıdaki gizli alana
+yazıyor ve formu kendiliğinden gönderiyor, yani jeton sunucuya yalnızca POST
+gövdesinde ulaşıyor; erişim günlüklerine düşmüyor.
+
+Betik çalışmazsa bu sayfa görünür kalıyor ve kullanıcıdan kodu elle
+yapıştırması isteniyor. Kod zaten adres çubuğunda duruyor, yani çıkmaz sokak
+değil.
+{% endcomment %}
+
+{% block icerik %}
+  <div class="form-dar">
+    <div class="defter-basligi">
+      <div>
+        <p class="uststart">Davet</p>
+        <h1>Gruba katıl</h1>
+      </div>
+    </div>
+
+    <form method="post" novalidate id="davet-formu" data-davet-formu>
+      {% csrf_token %}
+
+      {# Betik varsa doldurup gönderiyor; yoksa kullanıcı elle yapıştırıyor. #}
+      <div class="alan" data-davet-elle hidden>
+        <label for="id_jeton">Davet kodu</label>
+        <input type="text" id="id_jeton" name="jeton" autocomplete="off"
+               spellcheck="false" autocapitalize="off">
+        <p class="kucuk solgun">
+          Adres çubuğundaki bağlantıda <strong>#</strong> işaretinden sonra
+          gelen kısmı buraya yapıştır.
+        </p>
+      </div>
+
+      <p class="islem-durumu" data-davet-durum>Davet kontrol ediliyor…</p>
+
+      <div class="satir" data-davet-dugmeler hidden>
+        <button class="dugme dugme-birincil" type="submit">Devam et</button>
+        <a class="dugme dugme-sessiz" href="{% url 'core:dashboard' %}">Vazgeç</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+
+{% block ekstra_js %}
+  <script type="module" src="{% static 'js/davet.js' %}"></script>
+{% endblock %}

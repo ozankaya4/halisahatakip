@@ -21,8 +21,17 @@
       </p>
     </div>
 
+    {% comment %}
+    Jeton gizli alanda taşınıyor, adreste değil. Böylece bu adım da erişim
+    günlüklerine jeton bırakmıyor (bkz. static/js/davet.js).
+
+    "onayla" alanı, bağlantıyı açmanın tek başına katılma isteği göndermesini
+    engelliyor: istek ancak bu form gönderilince oluşuyor.
+    {% endcomment %}
     <form method="post" novalidate>
       {% csrf_token %}
+      <input type="hidden" name="jeton" value="{{ jeton }}">
+      <input type="hidden" name="onayla" value="1">
       {% include "partials/_form.html" %}
       <div class="satir">
         <button class="dugme dugme-birincil" type="submit">Katılma isteği gönder</button>

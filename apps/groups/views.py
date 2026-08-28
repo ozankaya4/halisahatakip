@@ -174,8 +174,16 @@ def davetler(request, grup):
                 etiket=form.cleaned_data["etiket"],
             )
             # Ham jeton yalnızca burada, bir kez gösterilir; DB'de özeti var.
-            yeni_bag = request.build_absolute_uri(
-                reverse("groups:davet_ile_katil", kwargs={"jeton": ham_jeton})
+            #
+            # Jeton adresin # işaretinden SONRA duruyor. Tarayıcı bu parçayı
+            # sunucuya hiç göndermiyor, dolayısıyla erişim günlüklerine de
+            # girmiyor. Yolun içinde taşındığı sürece, veritabanında yalnızca
+            # özetini saklamanın anlamı kalmıyordu: günlüğü okuyan çalışan bir
+            # davet bağlantısı elde ediyordu.
+            yeni_bag = (
+                request.build_absolute_uri(reverse("groups:davet_ile_katil"))
+                + "#"
+                + ham_jeton
             )
             messages.success(
                 request,
@@ -209,13 +217,29 @@ def davet_iptal(request, grup, davet_id: int):
 
 
 @login_required
-def davet_ile_katil(request, jeton: str):
+def davet_ile_katil(request):
     """
     Davet bağlantısının açılış sayfası.
 
     Bağlantı kişiyi doğrudan üye yapmaz: üyelik "onay bekliyor" durumunda
     açılır ve yöneticilere bildirim gider. Onay olmadan grup içeriği görünmez.
+
+    JETON URL YOLUNDA DEĞİL. Adresin # işaretinden sonraki parçasında geliyor;
+    tarayıcı bu parçayı sunucuya hiç göndermiyor. static/js/davet.js onu okuyup
+    gizli alana yazıyor ve sayfa POST ediyor, yani jeton sunucuya yalnızca
+    istek GÖVDESİNDE ulaşıyor. Gövde ne nginx ne gunicorn erişim günlüğüne
+    yazılıyor.
+
+    Betik çalışmazsa sayfa kullanıcıdan kodu elle yapıştırmasını istiyor;
+    kod zaten adres çubuğunda duruyor.
     """
+    jeton = (request.POST.get("jeton") or "").strip()
+
+    # GET: henüz jeton yok. Sayfa açılıyor, betik jetonu yerleştirip
+    # gönderiyor. Jetonsuz POST da (betik yok, alan boş) buraya düşüyor.
+    if not jeton:
+        return render(request, "groups/davet_kod_iste.html", status=200)
+
     davet = DavetBagi.jetondan_bul(jeton)
     if davet is None or not davet.gecerli_mi:
         return render(request, "groups/davet_gecersiz.html", status=404)
@@ -228,6 +252,16 @@ def davet_ile_katil(request, jeton: str):
         return redirect("groups:detay", genel_id=grup.genel_id)
     if mevcut and mevcut.durum == Uyelik.Durum.BEKLIYOR:
         return render(request, "groups/katilma_beklemede.html", {"grup": grup})
+
+    # Jeton geçerli ama kullanıcı henüz "katıl" demedi: önizlemeyi göster.
+    # Katılma isteği ancak formda "onayla" alanı geldiğinde oluşuyor, yoksa
+    # bağlantıya tıklamak tek başına istek göndermiş sayılırdı.
+    if not request.POST.get("onayla"):
+        return render(
+            request,
+            "groups/davet_kabul.html",
+            {"grup": grup, "form": KatilmaFormu(), "jeton": jeton},
+        )
 
     if request.method == "POST":
         form = KatilmaFormu(request.POST)
@@ -274,7 +308,12 @@ def davet_ile_katil(request, jeton: str):
     else:
         form = KatilmaFormu()
 
-    return render(request, "groups/davet_kabul.html", {"grup": grup, "form": form})
+    # Form geçersizse önizlemeye dön; jeton gizli alanda taşınmaya devam etsin.
+    return render(
+        request,
+        "groups/davet_kabul.html",
+        {"grup": grup, "form": form, "jeton": jeton},
+    )
 
 
 # ---------------------------------------------------------------------------

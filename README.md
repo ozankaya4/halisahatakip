@@ -29,7 +29,9 @@ python manage.py runserver
 
 1. **Grup kur.** Kuran kişi otomatik olarak yönetici olur.
 2. **Davet bağlantısı oluştur** (Grup → Davet bağlantıları). Bağlantı yalnızca
-   bir kez gösterilir; veritabanında sadece şifreli özeti saklanır.
+   bir kez gösterilir; veritabanında sadece şifreli özeti saklanır. Jeton
+   adresin `#` işaretinden sonrasında durur: tarayıcılar bu parçayı sunucuya
+   göndermediği için erişim günlüklerine de düşmez.
 3. **Katılma isteklerini onayla.** Bağlantıyı kullanan kişi doğrudan üye olmaz —
    isteği size bildirim olarak düşer, siz onaylayana kadar grubun hiçbir
    içeriğini göremez.
@@ -57,6 +59,19 @@ Ek olarak: bir oyuncunun ortalaması, en az **3** puan toplanana kadar
 gösterilmez (`RATING_MIN_VOTES_TO_DISPLAY`) — iki kişilik ortalama yanıltıcı
 olduğu için. Sonuçlar da siz kendi oyunuzu verene kadar gizlidir; böylece
 başkasının ortalamasına bakıp ona göre oy vermek mümkün olmaz.
+
+**Yönetici bu kapıdan muaftır — bilinçli bir tercih.** Grup yöneticisi maç
+sayfasında, sıralamada ve üye istatistiklerinde puanları kendi oyunu vermeden
+de görür. Sebebi, yönetim işinin körlemesine yapılamaması: karantinaya düşen
+şüpheli oyları inceleyen, yanlış girilmiş kadroyu düzelten ve şikâyetlere bakan
+kişi ne olup bittiğini görmek zorunda. Yöneticiyi de kapının arkasında
+bırakmak, grubu yönetmeyi imkânsız kılardı.
+
+Muafiyetin bedeli açık: yönetici puanlara bakıp ondan sonra oy verebilir. Bu
+küçük bir arkadaş grubunda kabul edilebilir bir güven varsayımı sayıldı. Karar
+`apps/ratings/gorunurluk.py` içinde `yonetici_ayricaligi` olarak duruyor ve
+`apps/core/tests.py::GuvenlikKararlariTesti` ile sabitlendi; biri hata sanıp
+kaldırırsa test kırılıyor.
 
 Bu değerlerin hepsi `halisaha/settings.py` sonundaki
 "Uygulama kuralları" bölümünden değiştirilebilir.

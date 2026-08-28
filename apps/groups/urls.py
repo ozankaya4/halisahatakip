@@ -7,8 +7,18 @@ app_name = "groups"
 urlpatterns = [
     path("", views.liste, name="liste"),
     path("yeni/", views.olustur, name="olustur"),
-    # Davet bağlantısının açılış sayfası — jeton yalnızca burada kullanılır.
-    path("katil/<str:jeton>/", views.davet_ile_katil, name="davet_ile_katil"),
+    # Davet bağlantısının açılış sayfası.
+    #
+    # Jeton URL YOLUNDA DEĞİL, adresin # işaretinden sonraki parçasında
+    # taşınıyor. Tarayıcılar bu parçayı sunucuya hiç göndermez: ne istek
+    # satırına, ne Referer başlığına, ne de erişim günlüklerine girer.
+    #
+    # Eskiden yol "katil/<jeton>/" idi. Veritabanı jetonun yalnızca SHA-256
+    # özetini saklıyor ("veritabanı sızsa bile çalışan davet üretilemesin"
+    # diye) ama jetonun kendisi nginx ve gunicorn erişim günlüklerine düz
+    # metin olarak yazılıyordu; özet saklamanın amacı o kapıdan boşa
+    # çıkıyordu. Jeton artık sunucuya yalnızca POST gövdesinde ulaşıyor.
+    path("katil/", views.davet_ile_katil, name="davet_ile_katil"),
     path("<uuid:genel_id>/", views.detay, name="detay"),
     path("<uuid:genel_id>/duzenle/", views.duzenle, name="duzenle"),
     path("<uuid:genel_id>/uyeler/", views.uyeler, name="uyeler"),
