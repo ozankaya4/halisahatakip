@@ -273,6 +273,16 @@ def davet_ile_katil(request):
 
         if form.is_valid():
             with transaction.atomic():
+                # Hak ÖNCE alınıyor, üyelik sonra açılıyor.
+                #
+                # Sıra önemli: kullanım hakkı kalmadıysa hiçbir şey
+                # yaratmadan çıkıyoruz. Ters sırada, hakkı bitmiş bir
+                # bağlantıyla üyelik açılıp sayaç artmamış olurdu.
+                if not davet.kullanildi():
+                    return render(
+                        request, "groups/davet_gecersiz.html", status=404
+                    )
+
                 if mevcut:
                     # Daha önce reddedilmiş/ayrılmış: aynı kaydı yeniden aç.
                     mevcut.durum = Uyelik.Durum.BEKLIYOR
@@ -289,7 +299,6 @@ def davet_ile_katil(request):
                         durum=Uyelik.Durum.BEKLIYOR,
                         katilma_notu=form.cleaned_data["katilma_notu"],
                     )
-                davet.kullanildi()
 
                 yoneticiler = [
                     u.kullanici

@@ -19,6 +19,7 @@ import tempfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
@@ -5385,3 +5386,222 @@ class ManageYardimMetniTesti(TestCase):
         self.assertIn("os.name", kaynak)
         # Windows yolu tek başına, koşulsuz kalmamalı.
         self.assertIn("source .venv/bin/activate", kaynak)
+
+
+class DavetKullanimYarisiTesti(TestCase):
+    """
+    Davet bağlantısı azami kullanımını aşamamalı.
+
+    Görünüm eskiden önce `gecerli_mi` diye bakıyor, sonra sayacı artırıyordu.
+    Arada geçen sürede başka bir istek de aynı kontrolden geçebiliyordu:
+    iki kişi aynı anda son hakkı görüp ikisi de kullanabiliyordu.
+    """
+
+    def setUp(self):
+        self.ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        self.grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=self.ozan)
+        Uyelik.objects.create(
+            grup=self.grup, kullanici=self.ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+
+    def test_hak_bittiginde_false_donuyor(self):
+        davet, _ = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=2)
+        self.assertTrue(davet.kullanildi())
+        self.assertTrue(davet.kullanildi())
+        # Üçüncüsü hakkı alamamalı.
+        self.assertFalse(davet.kullanildi())
+
+        davet.refresh_from_db()
+        self.assertEqual(davet.kullanim_sayisi, 2)
+
+    def test_sayac_azamiyi_asmiyor(self):
+        """
+        Asıl yarış: sınırdan fazla deneme, sayacı sınırın üstüne çıkarmamalı.
+
+        Koşul artık sayacı artıran sorgunun içinde, ayrı bir kontrol adımı
+        yok; fazladan denemeler 0 satır güncelliyor.
+        """
+        davet, _ = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=3)
+        alinan = sum(1 for _ in range(10) if davet.kullanildi())
+
+        davet.refresh_from_db()
+        self.assertEqual(alinan, 3)
+        self.assertEqual(davet.kullanim_sayisi, 3)
+
+    def test_iptal_edilmis_davet_hak_vermiyor(self):
+        davet, _ = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=5)
+        davet.iptal_edildi = True
+        davet.save(update_fields=["iptal_edildi"])
+        self.assertFalse(davet.kullanildi())
+
+    def test_suresi_dolmus_davet_hak_vermiyor(self):
+        davet, _ = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=5)
+        davet.son_kullanma = timezone.now() - timezone.timedelta(hours=1)
+        davet.save(update_fields=["son_kullanma"])
+        self.assertFalse(davet.kullanildi())
+
+    def test_hak_bitmisken_uyelik_acilmiyor(self):
+        """
+        Sıra önemli: hak alınamadıysa hiçbir şey yaratılmamalı.
+
+        Ters sırada, hakkı bitmiş bir bağlantıyla üyelik açılıp sayaç
+        artmamış olurdu.
+        """
+        davet, ham = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=1)
+        davet.kullanildi()  # tek hak tükendi
+
+        yeni = kullanici("yeni@example.com", "Yeni Oyuncu")
+        self.client.force_login(yeni)
+        yanit = self.client.post(
+            reverse("groups:davet_ile_katil"),
+            {"jeton": ham, "onayla": "1", "katilma_notu": "Merhaba"},
+        )
+        self.assertEqual(yanit.status_code, 404)
+        self.assertIsNone(self.grup.uyelik(yeni))
+
+    def test_bayat_nesneler_ayni_hakki_iki_kez_alamiyor(self):
+        """
+        Asıl yarışın birebir canlandırması.
+
+        İki istek daveti aynı anda okuyor, ikisi de "1 hak kaldı" görüyor,
+        sonra ikisi de kullanmaya çalışıyor. Eski kodda ikisi de geçiyordu:
+        `gecerli_mi` kontrolü ile sayacın artırılması ayrı adımlardı.
+
+        Burada iki AYRI bellek nesnesi aynı satırı temsil ediyor; ikisi de
+        `kullanim_sayisi = 0` görmüş durumda. Koşul artık güncellemenin
+        içinde olduğu için ikincisi 0 satır güncelliyor.
+        """
+        davet, _ = DavetBagi.olustur(self.grup, self.ozan, gun=7, max_kullanim=1)
+
+        birinci = DavetBagi.objects.get(pk=davet.pk)
+        ikinci = DavetBagi.objects.get(pk=davet.pk)
+        # İkisi de aynı anda "hak var" görüyor.
+        self.assertTrue(birinci.gecerli_mi)
+        self.assertTrue(ikinci.gecerli_mi)
+
+        self.assertTrue(birinci.kullanildi())
+        self.assertFalse(ikinci.kullanildi(), "Aynı hak iki kez verildi")
+
+        davet.refresh_from_db()
+        self.assertEqual(davet.kullanim_sayisi, 1)
+
+
+class YuklemePikselButcesiTesti(TestCase):
+    """
+    Tek istekteki toplam piksel sınırı.
+
+    Kenar sınırı tek dosyayı kısıtlıyordu ama isteğin tamamını değil:
+    20 dosya x 6000x6000 = 720 megapiksel tek istekte sırayla çözülüyordu.
+    Bellek sorun değil (dosyalar teker teker işleniyor), asıl maliyet işçi
+    zamanı.
+    """
+
+    def _dosya(self, en, boy):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        tampon = io.BytesIO()
+        Image.new("RGB", (en, boy), (30, 90, 60)).save(tampon, format="JPEG")
+        return SimpleUploadedFile("f.jpg", tampon.getvalue(), content_type="image/jpeg")
+
+    def test_normal_yukleme_geciyor(self):
+        """20 sıradan telefon fotoğrafı sığmalı; gerçek kullanım bozulmamalı."""
+        from apps.core.images import yukleme_butcesini_dogrula
+
+        dosyalar = [self._dosya(400, 300) for _ in range(20)]
+        toplam = yukleme_butcesini_dogrula(dosyalar)
+        self.assertLess(toplam, settings.MAX_UPLOAD_TOPLAM_PIKSEL)
+
+    @override_settings(MAX_UPLOAD_TOPLAM_PIKSEL=500_000)
+    def test_butceyi_asan_yukleme_reddediliyor(self):
+        from apps.core.images import yukleme_butcesini_dogrula
+
+        dosyalar = [self._dosya(600, 600) for _ in range(3)]  # ~1.08 MP
+        with self.assertRaises(ValidationError) as kutu:
+            yukleme_butcesini_dogrula(dosyalar)
+        # Mesaj ne yapılacağını söylemeli.
+        self.assertIn("megapiksel", str(kutu.exception))
+        self.assertIn("birkaç kez", str(kutu.exception))
+
+    @override_settings(MAX_UPLOAD_TOPLAM_PIKSEL=500_000)
+    def test_tek_dosya_sinirin_altindayken_toplam_asabiliyor(self):
+        """
+        Sınırın varlık sebebi: her dosya tek başına geçerli olabilir.
+
+        Kenar sınırı bu durumu yakalamıyordu, çünkü dosyaların hiçbiri
+        tek başına büyük değil.
+        """
+        from apps.core.images import gorseli_isle, MAC_FOTOGRAFI, yukleme_butcesini_dogrula
+
+        tek = self._dosya(600, 600)
+        gorseli_isle(tek, MAC_FOTOGRAFI)  # tek başına sorunsuz
+
+        with self.assertRaises(ValidationError):
+            yukleme_butcesini_dogrula([self._dosya(600, 600) for _ in range(3)])
+
+    @override_settings(MAX_UPLOAD_TOPLAM_PIKSEL=500_000)
+    def test_butce_asilinca_hicbir_dosya_cozulmuyor(self):
+        """
+        Reddetmenin ANLAMI, işi hiç yapmamak.
+
+        Dosyaları çözüp sonra reddetmek maliyeti ödeyip faydayı almamak
+        olurdu; denetim bu yüzden çözme döngüsünden önce.
+        """
+        from unittest.mock import patch
+
+        from apps.matches.forms import FotografFormu
+
+        dosyalar = [self._dosya(600, 600) for _ in range(3)]
+        with patch("apps.matches.forms.gorseli_isle") as sahte:
+            with self.assertRaises(ValidationError):
+                FotografFormu().temiz_gorseller(dosyalar)
+        self.assertFalse(sahte.called, "Bütçe aşılmışken dosya çözülmüş")
+
+    def test_bozuk_dosya_butce_denetimini_patlatmiyor(self):
+        """
+        Görsel olmayan dosyanın düzgün hata mesajını gorseli_isle veriyor.
+
+        Bütçe denetimi onu sessizce atlamalı, yoksa aynı sorun için iki
+        farklı mesaj çıkardı.
+        """
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from apps.core.images import yukleme_butcesini_dogrula
+
+        bozuk = SimpleUploadedFile("x.jpg", b"bu bir gorsel degil")
+        self.assertEqual(yukleme_butcesini_dogrula([bozuk]), 0)
+
+    def test_denetim_dosyayi_basa_sariyor(self):
+        """
+        Başlık okunduktan sonra dosya konumu korunmalı.
+
+        Aksi hâlde gorseli_isle boş içerik okur ve bütün yüklemeler
+        "geçerli bir görsel değil" diye reddedilirdi.
+        """
+        from apps.core.images import MAC_FOTOGRAFI, gorseli_isle, yukleme_butcesini_dogrula
+
+        dosyalar = [self._dosya(400, 300)]
+        yukleme_butcesini_dogrula(dosyalar)
+        icerik, ad = gorseli_isle(dosyalar[0], MAC_FOTOGRAFI)
+        self.assertTrue(ad.endswith(".webp"))
+        self.assertGreater(len(icerik.read()), 0)
+
+    def test_gercek_yukleme_akisi_calisiyor(self):
+        """Uçtan uca: bütçe içindeki yükleme hâlâ kaydediliyor."""
+        from apps.matches.models import MacFotografi
+
+        ozan = kullanici("ozan@example.com", "Ozan Kaya")
+        grup = Grup.objects.create(ad="Perşembe Ekibi", kurucu=ozan)
+        Uyelik.objects.create(
+            grup=grup, kullanici=ozan,
+            rol=Uyelik.Rol.YONETICI, durum=Uyelik.Durum.ONAYLI,
+        )
+        mac = Mac.objects.create(grup=grup, baslangic=timezone.now(), olusturan=ozan)
+
+        self.client.force_login(ozan)
+        yanit = self.client.post(
+            reverse("matches:fotograf_yukle", args=[mac.pk]),
+            {"dosyalar": [self._dosya(400, 300), self._dosya(400, 300)]},
+        )
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(MacFotografi.objects.filter(mac=mac).count(), 2)

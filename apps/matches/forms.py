@@ -1,6 +1,11 @@
 from django import forms
 
-from apps.core.images import DOSYA_SECICI_ACCEPT, MAC_FOTOGRAFI, gorseli_isle
+from apps.core.images import (
+    DOSYA_SECICI_ACCEPT,
+    MAC_FOTOGRAFI,
+    gorseli_isle,
+    yukleme_butcesini_dogrula,
+)
 
 from .models import Mac
 
@@ -117,7 +122,14 @@ class FotografFormu(forms.Form):
 
         Tek bir dosya bile reddedilirse tamamı reddedilir; böylece kullanıcı
         hangi dosyanın sorunlu olduğunu görür ve yarım yükleme oluşmaz.
+
+        Toplam piksel bütçesi ÖNCE denetleniyor: bütçeyi aşan bir istek, tek
+        bir dosya bile çözülmeden reddediliyor. Sınırın amacı zaten o işi hiç
+        yapmamak; dosyaları çözüp sonra reddetmek maliyeti ödeyip faydayı
+        almamak olurdu.
         """
+        yukleme_butcesini_dogrula(dosyalar)
+
         temiz = []
         for dosya in dosyalar:
             icerik, _ = gorseli_isle(dosya, MAC_FOTOGRAFI)

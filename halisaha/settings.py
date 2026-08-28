@@ -305,6 +305,19 @@ USE_X_ACCEL_REDIRECT = env("USE_X_ACCEL_REDIRECT")
 # --- Yükleme sınırları -----------------------------------------------------
 MAX_UPLOAD_SIZE = 8 * 1024 * 1024  # 8 MB, tek dosya
 MAX_IMAGE_DIMENSION = 6000  # px, kenar başına — dekompresyon bombası koruması
+
+# Tek istekte çözülebilecek TOPLAM piksel.
+#
+# Kenar sınırı tek dosyayı kısıtlıyor ama isteğin tamamını kısıtlamıyordu:
+# 20 dosya x 6000x6000 = 720 megapiksel, hepsi tek istekte, sırayla
+# çözülüyordu. Bellek sorun değil (dosyalar teker teker işleniyor), asıl
+# maliyet İŞÇİ ZAMANI: sunucuda ~20 MP/s ile 720 MP yaklaşık 35 saniye,
+# yani beş işçiden biri o kadar süre başka isteğe bakamıyor.
+#
+# 240 MP, gerçek kullanımı bozmadan en kötü durumu üçte birine indiriyor:
+# 20 tane sıradan telefon fotoğrafı (12 MP) tam sığıyor, 6 tane azami
+# boyutlu dosya da öyle. Aşan istek, hiçbir dosya çözülmeden reddediliyor.
+MAX_UPLOAD_TOPLAM_PIKSEL = 240_000_000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 500

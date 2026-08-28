@@ -31,7 +31,9 @@ python manage.py runserver
 2. **Davet bağlantısı oluştur** (Grup → Davet bağlantıları). Bağlantı yalnızca
    bir kez gösterilir; veritabanında sadece şifreli özeti saklanır. Jeton
    adresin `#` işaretinden sonrasında durur: tarayıcılar bu parçayı sunucuya
-   göndermediği için erişim günlüklerine de düşmez.
+   göndermediği için erişim günlüklerine de düşmez. Kullanım hakkı, sayacı
+   artıran sorgunun içinde denetlenir; aynı anda gelen iki istek azami
+   kullanımı aşamaz.
 3. **Katılma isteklerini onayla.** Bağlantıyı kullanan kişi doğrudan üye olmaz —
    isteği size bildirim olarak düşer, siz onaylayana kadar grubun hiçbir
    içeriğini göremez.
@@ -171,7 +173,10 @@ kapalı, çıkışta siliniyor (depo sahibi denetimiyle aynı yoldan).
 
 `apps/core/images.py` içinde:
 
-1. Boyut sınırı (8 MB) ve uzantı beyaz listesi.
+1. Boyut sınırı (8 MB) ve uzantı beyaz listesi. Ayrıca istek başına toplam
+   piksel bütçesi (`MAX_UPLOAD_TOPLAM_PIKSEL`, 240 MP): kenar sınırı tek
+   dosyayı kısıtlıyor ama 20 dosya x 6000x6000 tek istekte 720 megapiksel
+   ediyordu. Bütçe, dosyalar çözülmeden önce başlıklardan denetleniyor.
 2. `Pillow.verify()` ile yapı doğrulaması.
 3. Gerçek biçim kontrolü — **SVG kabul edilmez** (içinde `<script>` taşıyabilir).
 4. Çözünürlük sınırı ve dekompresyon bombası koruması.

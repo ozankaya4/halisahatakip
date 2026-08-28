@@ -252,8 +252,28 @@ class DavetBagi(ZamanDamgaliModel):
             return "Kullanım hakkı bitti"
         return "Geçerli"
 
-    def kullanildi(self) -> None:
-        # F() ile artırmak eşzamanlı isteklerde sayacın kaçmasını önler.
-        DavetBagi.objects.filter(pk=self.pk).update(
-            kullanim_sayisi=models.F("kullanim_sayisi") + 1
-        )
+    def kullanildi(self) -> bool:
+        """
+        Bir kullanım hakkını harcar. Hak kaldıysa True, kalmadıysa False.
+
+        Koşullar sayacı artıran SORGUNUN İÇİNDE; ayrı bir kontrol adımı yok.
+        Eskiden görünüm önce `gecerli_mi` diye bakıyor, sonra sayacı
+        artırıyordu. Arada geçen sürede başka bir istek de aynı kontrolden
+        geçebiliyordu: iki kişi aynı anda son hakkı görüp ikisi de
+        kullanabiliyordu, yani bağlantı azami kullanımını aşabiliyordu.
+        F() ile artırmak sayacın kaybolmasını engelliyordu ama sınırın
+        aşılmasını engellemiyordu; ikisi ayrı sorunlar.
+
+        Tek bir `UPDATE ... WHERE kullanim_sayisi < max_kullanim` hem
+        PostgreSQL'de hem SQLite'ta atomik: satır kilidi eşzamanlı istekleri
+        sıraya sokuyor, ikincisi koşulu artık sağlamadığı için 0 satır
+        güncelliyor. Dönen satır sayısı "hakkı ben mi aldım" sorusunun
+        cevabı oluyor.
+        """
+        guncellenen = DavetBagi.objects.filter(
+            pk=self.pk,
+            iptal_edildi=False,
+            son_kullanma__gt=timezone.now(),
+            kullanim_sayisi__lt=models.F("max_kullanim"),
+        ).update(kullanim_sayisi=models.F("kullanim_sayisi") + 1)
+        return guncellenen == 1

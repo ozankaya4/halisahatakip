@@ -261,3 +261,52 @@ def gorseli_isle(yuklenen, profil: GorselProfili) -> tuple[ContentFile, str]:
     cikti.seek(0)
     dosya_adi = f"{uuid.uuid4().hex}.webp"
     return ContentFile(cikti.read(), name=dosya_adi), dosya_adi
+
+
+def yukleme_butcesini_dogrula(dosyalar) -> int:
+    """
+    Tek istekteki dosyaların TOPLAM piksel sayısını denetler.
+
+    Kenar sınırı (MAX_IMAGE_DIMENSION) tek bir dosyayı kısıtlıyor ama isteğin
+    tamamını kısıtlamıyordu: 20 dosya x 6000x6000 = 720 megapiksel tek
+    istekte sırayla çözülebiliyordu. Bellek sorun değil — dosyalar teker
+    teker işleniyor — asıl maliyet işçi zamanı.
+
+    Denetim ÇÖZMEDEN önce yapılıyor. Pillow'un Image.open()'ı tembel: yalnızca
+    başlığı okuyup boyutu veriyor, pikselleri açmıyor. Böylece bütçeyi aşan
+    bir istek, tek bir dosya bile çözülmeden reddediliyor; sınırın amacı
+    zaten o işi hiç yapmamak.
+
+    Okunamayan dosyalar burada sessizce atlanıyor: onların düzgün hata
+    mesajını gorseli_isle() veriyor, iki yerde iki farklı mesaj çıkmasın.
+
+    Toplam piksel sayısını döner.
+    """
+    toplam = 0
+    for dosya in dosyalar:
+        try:
+            konum = dosya.tell()
+        except (AttributeError, OSError):
+            konum = None
+        try:
+            with Image.open(dosya) as sonda:
+                en, boy = sonda.size
+            toplam += max(en, 0) * max(boy, 0)
+        except Exception:
+            # Bozuk ya da görsel olmayan dosya; asıl doğrulama gorseli_isle'de.
+            pass
+        finally:
+            if konum is not None:
+                try:
+                    dosya.seek(konum)
+                except (AttributeError, OSError):
+                    pass
+
+    if toplam > settings.MAX_UPLOAD_TOPLAM_PIKSEL:
+        butce = settings.MAX_UPLOAD_TOPLAM_PIKSEL // 1_000_000
+        raise ValidationError(
+            f"Bu yüklemedeki fotoğraflar toplamda çok büyük "
+            f"({toplam // 1_000_000} megapiksel; sınır {butce}). "
+            f"Daha az fotoğrafı bir arada seçip birkaç kez yükleyin."
+        )
+    return toplam
